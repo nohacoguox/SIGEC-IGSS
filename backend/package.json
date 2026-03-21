@@ -1,0 +1,46 @@
+{
+  "name": "sigec-igss-backend",
+  "version": "1.0.0",
+  "description": "API SIGEC-IGSS (Node + TypeORM + PostgreSQL)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node src/index.ts",
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev:stable": "node start-stable.js",
+    "seed": "ts-node src/seeders/UnidadMedicaSeeder.ts",
+    "assign-admin-role": "ts-node src/seeders/AssignAdminRole.ts",
+    "migrate-user-roles": "ts-node src/migrations/migrate-user-roles.ts",
+    "remove-colaborador-role": "ts-node src/seeders/RemoveColaboradorRole.ts",
+    "seed-roles": "ts-node src/seeders/SeedRolesFromPermissions.ts",
+    "seed-departamentos-municipios": "ts-node src/seeders/SeedDepartamentosMunicipios.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/multer": "^2.0.0",
+    "@types/pdfkit": "^0.17.4",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.27",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.16.0",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
