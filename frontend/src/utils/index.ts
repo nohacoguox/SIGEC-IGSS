@@ -1,0 +1,1 @@
+export { formatFechaDMA } from './dateUtils';
