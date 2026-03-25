@@ -28,6 +28,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { Add as AddIcon, History as HistoryIcon, Refresh as RefreshIcon, Remove as RemoveIcon, Visibility as VisibilityIcon, ZoomIn as ZoomInIcon, ZoomOut as ZoomOutIcon } from '@mui/icons-material';
+import api from '../api';
+import { useNotification } from '../context/NotificationContext';
+import PdfViewerWithClick from './PdfViewerWithClick';
+
 const MOTIVOS_RECHAZO = [
   'Falta firma',
   'Fecha incorrecta o faltante',
@@ -36,10 +41,6 @@ const MOTIVOS_RECHAZO = [
   'No corresponde al tipo de documento',
   'Otro',
 ];
-import { Add as AddIcon, History as HistoryIcon, Refresh as RefreshIcon, Remove as RemoveIcon, Visibility as VisibilityIcon, ZoomIn as ZoomInIcon, ZoomOut as ZoomOutIcon } from '@mui/icons-material';
-import api from '../api';
-import { useNotification } from '../context/NotificationContext';
-import PdfViewerWithClick from './PdfViewerWithClick';
 
 type MunicipioOption = { id: number; nombre: string };
 
