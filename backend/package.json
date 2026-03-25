@@ -13,7 +13,8 @@
     "migrate-user-roles": "ts-node src/migrations/migrate-user-roles.ts",
     "remove-colaborador-role": "ts-node src/seeders/RemoveColaboradorRole.ts",
     "seed-roles": "ts-node src/seeders/SeedRolesFromPermissions.ts",
-    "seed-departamentos-municipios": "ts-node src/seeders/SeedDepartamentosMunicipios.ts"
+    "seed-departamentos-municipios": "ts-node src/seeders/SeedDepartamentosMunicipios.ts",
+    "seed-bootstrap-admin": "ts-node src/seeders/SeedBootstrapAdmin.ts"
   },
   "keywords": [],
   "author": "",

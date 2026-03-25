@@ -8,8 +8,33 @@ Esta guía asume:
 - Desarrollaste el proyecto en **Windows** (la carpeta en disco puede seguir llamándose `PortalDigitalIGSS` o ya la renombraste; da igual mientras el **código** sea el mismo).
 - En el **servidor Debian 12** ya tienes **PostgreSQL** creado (`igss`, `sigec_igss`, `portal_app`).
 - Quieres dejar el **backend (API)** y el **frontend (React)** corriendo en Debian, usando esa base de datos.
+- **Red institucional (IGSS):** el acceso será por **IP** o **nombre DNS interno** (no hace falta comprar dominio público ni certificado Let’s Encrypt si solo usáis HTTP dentro de la red). Los usuarios abrirán el sistema desde sus PCs con algo como `http://10.x.x.x` o `http://sigec.interno.igss` si IT os da un nombre.
+- **DHCP:** la URL del frontend se **congela en el build** (`REACT_APP_API_URL`). Si la IP del servidor **cambia**, hay que **volver a compilar** el frontend con la IP nueva. Por eso en producción se recomienda **IP fija** o **reserva DHCP por MAC** del servidor (pedirlo a redes/IT).
 
 **Carpeta recomendada en el servidor Linux:** `/var/www/sigec-igss` (minúsculas y guion; evita espacios y mayúsculas en rutas).
+
+**Usuario Linux recomendado:** un solo usuario para despliegue (por ejemplo `noe` o `deploy`) que sea **dueño** de `/var/www/sigec-igss`, ejecute `git pull`, `npm install`, `npm run build` y **PM2**. Evita correr la aplicación como `root` salvo tareas puntuales (`sudo` para Nginx, firewall, `apt`).
+
+### Servidor documentado: Palín / `servidor-igss` (IP fija)
+
+| Dato | Valor |
+|------|--------|
+| Equipo | `servidor-igss` (Debian 12) |
+| **IP fija en red institucional** | **`10.4.201.74`** |
+| URL que usarán los usuarios (HTTP, Nginx puerto 80) | **`http://10.4.201.74`** |
+| Contenido de **`frontend/.env`** (una línea) | `REACT_APP_API_URL=http://10.4.201.74` |
+
+Después de que redes/IT deje la IP fija o reservada por MAC, comprueba en el servidor: `hostname -I` debe seguir mostrando **`10.4.201.74`**. Si en el futuro cambiara la IP, habría que actualizar `frontend/.env` y volver a ejecutar `npm run build`.
+
+#### Checklist: qué haremos en orden (este despliegue)
+
+1. **Código** en `/var/www/sigec-igss` (clone o copia) y dependencias: `npm install` en `backend/` y `frontend/`.  
+2. **`backend/.env`**: PostgreSQL, `JWT_SECRET` (openssl), `DB_SYNCHRONIZE=true` solo la primera vez.  
+3. **Backend**: `npx tsc`, arranque de prueba, tablas OK → `DB_SYNCHRONIZE=false` → **PM2** (`sigec-igss-api`).  
+4. **`frontend/.env`** con `REACT_APP_API_URL=http://10.4.201.74` → **`npm run build`** (genera `frontend/build/`).  
+5. **Nginx**: sitio con `root` en `frontend/build` y `proxy_pass` de `/api/` a `127.0.0.1:3001`; recargar Nginx.  
+6. **Firewall (UFW)**: permitir SSH y HTTP (80).  
+7. **Prueba** desde **otra PC** del IGSS: abrir **`http://10.4.201.74`** (no `localhost` en el cliente).
 
 ---
 
@@ -26,7 +51,7 @@ Esta guía asume:
 9. [Dejar el API en segundo plano (PM2)](#9-dejar-el-api-en-segundo-plano-pm2)  
 10. [Compilar el frontend](#10-compilar-el-frontend)  
 11. [Nginx: servir la web y proxy del API](#11-nginx-servir-la-web-y-proxy-del-api)  
-12. [Firewall (UFW)](#12-firewall-ufw)  
+12. [Firewall (UFW) y red institucional](#12-firewall-ufw-y-red-institucional)  
 13. [Probar desde el navegador](#13-probar-desde-el-navegador)  
 14. [Actualizar el sistema después (git pull)](#14-actualizar-el-sistema-después-git-pull)  
 15. [Problemas frecuentes](#15-problemas-frecuentes)
@@ -154,6 +179,14 @@ sudo npm install -g pm2
 sudo apt install -y postgresql-client
 ```
 
+### 4.7 Usuario Linux, `sudo` y propiedad de `/var/www/sigec-igss`
+
+- Crea o usa un usuario con permiso `sudo` para administración (Nginx, firewall, paquetes).
+- **Despliegue de la app** (git, npm, PM2): idealmente **sin** ser `root`. Si todo el proyecto quedó en manos de un usuario (p. ej. `noe`), mantén **coherencia**:
+  - `chown -R noe:noe /var/www/sigec-igss` (ajusta el nombre si usas otro usuario).
+  - PM2 debe ejecutarse **como ese mismo usuario** (`pm2 startup` mostrará un comando; usa `-u noe` y `--hp /home/noe` si aplica).
+- Si mezclaste `root` y otro usuario y ves archivos con dueño distinto, alinea con `chown` antes de seguir.
+
 ---
 
 ## 5. Traer el proyecto al servidor
@@ -192,15 +225,41 @@ unzip sigec-igss.zip -d sigec-igss
 
 ## 6. Verificar PostgreSQL en Debian
 
-Prueba con el mismo usuario que usará la app:
+### 6.1 Comando directo (contraseña interactiva o variable de entorno)
+
+Con el mismo usuario y base que usará el backend (`portal_app`, base `igss`):
 
 ```bash
-psql -h 127.0.0.1 -U portal_app -d igss -c "SHOW search_path;"
+psql -h 127.0.0.1 -p 5432 -U portal_app -d igss -c "SHOW search_path;"
 ```
+
+Si te pide contraseña, puedes exportarla solo para esa sesión (sustituye la clave real):
+
+```bash
+export PGPASSWORD='TU_CONTRASEÑA_DE_PORTAL_APP'
+psql -h 127.0.0.1 -p 5432 -U portal_app -d igss -c "SHOW search_path;"
+unset PGPASSWORD
+```
+
+### 6.2 Usar los mismos valores que `backend/.env` (sin tipear host/puerto a mano)
+
+Si ya tienes el `.env` del backend:
+
+```bash
+cd /var/www/sigec-igss/backend
+set -a
+. .env
+set +a
+export PGPASSWORD="$DB_PASSWORD"
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SHOW search_path;"
+unset PGPASSWORD
+```
+
+### 6.3 Qué debe salir
 
 - Debe mostrar algo como `sigec_igss, public`.  
 - Si falla la contraseña o el host, corrige antes de seguir (`pg_hba.conf`, contraseña del rol, etc.).  
-- Si PostgreSQL está en **otra máquina**, usa su IP en `DB_HOST` en el `.env` (y abre puerto 5432 solo si es necesario).
+- Si PostgreSQL está en **otra máquina**, usa su IP en `DB_HOST` en el `.env` (y abre el puerto 5432 solo si es necesario y con restricción).
 
 Documentación del esquema: `POSTGRES-SCHEMA-SETUP.md`.
 
@@ -231,16 +290,28 @@ DB_SCHEMA=sigec_igss
 DB_SYNCHRONIZE=true
 DB_LOGGING=false
 
-JWT_SECRET=genera_una_cadena_larga_unica_no_la_compartas
+JWT_SECRET=PON_AQUI_UN_VALOR_LARGO_Y_ALEATORIO
 ```
 
 Guardar: en `nano`, `Ctrl+O`, Enter, `Ctrl+X`.
 
-**Importante:** `JWT_SECRET` debe ser **distinto** y **secreto** en producción; si lo cambias después, los tokens antiguos dejan de valer.
+### 7.1 `JWT_SECRET` (qué es y cómo generarlo)
+
+- **Qué es:** clave que usa el backend para **firmar y verificar** los tokens JWT. **No** es la contraseña de los usuarios.
+- **Reglas:** cadena larga, aleatoria, **no** compartirla ni subirla a Git. Si la cambiás después, los usuarios con sesión abierta deben **volver a iniciar sesión**.
+- **Generar un valor seguro en el servidor** (ejemplo):
+
+```bash
+openssl rand -base64 64
+```
+
+Copia la salida y pégala como única línea en `JWT_SECRET=...` en `backend/.env`.
 
 ---
 
 ## 8. Primera ejecución del backend y creación de tablas
+
+Ejecuta estos pasos como el **mismo usuario** que será dueño del proyecto (no hace falta `root`).
 
 ```bash
 cd /var/www/sigec-igss/backend
@@ -249,7 +320,38 @@ npx tsc
 node dist/index.js
 ```
 
-Qué observar:
+### 8.1 Si `npx tsc` devuelve `Permission denied`
+
+Algunas copias de `node_modules` dejan `node_modules/.bin/tsc` **sin permiso de ejecución** (`-rw-r--r--`). Comprobación:
+
+```bash
+ls -l node_modules/.bin/tsc
+```
+
+Si no tiene `x`, corrige:
+
+```bash
+chmod +x node_modules/.bin/tsc
+chmod +x node_modules/.bin/*
+```
+
+**Alternativa** que no depende del binario ejecutable:
+
+```bash
+node ./node_modules/typescript/bin/tsc
+```
+
+### 8.2 `npm install` y vulnerabilidades
+
+Si `npm install` muestra “X vulnerabilities”, es un **informe de auditoría** de dependencias. No siempre bloquea el arranque. Para detalle:
+
+```bash
+npm audit
+```
+
+Puedes intentar `npm audit fix` cuando tengas tiempo de probar; si pide cambios mayores, revisa con el equipo antes de subir versiones en producción.
+
+### 8.3 Qué observar al arrancar `node dist/index.js`
 
 - Mensaje de conexión a la base de datos correcta.  
 - Si el esquema estaba vacío, TypeORM creará tablas en `sigec_igss`.  
@@ -267,14 +369,59 @@ Cuando todo esté bien:
 2. Edita `.env` → **`DB_SYNCHRONIZE=false`**.  
 3. Vuelve a ejecutar `node dist/index.js` o pasa al paso PM2.
 
-*(Opcional)* Seeders de roles / catálogos, desde `backend`:
+### 8.4 (Opcional) Seeders de roles y catálogos
+
+Desde `backend`:
 
 ```bash
 npm run seed-roles
 npm run seed-departamentos-municipios
 ```
 
-Para **login** necesitas al menos usuario + credencial en BD; si no hay, crea el primero según el procedimiento de tu equipo.
+`seed-roles` crea permisos y roles de negocio; si no existía el rol **super administrador**, el script de arranque del siguiente apartado lo crea con todos los permisos.
+
+### 8.5 Primer usuario cuando la BD no tiene registros (`seed-bootstrap-admin`)
+
+El login exige un **usuario** y una **credencial** (contraseña con hash bcrypt) en PostgreSQL. El proyecto incluye un script **idempotente** que solo actúa si **no hay ningún usuario** (tabla `user` vacía).
+
+**Orden recomendado:**
+
+1. Tablas creadas y `seed-roles` ejecutado (apartado 8.4).  
+2. En `backend/.env` puedes definir (opcional) credenciales de **solo entorno de prueba**:
+
+```env
+# Opcional — valores por defecto si omites estas líneas
+BOOTSTRAP_ADMIN_CODE=admin
+BOOTSTRAP_ADMIN_PASSWORD=CambiarEstaClave123!
+BOOTSTRAP_NOMBRES=Administrador
+BOOTSTRAP_APELLIDOS=SIGEC
+BOOTSTRAP_DPI=0000000000001
+BOOTSTRAP_NIT=000000-0
+BOOTSTRAP_TELEFONO=00000000
+BOOTSTRAP_CORREO=sigec.bootstrap@local
+```
+
+3. Ejecutar en el servidor (o en tu PC local con la misma BD vacía):
+
+```bash
+cd /var/www/sigec-igss/backend
+npm run seed-bootstrap-admin
+```
+
+4. En el navegador, **Iniciar sesión** con **código de empleado** = `BOOTSTRAP_ADMIN_CODE` (por defecto `admin`) y la contraseña indicada. La credencial queda como **temporal**; conviene cambiarla tras entrar.
+
+**Comportamiento:**
+
+- Si **ya existe al menos un usuario**, el script **no crea nada** (evita duplicar admins).  
+- Para forzar otro intento en casos excepcionales existe `FORCE_BOOTSTRAP_ADMIN=1` (puede fallar por unicidad de DPI/NIT/código; solo uso consciente).
+
+**Seguridad:** en producción cambia la contraseña al instante y no dejes valores por defecto en `.env` versionado. Lo ideal es **no subir** `BOOTSTRAP_*` a Git.
+
+### 8.6 Login
+
+Con el usuario creado (8.5 o restauración de datos), el acceso es por **código de empleado** + **contraseña** en la pantalla de login.
+
+**Nota:** `FileStorageService` usa **`/var/www/sigec-igss/backend/uploads`** (ruta relativa al código: `path.join(__dirname, '../../uploads')` respecto a `dist/services/` o `src/services/`). Si el repositorio ya trae la carpeta `uploads/`, **no hace falta** volver a crearla; solo asegúrate de que el usuario que ejecuta Node pueda **escribir** ahí (ver sección 9).
 
 ---
 
@@ -286,8 +433,10 @@ npx tsc
 pm2 start dist/index.js --name sigec-igss-api
 pm2 save
 pm2 startup
-# Ejecuta la línea que te muestre `pm2 startup` (con sudo)
+# Ejecuta la línea completa que muestre `pm2 startup` (suele llevar sudo)
 ```
+
+**Importante:** `pm2 startup` debe generarse para el **usuario que corre la app** (no mezclar PM2 de `root` con archivos de `noe`). Si ya ejecutaste PM2 como `root` por error, revisa `pm2 list` y la documentación de PM2 para unificar usuario.
 
 Comandos útiles:
 
@@ -297,55 +446,101 @@ pm2 logs sigec-igss-api
 pm2 restart sigec-igss-api
 ```
 
-**Carpeta de subidas:** si el código guarda archivos en disco, crea y da permisos, por ejemplo:
+### 9.1 Carpeta `uploads` (subidas y adjuntos)
+
+El código guarda archivos bajo **`/var/www/sigec-igss/backend/uploads`** (ver `backend/src/services/FileStorageService.ts`).
+
+- Si **no existe** la carpeta:
 
 ```bash
 mkdir -p /var/www/sigec-igss/backend/uploads
 chmod u+rwX /var/www/sigec-igss/backend/uploads
 ```
 
-(Revisa en el código la ruta exacta que use `FileStorageService`.)
+- Si **ya existe** en el repositorio (por ejemplo con subcarpetas `expedientes/`, `siaf/`), **no hace falta** volver a crearla con `mkdir -p`; solo verifica permisos para el usuario que ejecuta Node:
+
+```bash
+chown -R noe:noe /var/www/sigec-igss/backend/uploads
+# sustituye noe por tu usuario de despliegue
+```
+
+Prueba de escritura (como el usuario de la app):
+
+```bash
+sudo -u noe touch /var/www/sigec-igss/backend/uploads/.test && sudo -u noe rm /var/www/sigec-igss/backend/uploads/.test
+```
 
 ---
 
 ## 10. Compilar el frontend
 
-El frontend llama al API usando `REACT_APP_API_URL` (ver `frontend/src/api.ts`).
+El frontend arma la URL base del API en `frontend/src/api.ts`: toma `REACT_APP_API_URL`, le quita una barra final si la hay y añade `/api`. En este despliegue, con `REACT_APP_API_URL=http://10.4.201.74`, las peticiones van a `http://10.4.201.74/api/...`.
 
 ### 10.1 Variable `REACT_APP_API_URL` (muy importante)
 
-Esa variable se **incrusta en el JavaScript en el momento del `npm run build`**. El **navegador del usuario** (en su PC o celular) es quien hará las peticiones a esa URL. **No** uses `http://127.0.0.1:3001` salvo que solo pruebes en el mismo servidor con un navegador local; desde otra máquina `127.0.0.1` sería el PC del usuario, no el servidor.
+Esa variable se **incrusta en el JavaScript en el momento del `npm run build`**. El **navegador de cada usuario** (PC o celular en la red IGSS) es quien hará las peticiones a esa URL.
 
-**Con Nginx haciendo proxy de `/api` al backend (recomendado):** la página se sirve, por ejemplo, en `http://192.168.1.50` o `https://sigec.tudominio.com`. Entonces el build debe usar **esa misma base** (sin `/api` al final; el código añade `/api` solo).
+**No** uses:
+
+- `http://127.0.0.1` ni `http://localhost` como `REACT_APP_API_URL` para uso en red: desde otra máquina, `127.0.0.1` es **el propio PC del usuario**, no el servidor.
+
+**Con Nginx en el puerto 80 haciendo proxy de `/api` al backend (recomendado en esta guía):** los usuarios abren la app con **`http://IP_DEL_SERVIDOR`** (sin puerto si es el 80). Entonces el build debe usar **exactamente esa misma base** (sin `/api` al final; el código ya añade `/api`).
 
 Ejemplos válidos:
 
 ```env
-# Misma máquina en la red local (sin HTTPS)
-REACT_APP_API_URL=http://192.168.1.50
+# Este servidor (Palín, IP fija)
+REACT_APP_API_URL=http://10.4.201.74
 
-# Con dominio y HTTPS
+# Otro entorno (ejemplo genérico)
+REACT_APP_API_URL=http://10.20.30.40
+
+# Si en el futuro IT da un nombre DNS interno
+REACT_APP_API_URL=http://sigec.interno.red-igss
+```
+
+```env
+# Solo si tienes HTTPS con certificado (dominio o CA interna)
 REACT_APP_API_URL=https://sigec.tudominio.com
 ```
 
-Crea el archivo en el servidor:
+### 10.2 Red institucional sin dominio público (Palín / IGSS)
+
+Objetivo: que **cualquier PC de la red que pueda alcanzar la IP del servidor** abra el sistema con `http://IP`.
+
+1. **Averigua la IP del servidor** (en el servidor):
+
+```bash
+hostname -I
+```
+
+2. **Estabilidad de la IP (DHCP):** si el servidor recibe IP por DHCP y **cambia al renovarse**, el frontend compilado seguirá apuntando a la IP vieja hasta que **vuelvas a poner** `REACT_APP_API_URL` con la IP nueva y ejecutes **`npm run build`**. Para evitar eso:
+   - Pide a **redes/IT** una **reserva DHCP por MAC** o una **IP fija** para ese equipo.
+3. **Orden recomendado (primer despliegue):** crea `frontend/.env` con la **IP o nombre que usarán todos** (sección 10.4), ejecuta **`npm run build`** (10.5) para generar `frontend/build/`, luego configura **Nginx** (sección 11) y recarga. Después comprueba desde el servidor: `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/` debería devolver `200`. Nginx necesita que exista la carpeta `root` (`frontend/build`).
+4. **Ruteo entre sedes/VLAN:** si algunos usuarios no alcanzan la IP, es un tema de **firewall o routing** en la red institucional; debe coordinarse con IT.
+
+### 10.3 Si no usas Nginx y expones el puerto 3001 (no recomendado)
+
+```env
+REACT_APP_API_URL=http://IP_DEL_SERVIDOR:3001
+```
+
+El backend ya usa `cors()` amplio; aun así, exponer solo el API sin Nginx es peor práctica para producción.
+
+### 10.4 Crear `frontend/.env` en el servidor
 
 ```bash
 cd /var/www/sigec-igss/frontend
 nano .env
 ```
 
-Pega una línea como las de arriba (ajusta IP o dominio **al que realmente entran los usuarios**).
-
-Si **no** usas Nginx y abres el puerto 3001 al mundo (no recomendado):
+Una sola línea (debe coincidir con la URL que pongan en el navegador; **este despliegue:**):
 
 ```env
-REACT_APP_API_URL=http://IP_PUBLICA:3001
+REACT_APP_API_URL=http://10.4.201.74
 ```
 
-*(Puede exigir ajustar CORS en el backend.)*
-
-### 10.2 Build
+### 10.5 Build
 
 ```bash
 cd /var/www/sigec-igss/frontend
@@ -355,22 +550,67 @@ npm run build
 
 Debe generarse la carpeta `frontend/build/`.
 
+**Si cambias la IP del servidor o el nombre DNS:** edita `frontend/.env` y vuelve a ejecutar **`npm run build`**, luego `sudo systemctl reload nginx`.
+
 ---
 
 ## 11. Nginx: servir la web y proxy del API
 
-Crea un sitio (ajusta `server_name`):
+### 11.1 Qué problema resuelve (idea simple)
+
+Tienes **dos cosas distintas** en el mismo servidor:
+
+| Qué es | Dónde vive | Puerto típico |
+|--------|------------|----------------|
+| **La aplicación web (React)** ya compilada | Archivos en `frontend/build/` (HTML, JS, CSS) | No tiene puerto propio; alguien tiene que “servirlos” |
+| **El API (Node/Express)** | Proceso con PM2 escuchando en **3001** | `127.0.0.1:3001` |
+
+Sin Nginx, tendrías que decirle a los usuarios cosas como: “abrid la web en un sitio y el API en otro puerto”, y el navegador trataría orígenes distintos (más lío con CORS y enlaces).
+
+**Nginx** es un **servidor web** que escucha en el **puerto 80** (el de `http://` sin número) y hace **dos trabajos**:
+
+1. **Servir archivos estáticos** del React: cuando alguien entra a `http://10.4.201.74/`, Nginx devuelve lo que hay en `frontend/build/` (por ejemplo `index.html` y los `.js` del build).
+2. **Hacer de intermediario (proxy)** hacia el API: cuando el navegador pide `http://10.4.201.74/api/...`, Nginx **reenvía** esa petición por dentro a `http://127.0.0.1:3001/api/...`, donde está tu backend. El usuario **solo ve** el puerto 80; el 3001 queda solo en el servidor.
+
+Flujo resumido:
+
+```text
+PC del usuario  --http:80-->  Nginx  --archivos-->  frontend/build  (pantalla React)
+                    |
+                    +--------proxy /api/---------->  127.0.0.1:3001  (API Node + PM2)
+```
+
+Por eso el `REACT_APP_API_URL` del build es `http://10.4.201.74`: el navegador pide la página y las llamadas `/api` **al mismo host y puerto**; Nginx reparte.
+
+### 11.2 Qué significa cada parte del bloque `server { }`
+
+- **`listen 80`** — Escuchar peticiones HTTP en el puerto **80** (todas las interfaces de red del servidor).
+- **`server_name _`** (o `10.4.201.74`) — Nombre o IP con el que identifica este sitio. `_` es un comodín útil cuando solo hay un sitio o entras por IP.
+- **`root .../frontend/build`** — Carpeta donde están los archivos **ya compilados** del React (`npm run build`). Ahí está `index.html`.
+- **`location /` + `try_files ... /index.html`** — Para una SPA (React Router): cualquier ruta que no sea un archivo real se responde con `index.html`, para que no salga error al recargar una ruta interna.
+- **`location /api/` + `proxy_pass http://127.0.0.1:3001/api/`** — Todo lo que empiece por `/api/` se **reenvía** al backend. La barra final en `proxy_pass` hace que la ruta cuadre con Express.
+
+Las líneas `proxy_set_header` pasan al Node la IP real del cliente y el esquema (`http`), útil para logs y si más adelante pones HTTPS delante.
+
+### 11.3 Requisitos previos antes de activar Nginx
+
+- El **build** del frontend ya existe: `frontend/build/` (sección 10).
+- El **API** está corriendo con PM2 en **3001** (sección 9). Puedes comprobar: `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/...` o `pm2 status`.
+
+### 11.4 Crear y activar la configuración
+
+Crea el sitio:
 
 ```bash
 sudo nano /etc/nginx/sites-available/sigec-igss
 ```
 
-Ejemplo mínimo (HTTP en puerto 80; sustituye `TU_IP_O_DOMINIO`):
+Ejemplo mínimo (HTTP en puerto 80). Para **solo IP** o acceso por IP, puedes usar `server_name _` (comodín) o poner la IP explícita:
 
 ```nginx
 server {
-    listen 80;
-    server_name TU_IP_O_DOMINIO;
+    listen 80 default_server;
+    server_name _;
 
     root /var/www/sigec-igss/frontend/build;
     index index.html;
@@ -390,6 +630,15 @@ server {
 }
 ```
 
+Si tienes **varios sitios** en el mismo Nginx y no quieres `default_server`, quita esa palabra y usa un `server_name` concreto (IP o nombre interno).
+En **este despliegue** puedes usar `server_name 10.4.201.74;` en lugar de `server_name _;` si quieres que el bloque coincida explícitamente con esa IP.
+
+**Conflicto con el sitio por defecto de Debian:** si ya existe `/etc/nginx/sites-enabled/default`, deshabilítalo para que no compita por el puerto 80:
+
+```bash
+sudo rm /etc/nginx/sites-enabled/default
+```
+
 Activar sitio y recargar:
 
 ```bash
@@ -398,11 +647,17 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-**HTTPS:** cuando tengas dominio público, puedes usar **Certbot** (`certbot --nginx`) para Let's Encrypt.
+Si `nginx -t` dice que la sintaxis está bien, el sitio queda activo. Prueba en el propio servidor: `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/` (debería ser `200` si hay `index.html`).
+
+### 11.5 HTTPS (opcional)
+
+Con dominio público puedes usar **Certbot** (`certbot --nginx`) para Let's Encrypt. En intranet con CA interna o sin HTTPS, muchos equipos usan solo HTTP dentro de la red institucional.
 
 ---
 
-## 12. Firewall (UFW)
+## 12. Firewall (UFW) y red institucional
+
+### 12.1 UFW en el servidor Debian
 
 Si usas UFW:
 
@@ -414,15 +669,21 @@ sudo ufw enable
 sudo ufw status
 ```
 
-No abras el puerto **5432** a internet salvo que sea imprescindible y esté muy restringido.
+No abras el puerto **5432** hacia internet salvo que sea imprescindible y esté muy restringido; PostgreSQL suele quedar solo en `127.0.0.1` o en red interna acotada.
+
+### 12.2 Más allá del servidor (red IGSS)
+
+- Si un usuario **no alcanza** `http://10.4.201.74` desde su oficina pero otro sí, el bloqueo puede estar en **firewall perimetral, VLAN o reglas entre sedes**. Eso se resuelve con **IT/redes**, no solo con Debian.
+- El **puerto 3001** no debe ser necesario en los clientes si usas Nginx en el **80**; no hace falta publicar 3001 fuera del servidor.
 
 ---
 
 ## 13. Probar desde el navegador
 
-1. Desde otra PC: `http://IP_DEL_SERVIDOR` o tu dominio.  
+1. Desde **otra PC de la red** (no desde el servidor): abre **`http://10.4.201.74`** (misma base que `REACT_APP_API_URL`, sin puerto si usas Nginx en el 80).  
 2. Debe cargar la pantalla de **SIGEC-IGSS** (login).  
-3. Prueba login solo si ya existe usuario en la base.
+3. Prueba login solo si ya existe usuario en la base.  
+4. Si no carga: comprueba ping/ruta a **10.4.201.74**, que el firewall del servidor permita el puerto 80, y que no estés usando `localhost` en el cliente (debe ser la IP del servidor).
 
 Prueba rápida del API (desde el servidor):
 
@@ -436,7 +697,7 @@ curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/auth/login -X P
 
 ## 14. Actualizar el sistema después (`git pull`)
 
-En Debian:
+En Debian (como el usuario dueño del proyecto, no hace falta `root` salvo `nginx`):
 
 ```bash
 cd /var/www/sigec-igss
@@ -446,26 +707,34 @@ cd ../frontend && npm install && npm run build
 sudo systemctl reload nginx
 ```
 
+Si **cambió** la IP del servidor o el nombre interno y afecta al API, edita `frontend/.env` antes de `npm run build`.
+
 ---
 
 ## 15. Problemas frecuentes
 
 | Síntoma | Qué revisar |
 |---------|-------------|
-| `502 Bad Gateway` en Nginx | `pm2 status`, `pm2 logs sigec-igss-api`, que el API escuche en `3001`. |
-| Login falla siempre | Usuario/credencial en BD, `JWT_SECRET` estable, CORS si llamas al API desde otro origen. |
+| `sh: 1: tsc: Permission denied` al ejecutar `npx tsc` | `chmod +x node_modules/.bin/tsc` o `chmod +x node_modules/.bin/*`; alternativa: `node ./node_modules/typescript/bin/tsc`. |
+| `502 Bad Gateway` en Nginx | `pm2 status`, `pm2 logs sigec-igss-api`, que el API escuche en `127.0.0.1:3001` y que `proxy_pass` apunte a `/api/`. |
+| Login falla siempre | Usuario/credencial en BD, `JWT_SECRET` definido; con Nginx+proxy mismo origen, CORS suele no ser el problema. |
+| El frontend llama a la IP equivocada o a `localhost` | `REACT_APP_API_URL` debe ser la URL que el **navegador del usuario** usa; recompilar con `npm run build` tras cambiar `.env`. |
+| Funciona en el servidor pero no desde otras PCs | Firewall (UFW), sitio `default` de Nginx compitiendo, o routing/firewall entre VLANs (IT). |
 | Página en blanco al recargar rutas | `try_files ... /index.html` en Nginx (SPA). |
+| Subidas o adjuntos fallan | Permisos en `/var/www/sigec-igss/backend/uploads` para el usuario que corre PM2. |
 | API no crea tablas | `DB_SYNCHRONIZE=true` solo la primera vez; usuario `portal_app` con permisos en `sigec_igss`. |
 | Error de conexión a PostgreSQL | `DB_HOST`, contraseña, `pg_hba.conf` para `127.0.0.1`. |
+| `npm audit` reporta vulnerabilidades | Informe de dependencias; valorar `npm audit fix` en ventana de pruebas. |
 
 ---
 
 ## Resumen de una página
 
-1. Subir código a Git → `git clone` en `/var/www/sigec-igss`.  
+1. Subir código a Git → `git clone` en `/var/www/sigec-igss`; un usuario Linux dueño del árbol (p. ej. `noe`), PM2 con ese mismo usuario.  
 2. PostgreSQL listo (`igss`, `sigec_igss`, `portal_app`).  
-3. `backend/.env` correcto → `npm install` → `npx tsc` → arrancar una vez con `synchronize` → luego `false` → PM2.  
-4. `frontend/.env` con URL del API → `npm run build`.  
-5. Nginx sirve `build` y proxifica `/api` → firewall 80/443.  
+3. `backend/.env` (incl. `JWT_SECRET` con `openssl rand -base64 64`) → `npm install` → `npx tsc` → arrancar una vez con `DB_SYNCHRONIZE=true` → tablas OK → `DB_SYNCHRONIZE=false` → PM2.  
+4. `frontend/.env` con `REACT_APP_API_URL=http://10.4.201.74` → `npm run build`.  
+5. Nginx: `root` → `frontend/build`, `location /api/` → `127.0.0.1:3001`; deshabilitar `default` si compite; firewall 80 (y 443 si aplica).  
+6. Usuarios abren **`http://10.4.201.74`**. Si la IP cambiara, actualizar `frontend/.env` y volver a `npm run build`.  
 
 Documentos relacionados: `POSTGRES-SCHEMA-SETUP.md`, `MIGRACION-DATOS-Y-DESPLIEGUE-SERVIDOR.md`, `BASE-DATOS-DESDE-CERO.md`.
