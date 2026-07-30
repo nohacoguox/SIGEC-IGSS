@@ -2,23 +2,23 @@ import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
 import { formatFechaDMA } from '../utils/dateUtils';
 
-// Contenido más abajo para ocupar espacio en blanco (1 hoja)
-const MARGIN = 38;
+// Alturas calibradas para que la hoja se llene igual que el formato Excel institucional.
+const MARGIN = 34;
 const FONT_TITLE = 14;
 const FONT_FORMA = 10;
 const FONT_SECTION = 11;
 const FONT_BODY = 10;
 const FONT_TABLE = 9;
 const FONT_SIGN_LABEL = 8;
-const LOGO_HEIGHT = 38;
-const ROW_HEIGHT = 16;
+const LOGO_HEIGHT = 32;
+const ROW_HEIGHT = 21;
 const TABLE_RADIUS = 8;
-const CONTENT_BLOCK_HEIGHT = 280;
-const SUBPRODUCT_CONTENT_HEIGHT = 48;
-const TOTAL_ROW_HEIGHT = 14;
-const JUSTIFICACION_BOX_HEIGHT = 52;
-const FIRMA_BOX_HEIGHT = 48;
-const GAP_BETWEEN_SECTIONS = 10;
+const CONTENT_BLOCK_HEIGHT = 292;
+const SUBPRODUCT_CONTENT_HEIGHT = 56;
+const TOTAL_ROW_HEIGHT = 16;
+const JUSTIFICACION_BOX_HEIGHT = 76;
+const FIRMA_BOX_HEIGHT = 62;
+const GAP_BETWEEN_SECTIONS = 8;
 
 export interface SiafPdfDocumentProps {
   data: {
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   datosUnidadLabel: {
     fontWeight: 'normal',
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   inputLine: {
     borderBottom: '1px solid #000',
     flexGrow: 1,
-    minHeight: 12,
+    minHeight: 14,
   },
   datosUnidadTitle: {
     marginVertical: 4,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   fullWidthRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 6,
+    marginBottom: 10,
     width: '100%',
   },
   // Tabla: recuadro con bordes curvos; área de contenido altura fija sin líneas horizontales
@@ -172,7 +172,8 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
   },
   tableHeaderCell: {
-    padding: 4,
+    paddingVertical: 0,
+    paddingHorizontal: 4,
     fontWeight: 'bold',
     fontSize: 10,
     textAlign: 'center',
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
     height: FIRMA_BOX_HEIGHT,
     border: '1px solid #000',
     borderRadius: TABLE_RADIUS,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 6,
     paddingBottom: 6,
@@ -221,7 +222,7 @@ const styles = StyleSheet.create({
     border: '1px solid #000',
     borderRadius: TABLE_RADIUS,
     padding: 6,
-    marginBottom: GAP_BETWEEN_SECTIONS,
+    marginBottom: 0,
   },
   justificacionTitle: {
     fontWeight: 'bold',
