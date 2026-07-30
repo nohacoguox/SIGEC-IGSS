@@ -9,14 +9,33 @@ export async function seedUnidadMedica() {
   const unidadMedicaRepository = AppDataSource.getRepository(UnidadMedica);
 
   for (const data of unidadesMedicasData) {
-    // Check if a unit with the same name already exists to prevent duplicates on re-seeding
     const existingUnit = await unidadMedicaRepository.findOneBy({ nombre: data.nombre });
     if (!existingUnit) {
-      const newUnidad = unidadMedicaRepository.create(data);
+      const newUnidad = unidadMedicaRepository.create({
+        nombre: data.nombre,
+        departamento: data.departamento ?? null,
+        telefonos: data.telefonos ?? '',
+        codigo: (data as any).codigo ?? null,
+        direccion: (data as any).direccion ?? null,
+      });
       await unidadMedicaRepository.save(newUnidad);
       console.log(`Seeded: ${newUnidad.nombre}`);
     } else {
-      console.log(`Skipping existing unit: ${existingUnit.nombre}`);
+      let changed = false;
+      if (!(existingUnit as any).codigo && (data as any).codigo) {
+        (existingUnit as any).codigo = (data as any).codigo;
+        changed = true;
+      }
+      if (!(existingUnit as any).direccion && (data as any).direccion) {
+        (existingUnit as any).direccion = (data as any).direccion;
+        changed = true;
+      }
+      if (changed) {
+        await unidadMedicaRepository.save(existingUnit);
+        console.log(`Updated: ${existingUnit.nombre}`);
+      } else {
+        console.log(`Skipping existing unit: ${existingUnit.nombre}`);
+      }
     }
   }
 

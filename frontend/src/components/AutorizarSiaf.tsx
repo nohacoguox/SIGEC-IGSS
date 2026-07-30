@@ -33,6 +33,7 @@ import { PDFViewer } from '@react-pdf/renderer';
 import { SiafPdfDocument } from './SiafPdfDocument';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 interface SiafItem {
   id: string;
@@ -246,7 +247,7 @@ const AutorizarSiaf: React.FC = () => {
           <Card 
             sx={{ 
               cursor: 'pointer',
-              border: activeTab === 'pendientes' ? '2px solid #1976d2' : 'none',
+              border: activeTab === 'pendientes' ? `2px solid ${IGSS_COLORS.azul}` : 'none',
               '&:hover': { 
                 boxShadow: 6,
                 transform: 'translateY(-2px)',
@@ -269,7 +270,7 @@ const AutorizarSiaf: React.FC = () => {
           <Card 
             sx={{ 
               cursor: 'pointer',
-              border: activeTab === 'autorizados' ? '2px solid #2e7d32' : 'none',
+              border: activeTab === 'autorizados' ? `2px solid ${IGSS_COLORS.verde}` : 'none',
               '&:hover': { 
                 boxShadow: 6,
                 transform: 'translateY(-2px)',
@@ -292,7 +293,7 @@ const AutorizarSiaf: React.FC = () => {
           <Card 
             sx={{ 
               cursor: 'pointer',
-              border: activeTab === 'rechazados' ? '2px solid #d32f2f' : 'none',
+              border: activeTab === 'rechazados' ? `2px solid ${IGSS_COLORS.error}` : 'none',
               '&:hover': { 
                 boxShadow: 6,
                 transform: 'translateY(-2px)',

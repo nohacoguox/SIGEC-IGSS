@@ -33,6 +33,11 @@ import { PDFViewer } from '@react-pdf/renderer';
 import { SiafPdfDocument } from './SiafPdfDocument';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
+import {
+  tableHeaderCellStyle,
+  tableHeaderRowStyle,
+  tableHeaderCellSx,
+} from '../theme/institutionalStyles';
 
 interface SiafItem {
   id: string;
@@ -163,15 +168,10 @@ const RevisarDireccionDepartamental: React.FC = () => {
   const [bitacoraEnVistaLoading, setBitacoraEnVistaLoading] = useState(false);
   const { showSuccess, showError } = useNotification();
 
-  /** Encabezados: estilos en línea para que el tema no los sobrescriba (fondo oscuro + texto blanco) */
-  const headerCellStyle = { backgroundColor: '#0d47a1', color: '#ffffff' };
-  const headerRowStyle = { backgroundColor: '#0d47a1' };
-  const headerCellSx = {
-    fontWeight: 700,
-    fontSize: '0.9375rem',
-    py: 2,
-    borderBottom: 'none',
-  };
+  /** Encabezados: paleta institucional IGSS */
+  const headerCellStyle = tableHeaderCellStyle;
+  const headerRowStyle = tableHeaderRowStyle;
+  const headerCellSx = tableHeaderCellSx;
 
   const transformSiaf = useCallback((siaf: any, esCorreccion?: boolean): SiafSolicitud => ({
     id: siaf.id.toString(),

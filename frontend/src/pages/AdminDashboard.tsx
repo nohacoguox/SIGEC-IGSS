@@ -8,8 +8,6 @@ import {
   ListItemIcon, 
   ListItemText, 
   Grid, 
-  Card, 
-  CardContent, 
   Paper, 
   CircularProgress,
   Avatar,
@@ -27,18 +25,36 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { Settings, Group, Security, Assessment, ExitToApp, Brightness4, Brightness7, Tonality } from '@mui/icons-material';
 import BarChartIcon from '@mui/icons-material/BarChart';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import UserManagementContainer from '../components/UserManagementContainer';
 import RoleManagementPage from './RoleManagementPage';
 import AreaManagementPage from './AreaManagementPage';
 import PuestoManagementPage from './PuestoManagementPage';
 import UnidadMedicaManagementPage from './UnidadMedicaManagementPage';
+import CorrelativoManagementPage from './CorrelativoManagementPage';
+import DashboardBackground from '../components/dashboard/DashboardBackground';
+import PageHeader from '../components/dashboard/PageHeader';
+import StatCard from '../components/dashboard/StatCard';
+import { getDrawerSx, navItemSx, sidebarActionSx } from '../components/dashboard/sidebarStyles';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 import { useThemeMode } from '../context/ThemeContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Assignment as AssignmentIcon } from '@mui/icons-material';
+import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
+import NumbersIcon from '@mui/icons-material/Numbers';
 import api from '../api';
 
-const drawerWidth = 280;
+const pageTitles: Record<string, { title: string; subtitle: string }> = {
+  dashboard: { title: 'Panel de Administración', subtitle: 'Bienvenido al panel de control del sistema' },
+  'user-management': { title: 'Gestión de Usuarios', subtitle: 'Administra los usuarios del sistema' },
+  'role-management': { title: 'Gestión de Roles', subtitle: 'Configura roles y permisos' },
+  'area-management': { title: 'Gestión de Áreas', subtitle: 'Administra las áreas del sistema' },
+  'puesto-management': { title: 'Gestión de Puestos', subtitle: 'Administra los puestos de trabajo' },
+  'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: 'Administra las unidades médicas' },
+  'correlativo-management': { title: 'Gestión de Correlativos', subtitle: 'Configure la secuencia automática de correlativos SIAF' },
+  reports: { title: 'Reportes', subtitle: 'Genera y visualiza reportes' },
+  settings: { title: 'Configuración', subtitle: 'Configura las opciones del sistema' },
+};
 
 interface DashboardStats {
   totalUsers: number;
@@ -50,7 +66,7 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { mode, toggleTheme, nextModeLabel } = useThemeMode();
   const { hasPermission } = usePermissions();
-  const canAccessColaborador = hasPermission('crear-siaf') || hasPermission('autorizar-siaf');
+  const canAccessColaborador = hasPermission('crear-siaf') || hasPermission('listado-siaf') || hasPermission('autorizar-siaf');
   const [selectedMenuItem, setSelectedMenuItem] = useState('dashboard');
   const [gestionesOpen, setGestionesOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
@@ -84,11 +100,12 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const gestionesItems = [
-    { text: 'Gestión de Usuarios', icon: <PeopleIcon />, id: 'user-management', permission: 'gestionar-usuarios' as const },
-    { text: 'Gestión de Roles', icon: <VpnKeyIcon />, id: 'role-management', permission: 'gestionar-roles' as const },
-    { text: 'Gestión de Áreas', icon: <BusinessIcon />, id: 'area-management', permission: 'gestionar-areas' as const },
-    { text: 'Gestión de Puestos', icon: <WorkIcon />, id: 'puesto-management', permission: 'gestionar-puestos' as const },
-    { text: 'Gestión de Unidades Médicas', icon: <BusinessIcon />, id: 'unidad-medica-management', permission: 'gestionar-areas' as const },
+    { text: 'Usuarios', icon: <PeopleIcon />, id: 'user-management', permission: 'gestionar-usuarios' as const },
+    { text: 'Roles', icon: <VpnKeyIcon />, id: 'role-management', permission: 'gestionar-roles' as const },
+    { text: 'Áreas', icon: <BusinessIcon />, id: 'area-management', permission: 'gestionar-areas' as const },
+    { text: 'Puestos', icon: <WorkIcon />, id: 'puesto-management', permission: 'gestionar-puestos' as const },
+    { text: 'Unidades Médicas', icon: <BusinessIcon />, id: 'unidad-medica-management', permission: 'gestionar-unidades-medicas' as const },
+    { text: 'Correlativos', icon: <NumbersIcon />, id: 'correlativo-management', permission: 'gestionar-correlativos' as const },
   ];
 
   const gestionesItemsFiltered = gestionesItems.filter((item) => hasPermission(item.permission));
@@ -137,104 +154,78 @@ const AdminDashboard: React.FC = () => {
         return (
           <Grid container spacing={3}>
             <Grid item xs={12} md={4}>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Card
-                  sx={{
-                    background: mode !== 'dark'
-                      ? 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)'
-                      : 'linear-gradient(135deg, #2E7FB0 0%, #1E5A7A 100%)',
-                    color: 'white',
-                    height: '100%',
-                  }}
-                >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }}>
-                          Total de Usuarios
-                        </Typography>
-                        <Typography variant="h3" fontWeight="bold">
-                          {stats.totalUsers}
-                        </Typography>
-                      </div>
-                      <Group sx={{ fontSize: 60, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
+              <StatCard
+                title="Total de Usuarios"
+                value={stats.totalUsers}
+                icon={<Group />}
+                color={IGSS_COLORS.azul}
+                delay={0.05}
+                loading={loading}
+              />
             </Grid>
             <Grid item xs={12} md={4}>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Card
-                  sx={{
-                    background: mode !== 'dark'
-                      ? 'linear-gradient(135deg, #00A859 0%, #008044 100%)'
-                      : 'linear-gradient(135deg, #2FA86B 0%, #1E6B47 100%)',
-                    color: 'white',
-                    height: '100%',
-                  }}
-                >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }}>
-                          Total de Roles
-                        </Typography>
-                        <Typography variant="h3" fontWeight="bold">
-                          {stats.totalRoles}
-                        </Typography>
-                      </div>
-                      <Security sx={{ fontSize: 60, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
+              <StatCard
+                title="Total de Roles"
+                value={stats.totalRoles}
+                icon={<Security />}
+                color={IGSS_COLORS.verde}
+                delay={0.12}
+                loading={loading}
+              />
             </Grid>
             <Grid item xs={12} md={4}>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Card
-                  sx={{
-                    background: mode !== 'dark'
-                      ? 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)'
-                      : 'linear-gradient(135deg, #FB8C00 0%, #EF6C00 100%)',
-                    color: 'white',
-                    height: '100%',
-                  }}
-                >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }}>
-                          Informes Generados
-                        </Typography>
-                        <Typography variant="h3" fontWeight="bold">
-                          {stats.totalReports}
-                        </Typography>
-                      </div>
-                      <Assessment sx={{ fontSize: 60, opacity: 0.3 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
+              <StatCard
+                title="Informes Generados"
+                value={stats.totalReports}
+                icon={<Assessment />}
+                color={IGSS_COLORS.azulOscuro}
+                delay={0.19}
+                loading={loading}
+              />
             </Grid>
             <Grid item xs={12}>
-              <Paper sx={{ p: 3, mt: 2, borderRadius: 3 }} elevation={2}>
-                <Typography variant="h6" fontWeight="bold" gutterBottom>
-                  Actividad Reciente
-                </Typography>
-                <Typography color="text.secondary">
-                  No hay actividad reciente para mostrar.
-                </Typography>
-              </Paper>
+              <Box
+                component={motion.div}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.28 }}
+              >
+                <Paper
+                  sx={{
+                    p: 4,
+                    mt: 1,
+                    borderRadius: 3,
+                    border: '1px dashed',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    textAlign: 'center',
+                  }}
+                  elevation={0}
+                >
+                  <Box
+                    sx={{
+                      width: 64,
+                      height: 64,
+                      mx: 'auto',
+                      mb: 2,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'action.hover',
+                      color: 'primary.main',
+                    }}
+                  >
+                    <TimelineOutlinedIcon sx={{ fontSize: 32 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={700} gutterBottom>
+                    Actividad Reciente
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ maxWidth: 400, mx: 'auto' }}>
+                    No hay actividad reciente para mostrar. Las acciones del sistema aparecerán aquí próximamente.
+                  </Typography>
+                </Paper>
+              </Box>
             </Grid>
           </Grid>
         );
@@ -275,7 +266,7 @@ const AdminDashboard: React.FC = () => {
         }
         return <PuestoManagementPage />;
       case 'unidad-medica-management':
-        if (!hasPermission('gestionar-areas')) {
+        if (!hasPermission('gestionar-unidades-medicas')) {
           return (
             <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography color="text.secondary">No tiene permiso para ver esta sección.</Typography>
@@ -283,6 +274,15 @@ const AdminDashboard: React.FC = () => {
           );
         }
         return <UnidadMedicaManagementPage />;
+      case 'correlativo-management':
+        if (!hasPermission('gestionar-correlativos')) {
+          return (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">No tiene permiso para ver esta sección.</Typography>
+            </Box>
+          );
+        }
+        return <CorrelativoManagementPage />;
       case 'reports':
         return <Typography variant="h4">Contenido de Reportes</Typography>;
       case 'settings':
@@ -297,20 +297,7 @@ const AdminDashboard: React.FC = () => {
       {/* Sidebar */}
       <Drawer
         variant="permanent"
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-            background: mode !== 'dark' 
-              ? 'linear-gradient(180deg, #0066A1 0%, #004D7A 100%)'
-              : 'linear-gradient(180deg, #1E1E1E 0%, #121212 100%)',
-            color: '#FFFFFF',
-            borderRight: 'none',
-            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.1)',
-          },
-        }}
+        sx={getDrawerSx(mode)}
       >
         {/* User Profile Section */}
         <Box sx={{ p: 3, textAlign: 'center', mt: 2 }}>
@@ -326,19 +313,18 @@ const AdminDashboard: React.FC = () => {
                 mb: 2,
                 mx: 'auto',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #00A859 0%, #008044 100%)',
+                bgcolor: IGSS_COLORS.verde,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(0, 168, 89, 0.3)',
+                border: `3px solid ${IGSS_COLORS.blanco}`,
               }}
             >
               <Avatar 
                 sx={{ 
-                  width: 90, 
-                  height: 90,
-                  border: '3px solid white',
-                  bgcolor: '#0066A1',
+                  width: 88, 
+                  height: 88,
+                  bgcolor: IGSS_COLORS.azul,
                   fontSize: '2rem',
                   fontWeight: 'bold',
                 }} 
@@ -352,8 +338,8 @@ const AdminDashboard: React.FC = () => {
             <Typography 
               variant="body2" 
               sx={{ 
-                color: 'rgba(255, 255, 255, 0.8)',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                color: IGSS_COLORS.blanco,
+                backgroundColor: IGSS_COLORS.azulOscuro,
                 borderRadius: 2,
                 px: 2,
                 py: 0.5,
@@ -374,10 +360,11 @@ const AdminDashboard: React.FC = () => {
                 width: '100%',
                 borderRadius: 2,
                 py: 1.5,
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
+                backgroundColor: IGSS_COLORS.azulOscuro,
+                color: IGSS_COLORS.blanco,
+                border: `1px solid ${IGSS_COLORS.blanco}`,
                 '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  backgroundColor: IGSS_COLORS.azulClaro,
                 },
               }}
             >
@@ -399,25 +386,7 @@ const AdminDashboard: React.FC = () => {
               <ListItemButton
                 onClick={() => handleMenuItemClick(item.id)}
                 selected={selectedMenuItem === item.id}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: selectedMenuItem === item.id 
-                    ? 'rgba(255, 255, 255, 0.2)' 
-                    : 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { 
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  },
-                }}
+                sx={navItemSx(selectedMenuItem === item.id)}
               >
                 <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                   {item.icon}
@@ -443,17 +412,7 @@ const AdminDashboard: React.FC = () => {
               >
                 <ListItemButton
                   onClick={handleGestionesClick}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1.5,
-                    py: 1.5,
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    '&:hover': { 
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      transform: 'translateX(8px)',
-                      transition: 'all 0.3s ease',
-                    },
-                  }}
+                  sx={navItemSx(gestionesOpen)}
                 >
                   <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                     <ManageAccountsIcon />
@@ -482,26 +441,7 @@ const AdminDashboard: React.FC = () => {
                   <ListItemButton
                     onClick={() => handleMenuItemClick(item.id)}
                     selected={selectedMenuItem === item.id}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 1,
-                      py: 1.2,
-                      pl: 4,
-                      backgroundColor: selectedMenuItem === item.id 
-                        ? 'rgba(255, 255, 255, 0.2)' 
-                        : 'rgba(255, 255, 255, 0.05)',
-                      '&:hover': { 
-                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                        transform: 'translateX(8px)',
-                        transition: 'all 0.3s ease',
-                      },
-                      '&.Mui-selected': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                        '&:hover': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                        },
-                      },
-                    }}
+                    sx={{ ...navItemSx(selectedMenuItem === item.id), pl: 4, py: 1.2 }}
                   >
                     <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
                       {item.icon}
@@ -529,16 +469,7 @@ const AdminDashboard: React.FC = () => {
           <List sx={{ px: 2, pb: 1 }}>
             <ListItemButton
               onClick={() => navigate('/colaborador-dashboard')}
-              sx={{
-                borderRadius: 2,
-                py: 1.2,
-                backgroundColor: 'rgba(0, 168, 89, 0.25)',
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 168, 89, 0.4)',
-                  transform: 'translateX(8px)',
-                  transition: 'all 0.3s ease',
-                },
-              }}
+              sx={sidebarActionSx('verde')}
             >
               <ListItemIcon sx={{ color: 'white' }}>
                 <AssignmentIcon />
@@ -550,7 +481,7 @@ const AdminDashboard: React.FC = () => {
                   </Typography>
                 }
                 secondary={
-                  <Typography sx={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.75rem' }}>
+                  <Typography sx={{ color: IGSS_COLORS.gris, fontSize: '0.75rem' }}>
                     Crear / Autorizar SIAF
                   </Typography>
                 }
@@ -568,16 +499,7 @@ const AdminDashboard: React.FC = () => {
           >
             <ListItemButton
               onClick={handleLogout}
-              sx={{ 
-                borderRadius: 2, 
-                py: 1.5,
-                backgroundColor: 'rgba(211, 47, 47, 0.2)',
-                '&:hover': { 
-                  backgroundColor: 'rgba(211, 47, 47, 0.4)',
-                  transform: 'translateX(8px)',
-                  transition: 'all 0.3s ease',
-                } 
-              }}
+              sx={sidebarActionSx('salir')}
             >
               <ListItemIcon sx={{ color: 'white' }}>
                 <ExitToApp />
@@ -595,47 +517,24 @@ const AdminDashboard: React.FC = () => {
       </Drawer>
 
       {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: 4 }}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <Box sx={{ mb: 4 }}>
-            <Typography 
-              variant="h3" 
-              component="h1" 
-              fontWeight="bold" 
-              sx={{ 
-                background: mode !== 'dark'
-                  ? 'linear-gradient(135deg, #0066A1 0%, #00A859 100%)'
-                  : 'linear-gradient(135deg, #4A9FD8 0%, #4DC98A 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 1,
-              }}
-            >
-              {selectedMenuItem === 'dashboard' && 'Panel de Administración'}
-              {selectedMenuItem === 'user-management' && 'Gestión de Usuarios'}
-              {selectedMenuItem === 'role-management' && 'Gestión de Roles'}
-              {selectedMenuItem === 'area-management' && 'Gestión de Áreas'}
-              {selectedMenuItem === 'puesto-management' && 'Gestión de Puestos'}
-              {selectedMenuItem === 'reports' && 'Reportes'}
-              {selectedMenuItem === 'settings' && 'Configuración'}
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              {selectedMenuItem === 'dashboard' && 'Bienvenido al panel de control del sistema'}
-              {selectedMenuItem === 'user-management' && 'Administra los usuarios del sistema'}
-              {selectedMenuItem === 'role-management' && 'Configura roles y permisos'}
-              {selectedMenuItem === 'area-management' && 'Administra las áreas del sistema'}
-              {selectedMenuItem === 'puesto-management' && 'Administra los puestos de trabajo'}
-              {selectedMenuItem === 'reports' && 'Genera y visualiza reportes'}
-              {selectedMenuItem === 'settings' && 'Configura las opciones del sistema'}
-            </Typography>
+      <DashboardBackground>
+        <PageHeader
+          title={pageTitles[selectedMenuItem]?.title ?? 'Panel'}
+          subtitle={pageTitles[selectedMenuItem]?.subtitle ?? ''}
+        />
+        <AnimatePresence mode="wait">
+          <Box
+            component={motion.div}
+            key={selectedMenuItem}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {renderContent()}
           </Box>
-          {renderContent()}
-        </motion.div>
-      </Box>
+        </AnimatePresence>
+      </DashboardBackground>
     </Box>
   );
 };

@@ -4,6 +4,7 @@ import { Avatar, Button, CssBaseline, TextField, Grid, Box, Typography, Paper, S
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import LockIcon from '@mui/icons-material/Lock';
 import api from '../api';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 const PASSWORD_RULES = {
   minLength: 8,
@@ -33,14 +34,15 @@ const PASSWORD_EXAMPLE = 'Ejemplo: MiClave123!';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#005f9e',
-      light: '#0077c2',
+      main: IGSS_COLORS.azul,
+      light: IGSS_COLORS.azulClaro,
+      dark: IGSS_COLORS.azulOscuro,
     },
     secondary: {
-      main: '#4caf50',
+      main: IGSS_COLORS.verde,
     },
     background: {
-      default: '#f7f9fc',
+      default: IGSS_COLORS.fondo,
     },
   },
   typography: {

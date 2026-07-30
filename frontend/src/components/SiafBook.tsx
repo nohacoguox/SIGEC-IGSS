@@ -1,5 +1,5 @@
 // frontend/src/components/SiafBook.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -29,12 +29,16 @@ import {
   Container,
   Divider,
   Tooltip,
+  Alert,
+  Autocomplete,
+  CircularProgress,
 } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useSiaf } from '../context/SiafContext';
 import { useThemeMode } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 import api from '../api';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
@@ -52,12 +56,20 @@ import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import { SiafPdfDocument } from './SiafPdfDocument';
 
 type ItemTipo = 'bien' | 'servicio';
+type CatalogoOrigen = 'MINFIN' | 'SIBOFA';
+
+type CatalogoSugerencia = {
+  codigo: string;
+  descripcion: string;
+  origen: CatalogoOrigen;
+};
 
 interface Item {
   codigo: string;
   descripcion: string;
   cantidad: number;
   tipo: ItemTipo;
+  catalogoOrigen: CatalogoOrigen | '';
 }
 
 interface Subproducto {
@@ -80,13 +92,35 @@ const SiafBook: React.FC = () => {
   const { showSuccess, showError, showWarning } = useNotification();
   const [fecha, setFecha] = useState<string>(new Date().toISOString().split('T')[0]);
   const [correlativo, setCorrelativo] = useState<string>('');
+  const [reservaId, setReservaId] = useState<number | null>(null);
+  const [reservandoCorrelativo, setReservandoCorrelativo] = useState(false);
+  const correlativoConsumidoRef = React.useRef(false);
+  const reservaIdRef = React.useRef<number | null>(null);
   const [nombreUnidad, setNombreUnidad] = useState<string>('');
   const [direccion, setDireccion] = useState<string>('');
   const [justificacion, setJustificacion] = useState<string>('');
   const [areaUnidad, setAreaUnidad] = useState<string>('');
   const [areas, setAreas] = useState<Area[]>([]);
+  /** Unidad médica ligada al usuario logueado (nombre en su perfil) */
+  const [unidadUsuarioLigada, setUnidadUsuarioLigada] = useState<string>('');
+  const [unidadesMedicas, setUnidadesMedicas] = useState<
+    Array<{
+      id: number;
+      nombre: string;
+      codigo?: string | null;
+      direccion?: string | null;
+      departamento?: string | null;
+      municipio?: { nombre?: string; departamento?: { nombre?: string } | null } | null;
+    }>
+  >([]);
   
-  const [items, setItems] = useState<Item[]>([{ codigo: '', descripcion: '', cantidad: 0, tipo: 'bien' }]);
+  const [items, setItems] = useState<Item[]>([
+    { codigo: '', descripcion: '', cantidad: 0, tipo: 'bien', catalogoOrigen: '' },
+  ]);
+  const [catalogoSeleccionado, setCatalogoSeleccionado] = useState<CatalogoOrigen | ''>('');
+  const [codigoOpciones, setCodigoOpciones] = useState<Record<number, CatalogoSugerencia[]>>({});
+  const [codigoBuscando, setCodigoBuscando] = useState<Record<number, boolean>>({});
+  const codigoSearchTimers = useRef<Record<number, number>>({});
   const [subproductos, setSubproductos] = useState<Subproducto[]>([{ codigo: '', cantidad: 0 }]);
   const [consistentItem, setConsistentItem] = useState<string>(''); // New state for the consistent item
   const [showConsistentField, setShowConsistentField] = useState<boolean>(false); // State to control visibility
@@ -106,8 +140,8 @@ const SiafBook: React.FC = () => {
   const [usuarioEncargadoId, setUsuarioEncargadoId] = useState<number | null>(null);
   const [medicosUnidad, setMedicosUnidad] = useState<Array<{ id: number; nombres: string; apellidos: string; puesto?: { nombre: string }; unidadMedica: string }>>([]);
 
-  const [optionsOpen, setOptionsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewIsDraft, setPreviewIsDraft] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [adjuntos, setAdjuntos] = useState<Array<{ id: number; nombreOriginal: string; tamanioBytes: number; mimeType?: string }>>([]);
   const inputFileRef = React.useRef<HTMLInputElement>(null);
@@ -118,21 +152,221 @@ const SiafBook: React.FC = () => {
   /** Estado del SIAF al cargar (para saber si viene rechazado y mostrar aviso de detección automática) */
   const [estadoSiafCargado, setEstadoSiafCargado] = useState<string | null>(null);
 
-  // Cargar áreas desde el backend
+  // Cargar áreas y unidades médicas desde el backend
   useEffect(() => {
     const fetchAreas = async () => {
       try {
         const response = await api.get('/areas');
-        // Filtrar solo las áreas activas
         const areasActivas = response.data.filter((area: Area) => area.activo);
         setAreas(areasActivas);
       } catch (error) {
         console.error('Error al cargar áreas:', error);
       }
     };
+    const fetchUnidades = async () => {
+      try {
+        const response = await api.get('/unidades-medicas');
+        setUnidadesMedicas(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error('Error al cargar unidades médicas:', error);
+      }
+    };
 
     fetchAreas();
+    fetchUnidades();
   }, []);
+
+  const departamentoUnidad = (u: {
+    departamento?: string | null;
+    municipio?: { departamento?: { nombre?: string } | null } | null;
+  }) => (u.departamento || u.municipio?.departamento?.nombre || '').trim();
+
+  /** Formato institucional: 210, Consultorio de Palin, Escuintla */
+  const labelUnidadMedica = (u: {
+    nombre: string;
+    codigo?: string | null;
+    departamento?: string | null;
+    municipio?: { departamento?: { nombre?: string } | null } | null;
+  }) => {
+    const parts: string[] = [];
+    if (u.codigo?.trim()) parts.push(u.codigo.trim());
+    parts.push(u.nombre.trim());
+    const depto = departamentoUnidad(u);
+    if (depto) parts.push(depto);
+    return parts.join(', ');
+  };
+
+  const textoUnidadEjecutora = [nombreUnidad, areaUnidad].filter((p) => p?.trim()).join(' / ');
+
+  const findUnidadEnCatalogo = (
+    unidadNombre: string,
+    list: typeof unidadesMedicas
+  ) => {
+    const n = (unidadNombre || '').trim().toLowerCase();
+    if (!n || !list.length) return null;
+    return (
+      list.find((u) => u.nombre.trim().toLowerCase() === n) ||
+      list.find((u) => labelUnidadMedica(u).toLowerCase() === n) ||
+      list.find((u) => labelUnidadMedica(u).toLowerCase().includes(n)) ||
+      list.find((u) => n.includes(u.nombre.trim().toLowerCase())) ||
+      null
+    );
+  };
+
+  // Crear SIAF: precargar unidad + dirección según la unidad ligada al usuario
+  useEffect(() => {
+    if (id) return; // en corrección se respeta lo guardado en el SIAF
+    if (!unidadUsuarioLigada || unidadesMedicas.length === 0) return;
+    const match = findUnidadEnCatalogo(unidadUsuarioLigada, unidadesMedicas);
+    if (!match) {
+      // Si no está en catálogo, al menos mostrar el nombre del perfil
+      if (!nombreUnidad) setNombreUnidad(unidadUsuarioLigada);
+      return;
+    }
+    const label = labelUnidadMedica(match);
+    setNombreUnidad(label);
+    setDireccion(match.direccion?.trim() || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, unidadUsuarioLigada, unidadesMedicas]);
+
+  // Corrección: alinear etiqueta/dirección con el catálogo si aplica
+  useEffect(() => {
+    if (!id || !nombreUnidad || unidadesMedicas.length === 0) return;
+    const match = unidadesMedicas.find(
+      (u) =>
+        labelUnidadMedica(u) === nombreUnidad ||
+        u.nombre === nombreUnidad ||
+        (u.codigo && nombreUnidad.startsWith(`${u.codigo},`)) ||
+        nombreUnidad.includes(u.nombre)
+    );
+    if (!match) return;
+    const label = labelUnidadMedica(match);
+    if (label !== nombreUnidad) setNombreUnidad(label);
+    if (match.direccion?.trim() && !direccion?.trim()) setDireccion(match.direccion.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, unidadesMedicas]);
+
+  // Reservar correlativo automático al crear (no en modo corregir)
+  // Regla: se reserva al entrar; se libera al Volver/salir sin guardar; solo se consume al Guardar.
+  useEffect(() => {
+    if (id) return;
+
+    let cancelled = false;
+    correlativoConsumidoRef.current = false;
+
+    // Si Strict Mode desmontó hace un momento, cancelar la liberación pendiente
+    const pending = (window as any).__siafLiberateTimer as number | undefined;
+    if (pending) {
+      window.clearTimeout(pending);
+      (window as any).__siafLiberateTimer = undefined;
+    }
+
+    const reservar = async () => {
+      setReservandoCorrelativo(true);
+      try {
+        // El backend reutiliza la reserva activa del mismo usuario si aún existe
+        const res = await api.post('/correlativos/reservar');
+        const rid = res.data.reservaId as number;
+        const corr = res.data.correlativo as string;
+        reservaIdRef.current = rid;
+        if (cancelled) return;
+        setCorrelativo(corr);
+        setReservaId(rid);
+        try {
+          sessionStorage.setItem(
+            'siaf_correlativo_reserva',
+            JSON.stringify({ reservaId: rid, correlativo: corr })
+          );
+        } catch {
+          /* ignore */
+        }
+      } catch (err: any) {
+        console.error(err);
+        if (!cancelled) {
+          showError(
+            err?.response?.data?.message ||
+              'No se pudo asignar un correlativo automático. Reinicie el backend e intente de nuevo.'
+          );
+        }
+      } finally {
+        if (!cancelled) setReservandoCorrelativo(false);
+      }
+    };
+
+    reservar();
+
+    const liberarAlSalir = () => {
+      const rid = reservaIdRef.current;
+      if (!rid || correlativoConsumidoRef.current) return;
+      try {
+        sessionStorage.removeItem('siaf_correlativo_reserva');
+      } catch {
+        /* ignore */
+      }
+      const token = localStorage.getItem('token');
+      try {
+        fetch(`${api.defaults.baseURL}/correlativos/liberar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ reservaId: rid }),
+          keepalive: true,
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+
+    window.addEventListener('beforeunload', liberarAlSalir);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('beforeunload', liberarAlSalir);
+      const rid = reservaIdRef.current;
+      if (!rid || correlativoConsumidoRef.current) return;
+      // Diferir liberación: Strict Mode remonta en <500ms y debe conservar la misma reserva
+      (window as any).__siafLiberateTimer = window.setTimeout(() => {
+        (window as any).__siafLiberateTimer = undefined;
+        if (correlativoConsumidoRef.current) return;
+        if (reservaIdRef.current !== rid) return;
+        api.post('/correlativos/liberar', { reservaId: rid }).catch(() => {});
+        reservaIdRef.current = null;
+        try {
+          sessionStorage.removeItem('siaf_correlativo_reserva');
+        } catch {
+          /* ignore */
+        }
+      }, 500);
+    };
+  }, [id, showError]);
+
+  const liberarYVolver = async () => {
+    const rid = reservaIdRef.current;
+    const pending = (window as any).__siafLiberateTimer as number | undefined;
+    if (pending) {
+      window.clearTimeout(pending);
+      (window as any).__siafLiberateTimer = undefined;
+    }
+    if (rid && !correlativoConsumidoRef.current && !id) {
+      try {
+        await api.post('/correlativos/liberar', { reservaId: rid });
+      } catch {
+        /* ignore */
+      }
+      correlativoConsumidoRef.current = true;
+      reservaIdRef.current = null;
+      setReservaId(null);
+      setCorrelativo('');
+      try {
+        sessionStorage.removeItem('siaf_correlativo_reserva');
+      } catch {
+        /* ignore */
+      }
+    }
+    navigate('/siaf-book');
+  };
 
   // Cargar información del usuario logueado y del director (solo prellenar autoridad cuando es formulario nuevo, no en corregir)
   useEffect(() => {
@@ -145,6 +379,9 @@ const SiafBook: React.FC = () => {
         setNombreSolicitante(`${userData.nombres} ${userData.apellidos}`);
         setPuestoSolicitante(userData.puesto?.nombre || '');
         setUnidadSolicitante(userData.unidadMedica);
+        if (userData.unidadMedica) {
+          setUnidadUsuarioLigada(String(userData.unidadMedica));
+        }
 
         // Solo prellenar director cuando NO estamos editando/corrigiendo (evita sobrescribir encargado al abrir corregir)
         if (!id && userData.unidadMedica) {
@@ -169,21 +406,22 @@ const SiafBook: React.FC = () => {
 
   // Cuando "director ausente" está marcado, cargar médicos de la misma unidad para elegir encargado
   useEffect(() => {
-    if (!directorAusente || !unidadSolicitante) {
+    const unidad = (unidadSolicitante || unidadUsuarioLigada || '').trim();
+    if (!directorAusente || !unidad) {
       setMedicosUnidad([]);
       return;
     }
     const fetchMedicos = async () => {
       try {
-        const res = await api.get(`/users/medicos-por-unidad/${encodeURIComponent(unidadSolicitante)}`);
-        setMedicosUnidad(res.data || []);
+        const res = await api.get(`/users/medicos-por-unidad/${encodeURIComponent(unidad)}`);
+        setMedicosUnidad(Array.isArray(res.data) ? res.data : []);
       } catch (e) {
         console.error('Error al cargar médicos de la unidad:', e);
         setMedicosUnidad([]);
       }
     };
     fetchMedicos();
-  }, [directorAusente, unidadSolicitante]);
+  }, [directorAusente, unidadSolicitante, unidadUsuarioLigada]);
 
   // Al desmarcar "ausente", restaurar datos del director
   const handleDirectorAusenteChange = (checked: boolean) => {
@@ -248,12 +486,18 @@ const SiafBook: React.FC = () => {
           }
 
           if (siaf.items && siaf.items.length > 0) {
-            setItems(siaf.items.map((item: any) => ({
+            const mappedItems = siaf.items.map((item: any) => ({
               codigo: item.codigo ?? '',
               descripcion: item.descripcion ?? '',
               cantidad: item.cantidad ?? 0,
-              tipo: (item.codigo === 'S/C' ? 'servicio' : 'bien') as ItemTipo
-            })));
+              tipo: (item.codigo === 'S/C' ? 'servicio' : 'bien') as ItemTipo,
+              catalogoOrigen: item.catalogoOrigen ?? '',
+            }));
+            setItems(mappedItems);
+            const catalogoCargado = mappedItems.find(
+              (item: Item) => item.tipo === 'bien' && item.catalogoOrigen
+            )?.catalogoOrigen;
+            setCatalogoSeleccionado(catalogoCargado || '');
           }
 
           if (siaf.subproductos && siaf.subproductos.length > 0) {
@@ -293,41 +537,163 @@ const SiafBook: React.FC = () => {
 
   const handleItemChange = (index: number, field: keyof Item, value: string | number) => {
     const newItems = [...items];
-    (newItems[index] as any)[field] = value;
-    setItems(newItems);
-  };
-
-  const handleCodigoBlur = async (index: number) => {
-    if (items[index]?.tipo !== 'bien') return;
-    const codigo = (items[index]?.codigo ?? '').trim();
-    if (!codigo) return;
-    try {
-      const res = await api.get(`/catalogo-productos/codigo/${encodeURIComponent(codigo)}`);
-      if (res.data?.descripcion != null) {
-        const newItems = [...items];
-        if (newItems[index]) newItems[index] = { ...newItems[index], descripcion: res.data.descripcion };
-        setItems(newItems);
-      }
-    } catch {
-      // Código no encontrado en catálogo: no cambiar descripción
-    }
-  };
-
-  const handleItemTipoChange = (index: number, tipo: ItemTipo) => {
-    const newItems = [...items];
     if (!newItems[index]) return;
-    newItems[index] = { ...newItems[index], tipo };
-    if (tipo === 'servicio') {
-      newItems[index].codigo = 'S/C';
-    } else {
-      newItems[index].codigo = '';
+    (newItems[index] as any)[field] = value;
+    // Al cambiar el código de un bien, limpiar descripción hasta consultar el catálogo
+    if (field === 'codigo' && newItems[index].tipo === 'bien') {
       newItems[index].descripcion = '';
     }
     setItems(newItems);
   };
 
+  const buscarCodigosCatalogo = (index: number, query: string, origen: CatalogoOrigen) => {
+    if (codigoSearchTimers.current[index]) {
+      window.clearTimeout(codigoSearchTimers.current[index]);
+    }
+    const q = query.trim();
+    if (!q) {
+      setCodigoOpciones((prev) => ({ ...prev, [index]: [] }));
+      setCodigoBuscando((prev) => ({ ...prev, [index]: false }));
+      return;
+    }
+    setCodigoBuscando((prev) => ({ ...prev, [index]: true }));
+    codigoSearchTimers.current[index] = window.setTimeout(async () => {
+      try {
+        const res = await api.get('/catalogo-productos/buscar', {
+          params: { origen, q, limit: 15 },
+        });
+        setCodigoOpciones((prev) => ({ ...prev, [index]: res.data?.items ?? [] }));
+      } catch {
+        setCodigoOpciones((prev) => ({ ...prev, [index]: [] }));
+      } finally {
+        setCodigoBuscando((prev) => ({ ...prev, [index]: false }));
+      }
+    }, 250);
+  };
+
+  const aplicarCodigoSeleccionado = (index: number, option: CatalogoSugerencia | null, inputValue?: string) => {
+    setItems((prev) => {
+      const newItems = [...prev];
+      if (!newItems[index]) return prev;
+      if (option) {
+        newItems[index] = {
+          ...newItems[index],
+          codigo: option.codigo,
+          descripcion: option.descripcion ?? '',
+          cantidad: newItems[index].cantidad > 0 ? newItems[index].cantidad : 1,
+        };
+      } else if (typeof inputValue === 'string') {
+        const codigo = inputValue.trim();
+        newItems[index] = {
+          ...newItems[index],
+          codigo: inputValue,
+          descripcion: '',
+          cantidad: codigo
+            ? (newItems[index].cantidad > 0 ? newItems[index].cantidad : 1)
+            : newItems[index].cantidad,
+        };
+      }
+      return newItems;
+    });
+    if (option) {
+      setCodigoOpciones((prev) => ({ ...prev, [index]: [] }));
+    }
+  };
+
+  const handleCodigoBlur = async (index: number) => {
+    if (items[index]?.tipo !== 'bien') return;
+    const origen = catalogoSeleccionado || items[index]?.catalogoOrigen;
+    if (!origen) {
+      showWarning('Seleccione primero el catálogo MINFIN o SIBOFA.');
+      return;
+    }
+    const codigo = (items[index]?.codigo ?? '').trim();
+    if (!codigo) {
+      const newItems = [...items];
+      if (newItems[index]) newItems[index] = { ...newItems[index], descripcion: '' };
+      setItems(newItems);
+      return;
+    }
+    // Si ya hay descripción (seleccionó una sugerencia), no volver a consultar.
+    if ((items[index]?.descripcion ?? '').trim()) {
+      if (Number(items[index]?.cantidad) <= 0) {
+        const newItems = [...items];
+        newItems[index] = { ...newItems[index], cantidad: 1 };
+        setItems(newItems);
+      }
+      return;
+    }
+    try {
+      const res = await api.get(`/catalogo-productos/codigo/${encodeURIComponent(codigo)}`, {
+        params: { origen },
+      });
+      if (res.data?.descripcion != null) {
+        const newItems = [...items];
+        if (newItems[index]) {
+          newItems[index] = {
+            ...newItems[index],
+            descripcion: res.data.descripcion,
+            cantidad: Number(newItems[index].cantidad) > 0 ? newItems[index].cantidad : 1,
+          };
+        }
+        setItems(newItems);
+      }
+    } catch (error: any) {
+      // Código no encontrado en catálogo: dejar descripción vacía
+      const newItems = [...items];
+      if (newItems[index]) newItems[index] = { ...newItems[index], descripcion: '' };
+      setItems(newItems);
+      showWarning(error.response?.data?.message || `Código no encontrado en el catálogo ${origen}.`);
+    }
+  };
+
+  const handleCatalogoSeleccionadoChange = (catalogoOrigen: CatalogoOrigen | '') => {
+    if (!catalogoOrigen) return;
+    setCatalogoSeleccionado(catalogoOrigen);
+    setItems((prev) =>
+      prev.map((item) =>
+        item.tipo === 'bien'
+          ? { ...item, catalogoOrigen, codigo: '', descripcion: '' }
+          : item
+      )
+    );
+    setCodigoOpciones({});
+  };
+
+  const handleItemTipoChange = (index: number, tipo: ItemTipo) => {
+    const newItems = [...items];
+    if (!newItems[index]) return;
+    if (tipo === 'servicio') {
+      newItems[index] = {
+        ...newItems[index],
+        tipo,
+        codigo: 'S/C',
+        descripcion: '', // en blanco y editable
+        catalogoOrigen: '',
+      };
+    } else {
+      newItems[index] = {
+        ...newItems[index],
+        tipo,
+        codigo: '',
+        descripcion: '', // se completa al elegir código del catálogo
+        catalogoOrigen: catalogoSeleccionado,
+      };
+    }
+    setItems(newItems);
+  };
+
   const handleAddItem = () => {
-    setItems([...items, { codigo: '', descripcion: '', cantidad: 0, tipo: 'bien' }]);
+    setItems([
+      ...items,
+      {
+        codigo: '',
+        descripcion: '',
+        cantidad: 0,
+        tipo: 'bien',
+        catalogoOrigen: catalogoSeleccionado,
+      },
+    ]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -363,11 +729,17 @@ const SiafBook: React.FC = () => {
   /** Validación al crear/editar: todos los campos obligatorios excepto adjuntos. */
   const getValidationError = (): string | null => {
     if (!fecha?.trim()) return 'La fecha es obligatoria.';
+    if (!id && !reservaId) return 'Espere a que se asigne el correlativo automático.';
     if (!correlativo?.trim()) return 'El correlativo es obligatorio.';
     if (!nombreUnidad?.trim()) return 'Debe seleccionar el nombre de la unidad ejecutora.';
     if (!areaUnidad?.trim()) return 'Debe seleccionar el área.';
     if (!direccion?.trim()) return 'La dirección es obligatoria.';
     if (!justificacion?.trim()) return 'La justificación de la solicitud es obligatoria.';
+
+    const hayBienes = items.some((i) => i.tipo === 'bien');
+    if (hayBienes && !catalogoSeleccionado) {
+      return 'Seleccione el catálogo MINFIN o SIBOFA antes de ingresar códigos.';
+    }
 
     const validItems = items.filter(
       (i) => (i.codigo?.trim() ?? '') !== '' && (i.descripcion?.trim() ?? '') !== '' && Number(i.cantidad) > 0
@@ -397,13 +769,10 @@ const SiafBook: React.FC = () => {
     const validationError = getValidationError();
     if (validationError) {
       showError(validationError);
-      setOptionsOpen(false);
       return;
     }
 
     try {
-      setOptionsOpen(false);
-
       // Encontrar el ID del área seleccionada
       const selectedArea = areas.find(area => area.nombre === areaUnidad);
 
@@ -411,6 +780,7 @@ const SiafBook: React.FC = () => {
       const siafData: Record<string, unknown> = {
         fecha,
         correlativo,
+        ...(id ? {} : { reservaId }),
         nombreUnidad,
         direccion,
         areaId: selectedArea?.id || null,
@@ -424,7 +794,14 @@ const SiafBook: React.FC = () => {
         usuarioAutoridadId: directorAusente ? null : usuarioAutoridadId,
         usuarioEncargadoId: directorAusente ? usuarioEncargadoId : null,
         consistentItem,
-        items: items.filter(item => item.codigo && item.descripcion).map(({ codigo, descripcion, cantidad }) => ({ codigo, descripcion, cantidad })),
+        items: items
+          .filter(item => item.codigo && item.descripcion)
+          .map(({ codigo, descripcion, cantidad, tipo }) => ({
+            codigo,
+            descripcion,
+            cantidad,
+            catalogoOrigen: tipo === 'bien' ? (catalogoSeleccionado || null) : null,
+          })),
         subproductos: subproductos.filter(sub => sub.codigo),
       };
 
@@ -455,9 +832,18 @@ const SiafBook: React.FC = () => {
       } else {
         response = await api.post('/siaf', siafData);
         siafIdForAdjuntos = response.data.siafId;
+        correlativoConsumidoRef.current = true;
+        reservaIdRef.current = null;
+        setReservaId(null);
+        try {
+          sessionStorage.removeItem('siaf_correlativo_reserva');
+        } catch {
+          /* ignore */
+        }
 
         if (response.data.pdfGenerated) {
           await loadSiafs();
+          setPreviewIsDraft(false);
           setPreviewOpen(true);
         } else {
           showWarning('Solicitud SIAF creada, pero hubo un problema al generar el PDF');
@@ -518,7 +904,6 @@ const SiafBook: React.FC = () => {
       }
 
       showError(`Error al crear solicitud SIAF: ${errorMessage}`);
-      setOptionsOpen(true); // Reabrir el diálogo para que el usuario pueda intentar de nuevo
     }
   };
 
@@ -527,9 +912,7 @@ const SiafBook: React.FC = () => {
       <Box
         sx={{
           minHeight: '100vh',
-          background: mode !== 'dark'
-            ? 'linear-gradient(135deg, #F5F7FA 0%, #E8EDF2 100%)'
-            : 'linear-gradient(135deg, #1A1A1A 0%, #0D0D0D 100%)',
+          background: mode !== 'dark' ? IGSS_COLORS.fondo : '#121212',
           py: 4,
         }}
       >
@@ -545,11 +928,9 @@ const SiafBook: React.FC = () => {
                 p: 3,
                 mb: 3,
                 borderRadius: 3,
-                background: mode !== 'dark'
-                  ? 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)'
-                  : 'linear-gradient(135deg, #2E7FB0 0%, #1E5A7A 100%)',
+                background: mode !== 'dark' ? IGSS_COLORS.azul : IGSS_COLORS.azulOscuro,
                 color: 'white',
-                boxShadow: '0 8px 32px rgba(0, 102, 161, 0.3)',
+                boxShadow: '0 8px 32px rgba(59, 107, 133, 0.3)',
               }}
               elevation={0}
             >
@@ -581,7 +962,7 @@ const SiafBook: React.FC = () => {
                 <Button
                   variant="contained"
                   startIcon={<ArrowBackIcon />}
-                  onClick={() => navigate('/colaborador-dashboard')}
+                  onClick={() => { void liberarYVolver(); }}
                   sx={{
                     bgcolor: 'rgba(255, 255, 255, 0.2)',
                     '&:hover': {
@@ -713,14 +1094,17 @@ const SiafBook: React.FC = () => {
                       label="Correlativo No."
                       fullWidth
                       required
-                      value={correlativo}
-                      onChange={(e) => setCorrelativo(e.target.value)}
-                      disabled={!!id}
+                      value={reservandoCorrelativo ? 'Asignando…' : correlativo}
+                      InputProps={{ readOnly: true }}
+                      disabled={!!id || reservandoCorrelativo}
+                      helperText={
+                        id
+                          ? 'El correlativo no se modifica al corregir'
+                          : 'Reservado mientras llena el formulario. Solo se confirma al «Guardar y Generar SIAF». Si vuelve atrás sin guardar, se libera.'
+                      }
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '&:hover fieldset': {
-                            borderColor: 'primary.main',
-                          },
+                          bgcolor: 'action.hover',
                         },
                       }}
                     />
@@ -740,9 +1124,7 @@ const SiafBook: React.FC = () => {
                 >
                   <Box
                     sx={{
-                      background: mode !== 'dark'
-                        ? 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)'
-                        : 'linear-gradient(135deg, #2E7FB0 0%, #1E5A7A 100%)',
+                      background: mode !== 'dark' ? IGSS_COLORS.azul : IGSS_COLORS.azulOscuro,
                       p: 2.5,
                       color: 'white',
                     }}
@@ -771,25 +1153,51 @@ const SiafBook: React.FC = () => {
                       <Grid container spacing={2}>
                           <Grid item xs={12}>
                               <FormControl fullWidth required>
-                                <InputLabel id="nombre-unidad-label">Nombre</InputLabel>
+                                <InputLabel id="nombre-unidad-label">Unidad médica</InputLabel>
                                 <Select
                                     labelId="nombre-unidad-label"
                                     value={nombreUnidad}
-                                    label="Nombre *"
+                                    label="Unidad médica *"
+                                    disabled={!id}
+                                    readOnly={!id}
                                     onChange={(e) => {
+                                      // Solo editable al corregir un SIAF existente
+                                      if (!id) return;
                                       const selectedValue = e.target.value as string;
                                       setNombreUnidad(selectedValue);
-                                      if (selectedValue === "210, Consultorio Palín, Escuintla") {
-                                        setDireccion("Km. 36 CA-SUR, Boulevard Interior, Zona Industrial A Fracción A-82, Palín, Escuintla, Bodega 9 y 10");
-                                      } else {
-                                        setDireccion(""); // Clear address if another option is selected
-                                      }
+                                      const match = unidadesMedicas.find(
+                                        (u) => labelUnidadMedica(u) === selectedValue || u.nombre === selectedValue
+                                      );
+                                      setDireccion(match?.direccion?.trim() || '');
                                     }}
                                 >
                                     <MenuItem value=""><em>Ninguno</em></MenuItem>
-                                    <MenuItem value="210, Consultorio Palín, Escuintla">210, Consultorio Palín, Escuintla</MenuItem>
+                                    {unidadesMedicas.map((u) => {
+                                      const label = labelUnidadMedica(u);
+                                      return (
+                                        <MenuItem key={u.id} value={label}>
+                                          {label}
+                                        </MenuItem>
+                                      );
+                                    })}
+                                    {nombreUnidad &&
+                                      !unidadesMedicas.some(
+                                        (u) => labelUnidadMedica(u) === nombreUnidad || u.nombre === nombreUnidad
+                                      ) && (
+                                        <MenuItem value={nombreUnidad}>{nombreUnidad}</MenuItem>
+                                      )}
                                 </Select>
                               </FormControl>
+                              {!id && (
+                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                  Se carga automáticamente según la unidad ligada a su usuario. Solo elija el área.
+                                </Typography>
+                              )}
+                              {!id && unidadUsuarioLigada && !nombreUnidad && unidadesMedicas.length > 0 && (
+                                <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                                  No se encontró «{unidadUsuarioLigada}» en el catálogo de unidades. Verifique Gestión de Unidades Médicas.
+                                </Typography>
+                              )}
                           </Grid>
                           <Grid item xs={12}>
                             <FormControl fullWidth required>
@@ -809,8 +1217,26 @@ const SiafBook: React.FC = () => {
                                 </Select>
                             </FormControl>
                           </Grid>
+                          {textoUnidadEjecutora ? (
+                            <Grid item xs={12}>
+                              <Alert severity="info" sx={{ py: 0.5 }}>
+                                Quedará en el SIAF como:{' '}
+                                <strong>{textoUnidadEjecutora}</strong>
+                              </Alert>
+                            </Grid>
+                          ) : null}
                           <Grid item xs={12}>
-                              <TextField label="Dirección *" fullWidth multiline rows={2} required value={direccion} onChange={(e) => setDireccion(e.target.value)} InputProps={{ readOnly: true }} disabled />
+                              <TextField
+                                label="Dirección *"
+                                fullWidth
+                                multiline
+                                rows={2}
+                                required
+                                value={direccion}
+                                InputProps={{ readOnly: true }}
+                                disabled
+                                helperText="Se completa automáticamente con la dirección de su unidad médica"
+                              />
                           </Grid>
                       </Grid>
                   </CardContent>
@@ -820,50 +1246,162 @@ const SiafBook: React.FC = () => {
               {/* Detalle de Bienes o Servicios */}
               <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Detalle de Bienes o Servicios *</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Al menos un ítem con código, descripción y cantidad mayor a 0.</Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Al menos un ítem con código, descripción y cantidad mayor a 0.
+                </Typography>
+                <TextField
+                  select
+                  size="small"
+                  label="Catálogo de códigos"
+                  value={catalogoSeleccionado}
+                  onChange={(e) => handleCatalogoSeleccionadoChange(e.target.value as CatalogoOrigen | '')}
+                  sx={{ mb: 2, minWidth: 280 }}
+                  InputLabelProps={{ shrink: true }}
+                  SelectProps={{ displayEmpty: true }}
+                >
+                  <MenuItem value="" disabled>
+                    <em>Seleccione MINFIN o SIBOFA</em>
+                  </MenuItem>
+                  <MenuItem value="MINFIN">MINFIN</MenuItem>
+                  <MenuItem value="SIBOFA">SIBOFA</MenuItem>
+                </TextField>
+              <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+                <Table sx={{ minWidth: 900, tableLayout: 'fixed' }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: '18%', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Tipo</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: '18%', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Código</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: '36%', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Descripción</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: '12%', textAlign: 'right', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Cantidad</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: '10%', textAlign: 'right' }}>Acciones</TableCell>
+                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 150, borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Tipo</TableCell>
+                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 170, borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Código</TableCell>
+                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 'auto', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Descripción</TableCell>
+                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 100, textAlign: 'right', borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Cantidad</TableCell>
+                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 80, textAlign: 'right' }}>Acciones</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {items.map((item, index) => (
                       <TableRow key={index}>
-                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top' }}>
                           <Select
                             size="small"
                             value={item.tipo}
                             onChange={(e) => handleItemTipoChange(index, e.target.value as ItemTipo)}
                             variant="standard"
                             fullWidth
-                            sx={{ minWidth: 140 }}
+                            sx={{ minWidth: 130 }}
                           >
                             <MenuItem value="bien">Bien/Producto</MenuItem>
                             <MenuItem value="servicio">Servicio</MenuItem>
                           </Select>
                         </TableCell>
-                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top' }}>
                           {item.tipo === 'servicio' ? (
                             <TextField variant="standard" size="small" value="S/C" InputProps={{ readOnly: true }} fullWidth />
                           ) : (
-                            <TextField variant="standard" size="small" value={item.codigo} onChange={(e) => handleItemChange(index, 'codigo', e.target.value)} onBlur={() => handleCodigoBlur(index)} placeholder="Código (al salir se carga la descripción)" />
+                            <Autocomplete
+                              freeSolo
+                              value={null}
+                              options={codigoOpciones[index] ?? []}
+                              loading={!!codigoBuscando[index]}
+                              disabled={!catalogoSeleccionado}
+                              filterOptions={(x) => x}
+                              getOptionLabel={(option) =>
+                                typeof option === 'string' ? option : option.codigo
+                              }
+                              isOptionEqualToValue={(option, value) =>
+                                option.codigo === (typeof value === 'string' ? value : value.codigo)
+                              }
+                              inputValue={item.codigo}
+                              onInputChange={(_, value, reason) => {
+                                if (reason === 'reset') return;
+                                aplicarCodigoSeleccionado(index, null, value);
+                                if (catalogoSeleccionado) {
+                                  buscarCodigosCatalogo(index, value, catalogoSeleccionado);
+                                }
+                              }}
+                              onChange={(_, value) => {
+                                if (typeof value === 'string') {
+                                  aplicarCodigoSeleccionado(index, null, value);
+                                } else {
+                                  aplicarCodigoSeleccionado(index, value);
+                                }
+                              }}
+                              onBlur={() => handleCodigoBlur(index)}
+                              renderOption={(props, option) => (
+                                <li {...props} key={option.codigo}>
+                                  <Box sx={{ py: 0.5 }}>
+                                    <Typography variant="body2" fontWeight={700} sx={{ fontFamily: 'monospace' }}>
+                                      {option.codigo}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'normal' }}>
+                                      {(option.descripcion || '').slice(0, 140)}
+                                      {(option.descripcion || '').length > 140 ? '…' : ''}
+                                    </Typography>
+                                  </Box>
+                                </li>
+                              )}
+                              renderInput={(params) => (
+                                <TextField
+                                  {...params}
+                                  variant="standard"
+                                  size="small"
+                                  placeholder={catalogoSeleccionado ? 'Buscar código' : 'Elija catálogo'}
+                                  InputProps={{
+                                    ...params.InputProps,
+                                    endAdornment: (
+                                      <>
+                                        {codigoBuscando[index] ? <CircularProgress color="inherit" size={14} /> : null}
+                                        {params.InputProps.endAdornment}
+                                      </>
+                                    ),
+                                  }}
+                                />
+                              )}
+                              sx={{
+                                width: '100%',
+                                '& .MuiInputBase-input': {
+                                  textOverflow: 'ellipsis',
+                                },
+                              }}
+                              ListboxProps={{ style: { maxHeight: 280 } }}
+                            />
                           )}
                         </TableCell>
-                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top', minWidth: 420 }}>
                           {item.tipo === 'servicio' ? (
-                            <TextField variant="standard" size="small" fullWidth value={item.descripcion} onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)} placeholder="Descripción del servicio" />
+                            <TextField
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={3}
+                              maxRows={8}
+                              value={item.descripcion}
+                              onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
+                              placeholder="Escriba la descripción del servicio"
+                              sx={{ '& .MuiInputBase-root': { alignItems: 'flex-start' } }}
+                            />
                           ) : (
-                            <TextField variant="standard" size="small" fullWidth value={item.descripcion} InputProps={{ readOnly: true }} placeholder="Se completa al ingresar un código del catálogo" />
+                            <TextField
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={3}
+                              maxRows={8}
+                              value={item.descripcion}
+                              InputProps={{ readOnly: true }}
+                              placeholder="Se completa automáticamente con el catálogo"
+                              title={item.descripcion || undefined}
+                              sx={{
+                                '& .MuiInputBase-root': { alignItems: 'flex-start', bgcolor: 'action.hover' },
+                                '& .MuiInputBase-input': { whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+                              }}
+                            />
                           )}
                         </TableCell>
-                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}><TextField variant="standard" size="small" type="number" value={item.cantidad} onChange={(e) => handleItemChange(index, 'cantidad', Number(e.target.value))} /></TableCell>
-                        <TableCell>
+                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top' }}>
+                          <TextField variant="standard" size="small" type="number" value={item.cantidad} onChange={(e) => handleItemChange(index, 'cantidad', Number(e.target.value))} />
+                        </TableCell>
+                        <TableCell sx={{ verticalAlign: 'top' }}>
                           <IconButton color="error" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}>
                             <RemoveCircleOutlineIcon />
                           </IconButton>
@@ -941,9 +1479,7 @@ const SiafBook: React.FC = () => {
                 >
                   <Box
                     sx={{
-                      background: mode !== 'dark'
-                        ? 'linear-gradient(135deg, #00A859 0%, #008044 100%)'
-                        : 'linear-gradient(135deg, #2FA86B 0%, #1E6B47 100%)',
+                      background: mode !== 'dark' ? IGSS_COLORS.verde : IGSS_COLORS.verdeOscuro,
                       p: 2.5,
                       color: 'white',
                     }}
@@ -1023,9 +1559,7 @@ const SiafBook: React.FC = () => {
                 >
                   <Box
                     sx={{
-                      background: mode !== 'dark'
-                        ? 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)'
-                        : 'linear-gradient(135deg, #FB8C00 0%, #EF6C00 100%)',
+                      background: mode !== 'dark' ? IGSS_COLORS.azulClaro : IGSS_COLORS.azul,
                       p: 2.5,
                       color: 'white',
                     }}
@@ -1072,36 +1606,48 @@ const SiafBook: React.FC = () => {
                           </Grid>
                           {directorAusente && (
                             <Grid item xs={12}>
-                              <FormControl fullWidth required>
-                                <InputLabel id="encargado-label">Encargado/a del Despacho de Dirección</InputLabel>
-                                <Select
-                                  labelId="encargado-label"
-                                  value={usuarioEncargadoId ?? ''}
-                                  label="Encargado/a del Despacho de Dirección *"
-                                  disabled={!!id}
-                                  onChange={(e) => {
-                                    const idVal = e.target.value as number;
-                                    setUsuarioEncargadoId(idVal || null);
-                                    const medico = medicosUnidad.find((m) => m.id === idVal);
-                                    if (medico) {
-                                      setNombreAutoridad(`${medico.nombres} ${medico.apellidos}`);
-                                      setPuestoAutoridad('Encargado/a del Despacho de Dirección');
-                                      setUnidadAutoridad(medico.unidadMedica);
-                                    }
-                                  }}
-                                >
-                                  <MenuItem value=""><em>Seleccione un médico de la unidad</em></MenuItem>
-                                  {medicosUnidad.map((m) => (
-                                    <MenuItem key={m.id} value={m.id}>
-                                      {m.apellidos} {m.nombres} {m.puesto?.nombre ? `(${m.puesto.nombre})` : ''}
-                                    </MenuItem>
-                                  ))}
-                                </Select>
-                              </FormControl>
+                              <TextField
+                                select
+                                fullWidth
+                                required
+                                label="Encargado/a del Despacho de Dirección"
+                                value={usuarioEncargadoId ?? ''}
+                                disabled={!!id}
+                                InputLabelProps={{ shrink: true }}
+                                SelectProps={{ displayEmpty: true }}
+                                onChange={(e) => {
+                                  const idVal = Number(e.target.value);
+                                  if (!idVal) {
+                                    setUsuarioEncargadoId(null);
+                                    return;
+                                  }
+                                  setUsuarioEncargadoId(idVal);
+                                  const medico = medicosUnidad.find((m) => m.id === idVal);
+                                  if (medico) {
+                                    setNombreAutoridad(`${medico.nombres} ${medico.apellidos}`);
+                                    setPuestoAutoridad('Encargado/a del Despacho de Dirección');
+                                    setUnidadAutoridad(medico.unidadMedica || unidadSolicitante);
+                                  }
+                                }}
+                              >
+                                <MenuItem value="" disabled>
+                                  <em>Seleccione un médico de la unidad</em>
+                                </MenuItem>
+                                {medicosUnidad.map((m) => (
+                                  <MenuItem key={m.id} value={m.id}>
+                                    {m.apellidos} {m.nombres}{m.puesto?.nombre ? ` (${m.puesto.nombre})` : ''}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
                               {!id && (
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                  Solo se listan médicos de la misma unidad. Quien autorice esta solicitud será únicamente esta persona designada.
+                                  Solo se listan usuarios con puesto de médico o doctor de la misma unidad médica ({unidadSolicitante || unidadUsuarioLigada || '—'}).
                                 </Typography>
+                              )}
+                              {!id && directorAusente && medicosUnidad.length === 0 && (
+                                <Alert severity="warning" sx={{ mt: 1 }}>
+                                  No hay usuarios con puesto de médico o doctor registrados en esta unidad. Debe existir al menos uno en la misma unidad para designar encargado.
+                                </Alert>
                               )}
                             </Grid>
                           )}
@@ -1303,19 +1849,36 @@ const SiafBook: React.FC = () => {
                 />
               </Box>
 
-              {/* Botón de Guardar */}
-              <Box sx={{ textAlign: 'center', mt: 4 }}>
+              {/* Botones: visualizar (sin guardar) y guardar */}
+              <Box sx={{ textAlign: 'center', mt: 4, display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  color="primary"
+                  onClick={() => {
+                    setPreviewIsDraft(true);
+                    setPreviewOpen(true);
+                  }}
+                  startIcon={<VisibilityIcon />}
+                  sx={{
+                    py: 1.5,
+                    px: 4,
+                    fontSize: '1.1rem',
+                  }}
+                >
+                  Visualizar SIAF
+                </Button>
                 <Button 
                   variant="contained" 
                   size="large" 
                   color="primary" 
-                  onClick={() => setOptionsOpen(true)} 
+                  onClick={handleSave}
                   startIcon={<SaveIcon />}
                   sx={{
                     py: 1.5,
                     px: 4,
                     fontSize: '1.1rem',
-                    boxShadow: '0 4px 12px rgba(0, 102, 161, 0.3)',
+                    boxShadow: '0 4px 12px rgba(59, 107, 133, 0.3)',
                   }}
                 >
                   {id ? 'Actualizar y Generar SIAF' : 'Guardar y Generar SIAF'}
@@ -1326,41 +1889,48 @@ const SiafBook: React.FC = () => {
         </Container>
       </Box>
       
-      {/* Options Dialog */}
-      <Dialog open={optionsOpen} onClose={() => setOptionsOpen(false)}>
-        <DialogTitle>Opciones de Guardado</DialogTitle>
-        <DialogContent>
-            <Typography>¿Desea previsualizar el documento antes de generarlo?</Typography>
-        </DialogContent>
-        <DialogActions>
-
-          <Button onClick={handleSave} color="primary" variant="contained">
-            Visualizar y Descargar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Preview Dialog */}
-      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="xl" fullWidth>
-        <DialogTitle>Previsualización de SIAF</DialogTitle>
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle>
+          {previewIsDraft ? 'Vista previa del SIAF (sin guardar)' : 'Previsualización de SIAF'}
+        </DialogTitle>
         <DialogContent sx={{ height: '80vh' }}>
+          {previewIsDraft && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Esta es solo una vista de cómo va quedando. No se guarda ni se genera el correlativo definitivo.
+            </Typography>
+          )}
           <PDFViewer width="100%" height="100%">
             <SiafPdfDocument data={formData} />
           </PDFViewer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setPreviewOpen(false); navigate('/siaf-book'); }}>Cerrar</Button>
-          <PDFDownloadLink
-            document={<SiafPdfDocument data={formData} />}
-            fileName="SIAF-A-01.pdf"
-            style={{ textDecoration: 'none' }}
+          <Button
+            onClick={() => {
+              setPreviewOpen(false);
+              if (!previewIsDraft) navigate('/siaf-book');
+            }}
           >
-            {({ loading }) => (
-              <Button color="primary" variant="contained" disabled={loading}>
-                {loading ? 'Generando PDF...' : 'Descargar PDF'}
-              </Button>
-            )}
-          </PDFDownloadLink>
+            Cerrar
+          </Button>
+          {!previewIsDraft && (
+            <PDFDownloadLink
+              document={<SiafPdfDocument data={formData} />}
+              fileName="SIAF-A-01.pdf"
+              style={{ textDecoration: 'none' }}
+            >
+              {({ loading }) => (
+                <Button color="primary" variant="contained" disabled={loading}>
+                  {loading ? 'Generando PDF...' : 'Descargar PDF'}
+                </Button>
+              )}
+            </PDFDownloadLink>
+          )}
         </DialogActions>
       </Dialog>
 

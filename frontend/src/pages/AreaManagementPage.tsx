@@ -23,7 +23,6 @@ import {
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../api';
-import { useThemeMode } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 
 interface Area {
@@ -34,7 +33,6 @@ interface Area {
 }
 
 const AreaManagementPage: React.FC = () => {
-  const { mode } = useThemeMode();
   const { showSuccess, showError } = useNotification();
   const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,13 +140,9 @@ const AreaManagementPage: React.FC = () => {
         </Typography>
         <Button
           variant="contained"
+          color="primary"
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
-          sx={{
-            background: mode !== 'dark'
-              ? 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)'
-              : 'linear-gradient(135deg, #2E7FB0 0%, #1E5A7A 100%)',
-          }}
         >
           Nueva Área
         </Button>
@@ -162,7 +156,7 @@ const AreaManagementPage: React.FC = () => {
         <TableContainer component={Paper} elevation={3}>
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: mode !== 'dark' ? '#f5f5f5' : '#2a2a2a' }}>
+              <TableRow>
                 <TableCell><strong>Nombre</strong></TableCell>
                 <TableCell><strong>Descripción</strong></TableCell>
                 <TableCell align="center"><strong>Estado</strong></TableCell>

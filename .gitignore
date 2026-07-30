@@ -1,0 +1,22 @@
+# Secretos y entorno local
+backend/.env
+.env
+.env.local
+.env.*.local
+
+# Dependencias
+node_modules/
+
+# Build / logs
+frontend/build/
+*.log
+npm-debug.log*
+
+# Subidas locales
+backend/uploads/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

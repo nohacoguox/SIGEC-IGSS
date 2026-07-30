@@ -14,13 +14,27 @@ import { Area } from './entity/Area';
 import { SiafSolicitud, SiafAutorizacion, SiafItem, SiafSubproducto, SiafDocumentoAdjunto, SiafBitacora } from './entity/SiafSolicitud';
 import { Expediente, ExpedienteDocumento, ExpedienteBitacora, ExpedienteBitacoraDetalle, ExpedienteDocumentoVersion } from './entity/Expediente';
 import { ProductoCatalogo } from './entity/ProductoCatalogo';
+import { ProductoCatalogoConfig } from './entity/ProductoCatalogoConfig';
 import { Permission } from './entity/Permission';
 import { Role } from './entity/Role';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { In, DeepPartial } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { pdfGeneratorService } from './services/PdfGeneratorService';
 import { fileStorageService } from './services/FileStorageService';
+import { syncAppScreenPermissions } from './services/syncAppScreens';
+import { ensureCorrelativoTables } from './services/ensureCorrelativoTables';
+import { APP_SCREENS } from './config/appScreens';
+import {
+  reservarCorrelativo,
+  liberarCorrelativo,
+  consumirCorrelativo,
+  validarReservaActiva,
+  getEstadoCorrelativos,
+  actualizarConfigCorrelativo,
+  liberarReservaAdmin,
+} from './services/CorrelativoService';
 
 dotenv.config();
 
@@ -28,7 +42,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const multer = require('multer');
-const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50 MB (catálogos Excel pueden ser grandes)
+const CATALOGO_MAX_MB = Math.max(50, Number(process.env.CATALOGO_MAX_UPLOAD_MB) || 200);
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: CATALOGO_MAX_MB * 1024 * 1024 },
+}); // Catálogos MINFIN/SIBOFA pueden superar 50 MB
 
 let XLSX: any;
 try {
@@ -124,6 +142,86 @@ runUserRolesMigration()
     await AppDataSource.query(`ALTER TABLE expediente_bitacora ADD COLUMN IF NOT EXISTS expediente_documento_version_id INT`);
   } catch (e: any) {
     if (!/does not exist/i.test(e?.message || '')) console.error('Aviso al agregar expediente_documento_version_id a bitácora:', e?.message);
+  }
+
+  // Columnas opcionales de pantalla (si el usuario de BD no es dueño, se omiten sin romper)
+  try {
+    await AppDataSource.query(`ALTER TABLE permission ADD COLUMN IF NOT EXISTS screen_key VARCHAR`);
+    await AppDataSource.query(`ALTER TABLE permission ADD COLUMN IF NOT EXISTS panel VARCHAR`);
+  } catch (e: any) {
+    // portal_app a menudo no es dueño de permission; no es crítico
+  }
+
+  try {
+    await ensureCorrelativoTables();
+  } catch (e: any) {
+    console.error('Aviso al crear tablas de correlativos:', e?.message);
+  }
+
+  // Columnas de unidades médicas (código / dirección)
+  try {
+    await AppDataSource.query(`ALTER TABLE unidad_medica ADD COLUMN IF NOT EXISTS codigo VARCHAR(50)`);
+    await AppDataSource.query(`ALTER TABLE unidad_medica ADD COLUMN IF NOT EXISTS direccion TEXT`);
+    await AppDataSource.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_unidad_medica_codigo
+      ON unidad_medica (codigo)
+      WHERE codigo IS NOT NULL AND codigo <> ''
+    `);
+  } catch (e: any) {
+    console.error('Aviso al agregar codigo/direccion a unidad_medica:', e?.message);
+  }
+
+  // Catálogo productos: origen MINFIN | SIBOFA
+  try {
+    await AppDataSource.query(`
+      ALTER TABLE producto_catalogo
+      ADD COLUMN IF NOT EXISTS origen VARCHAR(20) DEFAULT 'MINFIN'
+    `);
+    await AppDataSource.query(`
+      ALTER TABLE producto_catalogo
+      ADD COLUMN IF NOT EXISTS datos_originales JSONB
+    `);
+    await AppDataSource.query(`
+      ALTER TABLE producto_catalogo
+      ADD COLUMN IF NOT EXISTS columna_codigo VARCHAR(255)
+    `);
+    await AppDataSource.query(`
+      ALTER TABLE producto_catalogo
+      ADD COLUMN IF NOT EXISTS columnas_descripcion JSONB
+    `);
+    await AppDataSource.query(`
+      UPDATE producto_catalogo SET origen = 'MINFIN' WHERE origen IS NULL OR origen = ''
+    `);
+    await AppDataSource.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_producto_catalogo_origen_codigo
+      ON producto_catalogo (origen, codigo)
+    `);
+    await AppDataSource.query(`
+      CREATE TABLE IF NOT EXISTS producto_catalogo_config (
+        origen VARCHAR(20) PRIMARY KEY,
+        encabezados JSONB NOT NULL DEFAULT '[]'::jsonb,
+        columna_codigo VARCHAR(255) NOT NULL,
+        columnas_descripcion JSONB NOT NULL DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e: any) {
+    console.error('Aviso al agregar origen a producto_catalogo:', e?.message);
+  }
+
+  try {
+    await AppDataSource.query(`
+      ALTER TABLE siaf_items
+      ADD COLUMN IF NOT EXISTS catalogo_origen VARCHAR(20)
+    `);
+  } catch (e: any) {
+    console.error('Aviso al agregar catalogo_origen a siaf_items:', e?.message);
+  }
+
+  try {
+    await syncAppScreenPermissions();
+  } catch (e: any) {
+    console.error('Aviso al sincronizar permisos de pantallas:', e?.message);
   }
 
   // Columnas origen expediente (unidad y municipio del creador, para filtro DAF)
@@ -386,6 +484,123 @@ runUserRolesMigration()
       res.status(500).json({ message: 'Error fetching permissions' });
     }
   });
+
+  // Catálogo de pantallas disponibles para vincular roles
+  app.get('/api/app-screens', verifyToken, authorizeRoles(['super administrador', 'gestionar-roles']), async (req: Request, res: Response) => {
+    try {
+      const permissionRepository = AppDataSource.getRepository(Permission);
+      const permissions = await permissionRepository.find();
+      const screens = APP_SCREENS.map((screen) => {
+        const perm = permissions.find((p) => p.name === screen.permission);
+        return {
+          ...screen,
+          permissionId: perm?.id ?? null,
+          registered: !!perm,
+        };
+      });
+      res.json({
+        total: screens.length,
+        admin: screens.filter((s) => s.panel === 'admin'),
+        colaborador: screens.filter((s) => s.panel === 'colaborador'),
+        screens,
+      });
+    } catch (err) {
+      res.status(500).json({ message: 'Error al obtener catálogo de pantallas' });
+    }
+  });
+
+  // ——— Correlativos SIAF (secuencia automática + reservas) ———
+  app.get(
+    '/api/correlativos/estado',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+    async (_req: Request, res: Response) => {
+      try {
+        const estado = await getEstadoCorrelativos();
+        res.json(estado);
+      } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ message: err?.message || 'Error al obtener estado de correlativos' });
+      }
+    }
+  );
+
+  app.put(
+    '/api/correlativos/config',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+    async (req: Request, res: Response) => {
+      try {
+        const { numeroInicio, siguienteNumero, digitos, minutosReserva } = req.body;
+        const config = await actualizarConfigCorrelativo({
+          numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
+          siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
+          digitos: digitos != null ? Number(digitos) : undefined,
+          minutosReserva: minutosReserva != null ? Number(minutosReserva) : undefined,
+        });
+        const estado = await getEstadoCorrelativos();
+        res.json({ config, estado });
+      } catch (err: any) {
+        res.status(400).json({ message: err?.message || 'Error al actualizar configuración' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/correlativos/reservar',
+    verifyToken,
+    authorizeRolesOrPermissions(
+      ['super administrador', 'crear-siaf', 'listado-siaf'],
+      ['crear-siaf', 'listado-siaf']
+    ),
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req as any).user.userId;
+        const reserva = await reservarCorrelativo(userId);
+        res.status(201).json(reserva);
+      } catch (err: any) {
+        console.error('[correlativos/reservar]', err);
+        const msg = err?.message || 'Error al reservar correlativo';
+        const hint = /does not exist|relation|tabla/i.test(msg)
+          ? ' Reinicie el backend para crear las tablas de correlativos.'
+          : '';
+        res.status(500).json({ message: `${msg}${hint}` });
+      }
+    }
+  );
+
+  app.post(
+    '/api/correlativos/liberar',
+    verifyToken,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req as any).user.userId;
+        const reservaId = Number(req.body?.reservaId);
+        if (!reservaId) return res.status(400).json({ message: 'reservaId es obligatorio' });
+        const ok = await liberarCorrelativo(reservaId, userId, false);
+        if (!ok) return res.status(404).json({ message: 'Reserva no encontrada o no autorizada' });
+        res.json({ ok: true });
+      } catch (err: any) {
+        res.status(500).json({ message: err?.message || 'Error al liberar correlativo' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/correlativos/liberar-admin/:id',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+    async (req: Request, res: Response) => {
+      try {
+        const ok = await liberarReservaAdmin(parseInt(req.params.id, 10));
+        if (!ok) return res.status(404).json({ message: 'Reserva no encontrada' });
+        const estado = await getEstadoCorrelativos();
+        res.json({ ok: true, estado });
+      } catch (err: any) {
+        res.status(500).json({ message: err?.message || 'Error al liberar reserva' });
+      }
+    }
+  );
 
   // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
@@ -1337,16 +1552,23 @@ runUserRolesMigration()
     }
   });
 
-  /** Personal de la unidad con puesto que contenga "Médico" (para elegir Encargado del Despacho). */
+  /** Personal de la misma unidad con puesto de médico/doctor (para Encargado del Despacho). */
   app.get('/api/users/medicos-por-unidad/:unidadMedica', verifyToken, async (req: Request, res: Response) => {
     try {
-      const { unidadMedica } = req.params;
+      const unidadMedica = decodeURIComponent(req.params.unidadMedica || '').trim();
+      if (!unidadMedica) {
+        return res.status(400).json({ message: 'La unidad médica es requerida.' });
+      }
       const userRepository = AppDataSource.getRepository(User);
+      // lower() en PG a veces no convierte É→é; se normalizan mayúsculas/tildes aparte.
       const medicos = await userRepository
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.puesto', 'puesto')
-        .where('user.unidadMedica = :unidadMedica', { unidadMedica: decodeURIComponent(unidadMedica) })
-        .andWhere('(puesto.nombre ILIKE :patron)', { patron: '%médico%' })
+        .where('TRIM(user.unidadMedica) = :unidadMedica', { unidadMedica })
+        .andWhere(
+          `lower(translate(coalesce(puesto.nombre, ''), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')) ~ :patron`,
+          { patron: '(^|[^a-z])(medicos?|doctores?|doctora)([^a-z]|$)' }
+        )
         .orderBy('user.apellidos', 'ASC')
         .addOrderBy('user.nombres', 'ASC')
         .getMany();
@@ -1472,36 +1694,172 @@ runUserRolesMigration()
     }
   });
 
-  // Actualizar unidad médica (asociar municipio/departamento)
-  app.put('/api/unidades-medicas/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas']), async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: 'ID inválido' });
-      const { municipioId, nombre, telefonos } = req.body;
-      const repo = AppDataSource.getRepository(UnidadMedica);
-      const unidad = await repo.findOne({ where: { id }, relations: ['municipio', 'municipio.departamento'] });
-      if (!unidad) return res.status(404).json({ message: 'Unidad médica no encontrada' });
-      if (nombre != null && String(nombre).trim()) unidad.nombre = String(nombre).trim();
-      if (telefonos !== undefined) unidad.telefonos = telefonos ?? '';
-      if (municipioId !== undefined) {
-        if (municipioId == null || municipioId === '') {
-          unidad.municipio = null;
-          unidad.departamento = null;
-        } else {
-          const muniRepo = AppDataSource.getRepository(Municipio);
-          const municipio = await muniRepo.findOne({ where: { id: Number(municipioId) }, relations: ['departamento'] });
-          if (!municipio) return res.status(400).json({ message: 'Municipio no encontrado' });
-          unidad.municipio = municipio;
-          unidad.departamento = municipio.departamento?.nombre ?? null;
-        }
-      }
-      await repo.save(unidad);
-      res.json(unidad);
-    } catch (error: any) {
-      console.error('Error al actualizar unidad médica:', error);
-      res.status(500).json({ message: error?.message || 'Error al actualizar unidad médica' });
+  const applyUnidadMedicaFields = async (
+    unidad: UnidadMedica,
+    body: any,
+    opts: { requireNombre?: boolean } = {}
+  ): Promise<string | null> => {
+    const { municipioId, nombre, telefonos, codigo, direccion } = body ?? {};
+
+    if (nombre !== undefined || opts.requireNombre) {
+      const nom = typeof nombre === 'string' ? nombre.trim() : '';
+      if (!nom) return 'El nombre de la unidad médica es obligatorio.';
+      if (nom.length > 200) return 'El nombre no puede superar 200 caracteres.';
+      unidad.nombre = nom;
     }
-  });
+
+    if (codigo !== undefined) {
+      const cod = typeof codigo === 'string' ? codigo.trim() : codigo == null ? '' : String(codigo).trim();
+      unidad.codigo = cod || null;
+    }
+
+    if (direccion !== undefined) {
+      const dir = typeof direccion === 'string' ? direccion.trim() : direccion == null ? '' : String(direccion).trim();
+      unidad.direccion = dir || null;
+    }
+
+    if (telefonos !== undefined) {
+      unidad.telefonos = telefonos == null ? '' : String(telefonos);
+    }
+
+    if (municipioId !== undefined) {
+      if (municipioId == null || municipioId === '') {
+        unidad.municipio = null;
+        unidad.departamento = null;
+      } else {
+        const muniRepo = AppDataSource.getRepository(Municipio);
+        const municipio = await muniRepo.findOne({
+          where: { id: Number(municipioId) },
+          relations: ['departamento'],
+        });
+        if (!municipio) return 'Municipio no encontrado';
+        unidad.municipio = municipio;
+        unidad.departamento = municipio.departamento?.nombre ?? null;
+      }
+    }
+
+    return null;
+  };
+
+  // Crear unidad médica
+  app.post(
+    '/api/unidades-medicas',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-areas'], ['gestionar-unidades-medicas']),
+    async (req: Request, res: Response) => {
+      try {
+        const repo = AppDataSource.getRepository(UnidadMedica);
+        const unidad = repo.create({
+          nombre: '',
+          codigo: null,
+          direccion: null,
+          departamento: null,
+          municipio: null,
+          telefonos: '',
+        });
+        const err = await applyUnidadMedicaFields(unidad, req.body, { requireNombre: true });
+        if (err) return res.status(400).json({ message: err });
+
+        const dupNombre = await repo.findOne({ where: { nombre: unidad.nombre } });
+        if (dupNombre) return res.status(409).json({ message: 'Ya existe una unidad con ese nombre.' });
+        if (unidad.codigo) {
+          const dupCodigo = await repo.findOne({ where: { codigo: unidad.codigo } });
+          if (dupCodigo) return res.status(409).json({ message: 'Ya existe una unidad con ese código de identificación.' });
+        }
+
+        const saved = await repo.save(unidad);
+        const full = await repo.findOne({
+          where: { id: saved.id },
+          relations: ['municipio', 'municipio.departamento'],
+        });
+        res.status(201).json(full ?? saved);
+      } catch (error: any) {
+        console.error('Error al crear unidad médica:', error);
+        if (error?.code === '23505') {
+          return res.status(409).json({ message: 'Nombre o código de identificación duplicado.' });
+        }
+        res.status(500).json({ message: error?.message || 'Error al crear unidad médica' });
+      }
+    }
+  );
+
+  // Actualizar unidad médica
+  app.put(
+    '/api/unidades-medicas/:id',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-areas'], ['gestionar-unidades-medicas']),
+    async (req: Request, res: Response) => {
+      try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ message: 'ID inválido' });
+        const repo = AppDataSource.getRepository(UnidadMedica);
+        const unidad = await repo.findOne({
+          where: { id },
+          relations: ['municipio', 'municipio.departamento'],
+        });
+        if (!unidad) return res.status(404).json({ message: 'Unidad médica no encontrada' });
+
+        const err = await applyUnidadMedicaFields(unidad, req.body);
+        if (err) return res.status(400).json({ message: err });
+
+        if (req.body?.nombre != null && String(req.body.nombre).trim()) {
+          const dupNombre = await repo.findOne({ where: { nombre: unidad.nombre } });
+          if (dupNombre && dupNombre.id !== unidad.id) {
+            return res.status(409).json({ message: 'Ya existe una unidad con ese nombre.' });
+          }
+        }
+        if (unidad.codigo) {
+          const dupCodigo = await repo.findOne({ where: { codigo: unidad.codigo } });
+          if (dupCodigo && dupCodigo.id !== unidad.id) {
+            return res.status(409).json({ message: 'Ya existe una unidad con ese código de identificación.' });
+          }
+        }
+
+        await repo.save(unidad);
+        const full = await repo.findOne({
+          where: { id: unidad.id },
+          relations: ['municipio', 'municipio.departamento'],
+        });
+        res.json(full ?? unidad);
+      } catch (error: any) {
+        console.error('Error al actualizar unidad médica:', error);
+        if (error?.code === '23505') {
+          return res.status(409).json({ message: 'Nombre o código de identificación duplicado.' });
+        }
+        res.status(500).json({ message: error?.message || 'Error al actualizar unidad médica' });
+      }
+    }
+  );
+
+  // Eliminar unidad médica
+  app.delete(
+    '/api/unidades-medicas/:id',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-areas'], ['gestionar-unidades-medicas']),
+    async (req: Request, res: Response) => {
+      try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ message: 'ID inválido' });
+        const repo = AppDataSource.getRepository(UnidadMedica);
+        const unidad = await repo.findOne({ where: { id } });
+        if (!unidad) return res.status(404).json({ message: 'Unidad médica no encontrada' });
+
+        const userRepo = AppDataSource.getRepository(User);
+        const enUso = await userRepo.count({ where: { unidadMedica: unidad.nombre } });
+        if (enUso > 0) {
+          return res.status(409).json({
+            message: `No se puede eliminar: hay ${enUso} usuario(s) asignado(s) a esta unidad.`,
+          });
+        }
+
+        await repo.remove(unidad);
+        res.json({ message: 'Unidad médica eliminada correctamente' });
+      } catch (error: any) {
+        console.error('Error al eliminar unidad médica:', error);
+        res.status(500).json({ message: error?.message || 'Error al eliminar unidad médica' });
+      }
+    }
+  );
 
   // Area Endpoints: GET lista (para dropdown en formulario SIAF) permite también crear-siaf y autorizar-siaf; gestión completa solo super admin o gestionar-areas
   app.get('/api/areas', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas', 'crear-siaf', 'autorizar-siaf']), async (req: Request, res: Response) => {
@@ -1606,6 +1964,62 @@ runUserRolesMigration()
 
   // Catálogo de productos (código -> descripción): consulta para formulario SIAF; importación Excel solo con permiso
   const productoCatalogoRepository = AppDataSource.getRepository(ProductoCatalogo);
+  const CATALOGO_ORIGENES = ['MINFIN', 'SIBOFA'] as const;
+  type CatalogoOrigenApi = (typeof CATALOGO_ORIGENES)[number];
+  const parseOrigen = (raw: unknown): CatalogoOrigenApi | null => {
+    const v = String(raw ?? '').trim().toUpperCase();
+    return (CATALOGO_ORIGENES as readonly string[]).includes(v) ? (v as CatalogoOrigenApi) : null;
+  };
+
+  type CatalogoTrabajo = {
+    id: string;
+    userId: number;
+    tipo: 'IMPORTAR' | 'CONFIGURAR';
+    progreso: number;
+    estado: 'PENDIENTE' | 'PROCESANDO' | 'COMPLETADO' | 'ERROR';
+    mensaje: string;
+    creadoEn: number;
+  };
+  const catalogoTrabajos = new Map<string, CatalogoTrabajo>();
+  const updateCatalogoTrabajo = (
+    id: string | null,
+    cambios: Partial<Pick<CatalogoTrabajo, 'progreso' | 'estado' | 'mensaje'>>
+  ) => {
+    if (!id) return;
+    const job = catalogoTrabajos.get(id);
+    if (!job) return;
+    Object.assign(job, cambios);
+  };
+
+  app.post('/api/catalogo-productos/trabajos', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), (req: Request, res: Response) => {
+    const tipo = String(req.body?.tipo ?? '').toUpperCase();
+    if (tipo !== 'IMPORTAR' && tipo !== 'CONFIGURAR') {
+      return res.status(400).json({ message: 'Tipo de trabajo inválido.' });
+    }
+    const now = Date.now();
+    for (const [id, job] of catalogoTrabajos) {
+      if (now - job.creadoEn > 60 * 60 * 1000) catalogoTrabajos.delete(id);
+    }
+    const id = randomUUID();
+    catalogoTrabajos.set(id, {
+      id,
+      userId: Number((req as any).user.userId),
+      tipo,
+      progreso: 1,
+      estado: 'PENDIENTE',
+      mensaje: 'Preparando proceso...',
+      creadoEn: now,
+    });
+    res.status(201).json({ id });
+  });
+
+  app.get('/api/catalogo-productos/trabajos/:id', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), (req: Request, res: Response) => {
+    const job = catalogoTrabajos.get(req.params.id);
+    if (!job || job.userId !== Number((req as any).user.userId)) {
+      return res.status(404).json({ message: 'Proceso no encontrado.' });
+    }
+    res.json(job);
+  });
 
   app.get('/api/catalogo-productos/codigo/:codigo', verifyToken, async (req: Request, res: Response) => {
     try {
@@ -1613,31 +2027,138 @@ runUserRolesMigration()
       if (!codigo) {
         return res.status(400).json({ message: 'Código es requerido.' });
       }
-      const producto = await productoCatalogoRepository.findOne({ where: { codigo } });
+      const origenFiltro = parseOrigen(req.query.origen);
+      if (!origenFiltro) {
+        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN o SIBOFA.' });
+      }
+      const qb = productoCatalogoRepository
+        .createQueryBuilder('p')
+        .where('p.codigo = :codigo', { codigo })
+        .andWhere('p.origen = :origen', { origen: origenFiltro });
+      const producto = await qb.getOne();
       if (!producto) {
         return res.status(404).json({ message: 'Código no encontrado en el catálogo.' });
       }
-      res.json({ codigo: producto.codigo, descripcion: producto.descripcion ?? '' });
+      res.json({
+        codigo: producto.codigo,
+        descripcion: producto.descripcion ?? '',
+        origen: producto.origen,
+      });
     } catch (err: any) {
       console.error('Error al buscar código en catálogo:', err);
       res.status(500).json({ message: err?.message || 'Error al consultar el catálogo.' });
     }
   });
 
-  const normalizarTexto = (s: string) =>
-    String(s ?? '')
+  // Autocompletado de códigos para el formulario SIAF (cualquier usuario autenticado)
+  app.get('/api/catalogo-productos/buscar', verifyToken, async (req: Request, res: Response) => {
+    try {
+      const origen = parseOrigen(req.query.origen);
+      if (!origen) {
+        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN o SIBOFA.' });
+      }
+      const q = String(req.query.q ?? '').trim();
+      if (q.length < 1) {
+        return res.json({ items: [] });
+      }
+      const limit = Math.min(25, Math.max(1, parseInt(String(req.query.limit ?? '15'), 10) || 15));
+      const found = await productoCatalogoRepository
+        .createQueryBuilder('p')
+        .select(['p.codigo', 'p.descripcion', 'p.origen'])
+        .where('p.origen = :origen', { origen })
+        .andWhere('(p.codigo ILIKE :q OR p.descripcion ILIKE :q)', { q: `%${q}%` })
+        .orderBy('p.codigo', 'ASC')
+        .take(limit)
+        .getMany();
+      const qLower = q.toLowerCase();
+      const items = [...found].sort((a, b) => {
+        const aPrefix = a.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
+        const bPrefix = b.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
+        if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+        return a.codigo.localeCompare(b.codigo, 'es');
+      });
+      res.json({
+        items: items.map((p) => ({
+          codigo: p.codigo,
+          descripcion: p.descripcion ?? '',
+          origen: p.origen,
+        })),
+      });
+    } catch (err: any) {
+      console.error('Error al buscar códigos del catálogo:', err);
+      res.status(500).json({ message: err?.message || 'Error al buscar en el catálogo.' });
+    }
+  });
+
+  const excelColumnLabel = (index: number) => {
+    let value = index + 1;
+    let label = '';
+    while (value > 0) {
+      value -= 1;
+      label = String.fromCharCode(65 + (value % 26)) + label;
+      value = Math.floor(value / 26);
+    }
+    return label;
+  };
+
+  const buildUniqueHeaders = (row: any[]) => {
+    const counts = new Map<string, number>();
+    return row.map((value: any, index: number) => {
+      const base = String(value ?? '').trim() || `Columna ${excelColumnLabel(index)}`;
+      const count = (counts.get(base) ?? 0) + 1;
+      counts.set(base, count);
+      return count === 1 ? base : `${base} (${count})`;
+    });
+  };
+
+  const normalizeCatalogHeader = (value: unknown) =>
+    String(value ?? '')
       .normalize('NFD')
       .replace(/\p{Diacritic}/gu, '')
       .trim()
       .toLowerCase();
 
+  const detectCatalogHeaderRow = (rows: any[][]) => {
+    let bestIndex = 0;
+    let bestScore = -1;
+    rows.slice(0, 20).forEach((row, index) => {
+      const nonEmpty = (row || []).filter((cell: any) => String(cell ?? '').trim()).length;
+      const hasCode = (row || []).some((cell: any) => normalizeCatalogHeader(cell).includes('codigo'));
+      const score = nonEmpty + (hasCode ? 10 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+    return bestIndex;
+  };
+
+  const buildCatalogDescription = (data: Record<string, string>, columns: string[]) => {
+    const parts = columns
+      .map((column) => String(data[column] ?? '').trim().replace(/(?:\s*;\s*)+$/g, ''))
+      .filter(Boolean);
+    return parts.length ? `${parts.join('; ')};` : '';
+  };
+
   app.post('/api/catalogo-productos/importar', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), uploadMemory.single('archivo'), async (req: Request, res: Response) => {
+    const trabajoId = String(req.query.trabajoId ?? '') || null;
     const send500 = (msg: string) => {
+      updateCatalogoTrabajo(trabajoId, { estado: 'ERROR', mensaje: msg });
       try { res.status(500).json({ message: msg }); } catch (_) {}
     };
     try {
+      updateCatalogoTrabajo(trabajoId, {
+        progreso: 26,
+        estado: 'PROCESANDO',
+        mensaje: 'Archivo recibido. Leyendo el Excel...',
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
       if (!XLSX?.read || !XLSX?.utils) {
         return send500('No se pudo cargar el paquete xlsx. Ejecute en backend: npm install xlsx');
+      }
+      const origen = parseOrigen(req.body?.origen);
+      if (!origen) {
+        return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN o SIBOFA).' });
       }
       const file = (req as any).file;
       const buffer = file?.buffer ?? file;
@@ -1645,6 +2166,8 @@ runUserRolesMigration()
         return res.status(400).json({ message: 'Debe enviar un archivo Excel (campo: archivo).' });
       }
       const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+      updateCatalogoTrabajo(trabajoId, { progreso: 35, mensaje: 'Excel leído. Analizando filas...' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
       const firstSheetName = workbook.SheetNames?.[0];
       if (!firstSheetName) {
         return res.status(400).json({ message: 'El archivo no contiene hojas.' });
@@ -1653,41 +2176,117 @@ runUserRolesMigration()
       if (!sheet) {
         return res.status(400).json({ message: 'No se pudo leer la primera hoja.' });
       }
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][];
+      // raw:false conserva el texto mostrado por Excel (incluidos ceros iniciales).
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as any[][];
       if (!Array.isArray(rows) || rows.length < 1) {
         return res.status(400).json({ message: 'El archivo no tiene filas.' });
       }
-      const header = (rows[0] || []).map((h: any) => normalizarTexto(String(h ?? '')));
-      let codigoIdx = header.findIndex((h: string) => h === 'codigo');
-      let descIdx = header.findIndex((h: string) => h === 'descripcion');
+
+      const headerRowIndex = detectCatalogHeaderRow(rows);
+      const headers = buildUniqueHeaders(rows[headerRowIndex] || []);
+      const normalizedHeaders = headers.map(normalizeCatalogHeader);
+      let codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo') && header.includes('insumo'));
+      if (codigoIdx < 0) codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo'));
       if (codigoIdx < 0) {
-        codigoIdx = 0;
-        descIdx = 1;
-      } else if (descIdx < 0) {
-        descIdx = codigoIdx === 0 ? 1 : 0;
+        return res.status(400).json({
+          message: 'No se encontró automáticamente una columna de código en el archivo.',
+        });
       }
-      const dataStart = header.some((h: string) => h === 'codigo') ? 1 : 0;
-      const mapCodigo = new Map<string, string | null>();
-      for (let i = dataStart; i < rows.length; i++) {
+
+      const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
+      const previousConfig = await configRepository.findOne({ where: { origen } });
+      const selectedDescriptionColumns = (previousConfig?.columnasDescripcion ?? [])
+        .filter((column) => headers.includes(column));
+
+      type RegistroImportado = {
+        codigo: string;
+        descripcion: string;
+        datosOriginales: Record<string, string>;
+      };
+      const mapCodigo = new Map<string, RegistroImportado>();
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i] || [];
         const rawCode = row[codigoIdx];
         const codigo = rawCode !== undefined && rawCode !== null ? String(rawCode).trim() : '';
         if (!codigo) continue;
-        const rawDesc = row[descIdx];
-        const descripcion = rawDesc !== undefined && rawDesc !== null ? String(rawDesc).trim() || null : null;
-        mapCodigo.set(codigo, descripcion);
+
+        const datosOriginales = headers.reduce<Record<string, string>>((acc, header, index) => {
+          acc[header] = String(row[index] ?? '').trim();
+          return acc;
+        }, {});
+        const descripcion = buildCatalogDescription(datosOriginales, selectedDescriptionColumns);
+        mapCodigo.set(codigo, { codigo, descripcion, datosOriginales });
+        if (i % 5000 === 0) {
+          const ratio = i / Math.max(rows.length, 1);
+          updateCatalogoTrabajo(trabajoId, {
+            progreso: Math.min(59, 36 + Math.round(ratio * 23)),
+            mensaje: `Analizando filas: ${i.toLocaleString('es-GT')} de ${rows.length.toLocaleString('es-GT')}...`,
+          });
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
       }
-      const registros = Array.from(mapCodigo.entries()).map(([codigo, descripcion]) => ({ codigo, descripcion }));
+      const registros = Array.from(mapCodigo.values());
       if (registros.length === 0) {
-        return res.status(400).json({ message: 'No se encontraron filas con código válido.' });
+        return res.status(400).json({
+          message: 'No se encontraron filas con código válido.',
+        });
       }
-      await productoCatalogoRepository.clear();
-      const CHUNK = 200;
-      for (let i = 0; i < registros.length; i += CHUNK) {
-        const chunk = registros.slice(i, i + CHUNK).map((r) => ({ codigo: r.codigo, descripcion: r.descripcion }));
-        await productoCatalogoRepository.insert(chunk);
-      }
-      return res.json({ message: 'Catálogo actualizado correctamente.', total: registros.length });
+
+      const columnaCodigoNombre = headers[codigoIdx];
+      updateCatalogoTrabajo(trabajoId, { progreso: 60, mensaje: 'Verificando códigos existentes...' });
+      const existentes = await productoCatalogoRepository.find({
+        where: { origen },
+        select: { codigo: true },
+      });
+      const codigosExistentes = new Set(existentes.map((item) => item.codigo));
+      const nuevos = registros.filter((item) => !codigosExistentes.has(item.codigo));
+      const omitidos = registros.length - nuevos.length;
+
+      updateCatalogoTrabajo(trabajoId, {
+        progreso: 65,
+        mensaje: `${nuevos.length.toLocaleString('es-GT')} códigos nuevos; ${omitidos.toLocaleString('es-GT')} ya existentes.`,
+      });
+      // La importación es incremental: nunca borra ni reemplaza códigos existentes.
+      await AppDataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(ProductoCatalogo);
+        const configRepo = manager.getRepository(ProductoCatalogoConfig);
+        const CHUNK = 500;
+        for (let i = 0; i < nuevos.length; i += CHUNK) {
+          const chunk = nuevos.slice(i, i + CHUNK).map((r) => ({
+            origen,
+            codigo: r.codigo,
+            descripcion: r.descripcion,
+            datosOriginales: r.datosOriginales,
+            columnaCodigo: columnaCodigoNombre,
+            columnasDescripcion: selectedDescriptionColumns,
+          }));
+          await repo.createQueryBuilder().insert().values(chunk).orIgnore().execute();
+          updateCatalogoTrabajo(trabajoId, {
+            progreso: Math.min(98, 65 + Math.round(((i + chunk.length) / Math.max(nuevos.length, 1)) * 33)),
+            mensaje: `Guardando códigos nuevos: ${Math.min(i + chunk.length, nuevos.length).toLocaleString('es-GT')} de ${nuevos.length.toLocaleString('es-GT')}...`,
+          });
+        }
+        await configRepo.save({
+          origen,
+          encabezados: headers,
+          columnaCodigo: columnaCodigoNombre,
+          columnasDescripcion: selectedDescriptionColumns,
+        });
+      });
+      updateCatalogoTrabajo(trabajoId, {
+        progreso: 100,
+        estado: 'COMPLETADO',
+        mensaje: `Completado: ${nuevos.length.toLocaleString('es-GT')} nuevos y ${omitidos.toLocaleString('es-GT')} existentes omitidos.`,
+      });
+      return res.json({
+        message: `Catálogo ${origen}: ${nuevos.length.toLocaleString('es-GT')} códigos nuevos cargados y ${omitidos.toLocaleString('es-GT')} existentes omitidos.`,
+        origen,
+        nuevos: nuevos.length,
+        omitidos,
+        columnaCodigo: columnaCodigoNombre,
+        encabezados: headers,
+        columnasDescripcion: selectedDescriptionColumns,
+      });
     } catch (err: any) {
       const msg = err?.message || String(err);
       console.error('Error al importar catálogo:', err);
@@ -1695,16 +2294,211 @@ runUserRolesMigration()
     }
   });
 
-  app.get('/api/catalogo-productos/stats', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), async (req: Request, res: Response) => {
+  app.get('/api/catalogo-productos/config', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), async (req: Request, res: Response) => {
     try {
-      const total = await productoCatalogoRepository.count();
-      const last = await productoCatalogoRepository.find({ order: { createdAt: 'DESC' as const }, take: 1 });
-      res.json({ total, ultimaActualizacion: last[0]?.createdAt ?? null });
+      const origen = parseOrigen(req.query.origen);
+      if (!origen) {
+        return res.status(400).json({ message: 'Debe indicar origen=MINFIN o origen=SIBOFA.' });
+      }
+      const config = await AppDataSource.getRepository(ProductoCatalogoConfig).findOne({ where: { origen } });
+      res.json({
+        origen,
+        encabezados: config?.encabezados ?? [],
+        columnaCodigo: config?.columnaCodigo ?? null,
+        columnasDescripcion: config?.columnasDescripcion ?? [],
+        updatedAt: config?.updatedAt ?? null,
+      });
     } catch (err: any) {
-      console.error('Error al obtener estadísticas del catálogo:', err);
-      res.json({ total: 0, ultimaActualizacion: null });
+      res.status(500).json({ message: err?.message || 'Error al obtener la configuración del catálogo.' });
     }
   });
+
+  app.put('/api/catalogo-productos/config', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), async (req: Request, res: Response) => {
+    const trabajoId = String(req.query.trabajoId ?? '') || null;
+    try {
+      updateCatalogoTrabajo(trabajoId, {
+        progreso: 2,
+        estado: 'PROCESANDO',
+        mensaje: 'Preparando actualización de descripciones...',
+      });
+      const origen = parseOrigen(req.body?.origen);
+      if (!origen) {
+        return res.status(400).json({ message: 'Debe indicar el catálogo MINFIN o SIBOFA.' });
+      }
+      const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
+      const config = await configRepository.findOne({ where: { origen } });
+      if (!config) {
+        return res.status(404).json({ message: `Primero cargue el archivo del catálogo ${origen}.` });
+      }
+      const requested: string[] = Array.isArray(req.body?.columnasDescripcion)
+        ? req.body.columnasDescripcion.map((value: unknown) => String(value))
+        : [];
+      const columns: string[] = Array.from(new Set<string>(requested))
+        .filter((column) => config.encabezados.includes(column));
+      if (columns.length === 0) {
+        return res.status(400).json({ message: 'Seleccione al menos una columna para la descripción.' });
+      }
+
+      await AppDataSource.transaction(async (manager) => {
+        const rows: Array<{ id: number }> = await manager.query(
+          `SELECT id FROM producto_catalogo WHERE origen = $1 ORDER BY id`,
+          [origen]
+        );
+        const CHUNK = 5000;
+        const columnsJson = JSON.stringify(columns);
+        for (let i = 0; i < rows.length; i += CHUNK) {
+          const ids = rows.slice(i, i + CHUNK).map((row) => row.id);
+          await manager.query(
+            `
+              UPDATE producto_catalogo p
+              SET descripcion = COALESCE((
+                SELECT string_agg(
+                  regexp_replace(trim(p.datos_originales ->> c.nombre), '(\\s*;\\s*)+$', '', 'g'),
+                  '; ' ORDER BY c.orden
+                ) || ';'
+                FROM jsonb_array_elements_text($1::jsonb)
+                  WITH ORDINALITY AS c(nombre, orden)
+                WHERE NULLIF(trim(p.datos_originales ->> c.nombre), '') IS NOT NULL
+              ), ''),
+              columnas_descripcion = $1::jsonb
+              WHERE p.id = ANY($2::int[])
+            `,
+            [columnsJson, ids]
+          );
+          const processed = Math.min(i + ids.length, rows.length);
+          updateCatalogoTrabajo(trabajoId, {
+            progreso: Math.min(99, 2 + Math.round((processed / Math.max(rows.length, 1)) * 97)),
+            mensaje: `Actualizando descripciones: ${processed.toLocaleString('es-GT')} de ${rows.length.toLocaleString('es-GT')}...`,
+          });
+        }
+        await manager.getRepository(ProductoCatalogoConfig).save({
+          ...config,
+          columnasDescripcion: columns,
+        });
+      });
+      updateCatalogoTrabajo(trabajoId, {
+        progreso: 100,
+        estado: 'COMPLETADO',
+        mensaje: `Descripciones del catálogo ${origen} actualizadas.`,
+      });
+      res.json({
+        message: `Descripción del catálogo ${origen} actualizada correctamente.`,
+        origen,
+        columnasDescripcion: columns,
+      });
+    } catch (err: any) {
+      console.error('Error al configurar descripción del catálogo:', err);
+      updateCatalogoTrabajo(trabajoId, {
+        estado: 'ERROR',
+        mensaje: err?.message || 'Error al guardar la configuración.',
+      });
+      res.status(500).json({ message: err?.message || 'Error al guardar la configuración.' });
+    }
+  });
+
+  app.get('/api/catalogo-productos/stats', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), async (req: Request, res: Response) => {
+    try {
+      const buildStats = async (origen: CatalogoOrigenApi) => {
+        const total = await productoCatalogoRepository.count({ where: { origen } });
+        const last = await productoCatalogoRepository.find({
+          where: { origen },
+          order: { createdAt: 'DESC' as const },
+          take: 1,
+        });
+        return {
+          total,
+          ultimaActualizacion: last[0]?.createdAt ?? null,
+          columnaCodigo: last[0]?.columnaCodigo ?? null,
+          columnasDescripcion: last[0]?.columnasDescripcion ?? [],
+        };
+      };
+      const origenFiltro = parseOrigen(req.query.origen);
+      if (origenFiltro) {
+        const s = await buildStats(origenFiltro);
+        return res.json({ origen: origenFiltro, ...s });
+      }
+      const [minfin, sibofa] = await Promise.all([buildStats('MINFIN'), buildStats('SIBOFA')]);
+      res.json({
+        MINFIN: minfin,
+        SIBOFA: sibofa,
+        total: minfin.total + sibofa.total,
+      });
+    } catch (err: any) {
+      console.error('Error al obtener estadísticas del catálogo:', err);
+      res.json({
+        MINFIN: { total: 0, ultimaActualizacion: null },
+        SIBOFA: { total: 0, ultimaActualizacion: null },
+        total: 0,
+      });
+    }
+  });
+
+  // Listado paginado / búsqueda por catálogo (para visualizar códigos cargados)
+  app.get('/api/catalogo-productos', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), async (req: Request, res: Response) => {
+    try {
+      const origen = parseOrigen(req.query.origen);
+      if (!origen) {
+        return res.status(400).json({ message: 'Debe indicar origen=MINFIN o origen=SIBOFA.' });
+      }
+      const q = String(req.query.q ?? '').trim();
+      const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '25'), 10) || 25));
+      const qb = productoCatalogoRepository
+        .createQueryBuilder('p')
+        .where('p.origen = :origen', { origen });
+      if (q) {
+        qb.andWhere('(p.codigo ILIKE :q OR p.descripcion ILIKE :q)', { q: `%${q}%` });
+      }
+      qb.orderBy('p.codigo', 'ASC');
+      const total = await qb.getCount();
+      const items = await qb
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany();
+      res.json({
+        origen,
+        total,
+        page,
+        limit,
+        items: items.map((p) => ({
+          id: p.id,
+          codigo: p.codigo,
+          descripcion: p.descripcion ?? '',
+          origen: p.origen,
+          datosOriginales: p.datosOriginales ?? {},
+        })),
+      });
+    } catch (err: any) {
+      console.error('Error al listar catálogo:', err);
+      res.status(500).json({ message: err?.message || 'Error al listar el catálogo.' });
+    }
+  });
+
+  const resolverItemsSiafDesdeCatalogo = async (items: any[]) => {
+    const resolved: any[] = [];
+    for (const raw of items || []) {
+      const codigo = String(raw?.codigo ?? '').trim();
+      if (codigo === 'S/C') {
+        resolved.push({ ...raw, codigo, catalogoOrigen: null });
+        continue;
+      }
+      const origen = parseOrigen(raw?.catalogoOrigen);
+      if (!origen) {
+        return { error: `Seleccione el catálogo MINFIN o SIBOFA para el código "${codigo || 'vacío'}".` };
+      }
+      const producto = await productoCatalogoRepository.findOne({ where: { codigo, origen } });
+      if (!producto) {
+        return { error: `El código "${codigo}" no existe en el catálogo ${origen}.` };
+      }
+      resolved.push({
+        ...raw,
+        codigo: producto.codigo,
+        descripcion: producto.descripcion ?? '',
+        catalogoOrigen: origen,
+      });
+    }
+    return { items: resolved };
+  };
 
   // SIAF Endpoints
 
@@ -1740,7 +2534,7 @@ runUserRolesMigration()
     }
   });
 
-  // Crear una nueva solicitud SIAF
+  // Crear una nueva solicitud SIAF (correlativo automático vía reserva)
   app.post('/api/siaf', verifyToken, async (req: Request, res: Response) => {
     try {
       const siafData = req.body;
@@ -1750,13 +2544,34 @@ runUserRolesMigration()
       const userRepository = AppDataSource.getRepository(User);
       const areaRepository = AppDataSource.getRepository(Area);
 
-      // 1. Validar correlativo único
-      const existingSiaf = await siafRepository.findOne({ where: { correlativo: siafData.correlativo } });
+      const itemsResueltos = await resolverItemsSiafDesdeCatalogo(siafData.items);
+      if (itemsResueltos.error) {
+        return res.status(400).json({ message: itemsResueltos.error });
+      }
+      siafData.items = itemsResueltos.items;
+
+      // 1. Validar reserva de correlativo (se consume solo tras guardar)
+      const reservaId = Number(siafData.reservaId);
+      if (!reservaId || Number.isNaN(reservaId)) {
+        return res.status(400).json({
+          message: 'Debe reservar un correlativo antes de crear el SIAF. Recargue el formulario.',
+        });
+      }
+      const reservaOk = await validarReservaActiva(reservaId, userId);
+      if (!reservaOk) {
+        return res.status(409).json({
+          message: 'La reserva del correlativo expiró o no es válida. Vuelva a abrir «Crear SIAF» para obtener uno nuevo.',
+        });
+      }
+      const correlativoFinal = reservaOk.correlativo;
+
+      // 2. Validar correlativo único (doble chequeo)
+      const existingSiaf = await siafRepository.findOne({ where: { correlativo: correlativoFinal } });
       if (existingSiaf) {
-        return res.status(409).json({ message: `El correlativo "${siafData.correlativo}" ya existe.` });
+        return res.status(409).json({ message: `El correlativo "${correlativoFinal}" ya existe.` });
       }
 
-      // 2. Obtener entidades relacionadas
+      // 3. Obtener entidades relacionadas
       const solicitante = await userRepository.findOneBy({ id: userId });
       if (!solicitante) {
         return res.status(404).json({ message: 'Usuario solicitante no encontrado.' });
@@ -1776,9 +2591,9 @@ runUserRolesMigration()
         area = await areaRepository.findOneBy({ id: siafData.areaId });
       }
 
-      // 3. Crear y poblar la solicitud
+      // 4. Crear y poblar la solicitud
       const nuevaSolicitud = new SiafSolicitud();
-      nuevaSolicitud.correlativo = siafData.correlativo;
+      nuevaSolicitud.correlativo = correlativoFinal;
       nuevaSolicitud.fecha = new Date(siafData.fecha);
       nuevaSolicitud.nombreUnidad = siafData.nombreUnidad;
       nuevaSolicitud.direccion = siafData.direccion;
@@ -1802,6 +2617,7 @@ runUserRolesMigration()
       nuevaSolicitud.items = siafData.items.map((itemData: any, index: number) => {
         const newItem = new SiafItem();
         newItem.codigo = itemData.codigo;
+        newItem.catalogoOrigen = itemData.catalogoOrigen ?? null;
         newItem.descripcion = itemData.descripcion;
         newItem.cantidad = itemData.cantidad;
         newItem.orden = index;
@@ -1819,7 +2635,10 @@ runUserRolesMigration()
       // 5. Guardar en la base de datos
       const savedSiaf = await siafRepository.save(nuevaSolicitud);
 
-      // 6. Generar y guardar el PDF
+      // 6. Marcar correlativo como consumido (ya no se puede reutilizar)
+      await consumirCorrelativo(reservaId, userId);
+
+      // 7. Generar y guardar el PDF
       try {
         const pdfBuffer = await pdfGeneratorService.generateSiafPdf(savedSiaf);
         const pdfInfo = await fileStorageService.saveSiafPdf(pdfBuffer, savedSiaf.correlativo);
@@ -2009,7 +2828,7 @@ runUserRolesMigration()
   });
 
   // Estadísticas de tiempos SIAF: tiempo promedio de revisión (generación → autorización/rechazo) y tiempo promedio de corrección (rechazo → corrección)
-  app.get('/api/estadisticas/siaf-tiempos', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas']), async (req: Request, res: Response) => {
+  app.get('/api/estadisticas/siaf-tiempos', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos']), async (req: Request, res: Response) => {
     const desde = new Date();
     const dias = Math.min(365, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
     desde.setDate(desde.getDate() - dias);
@@ -2173,7 +2992,7 @@ runUserRolesMigration()
     datos_incorrectos: 'Datos incorrectos o inconsistentes',
     otro: 'Otro',
   };
-  app.get('/api/estadisticas/motivos-rechazo', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas']), async (req: Request, res: Response) => {
+  app.get('/api/estadisticas/motivos-rechazo', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-motivos']), async (req: Request, res: Response) => {
     try {
       const dias = Math.min(365, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
       const desde = new Date();
@@ -2683,6 +3502,13 @@ runUserRolesMigration()
       const estabaRechazada = solicitud.estado === 'rechazado' || tieneAlgunRechazo;
       console.log('[SIAF] PUT corrección', { siafId, estado: solicitud.estado, tieneAlgunRechazo, estabaRechazada, numAutorizaciones: (solicitud.autorizaciones || []).length });
       const body = req.body;
+      if (Array.isArray(body.items)) {
+        const itemsResueltos = await resolverItemsSiafDesdeCatalogo(body.items);
+        if (itemsResueltos.error) {
+          return res.status(400).json({ message: itemsResueltos.error });
+        }
+        body.items = itemsResueltos.items;
+      }
 
       // Solo cuando el SIAF estaba rechazado se captura el estado anterior para el diff y se registra la corrección en bitácora.
       // Si el usuario solo modifica un SIAF pendiente (sin rechazo previo), no se crea ninguna entrada en la bitácora.
@@ -2728,6 +3554,7 @@ runUserRolesMigration()
         solicitud.items = body.items.map((itemData: any, index: number) => {
           const item = new SiafItem();
           item.codigo = itemData.codigo;
+          item.catalogoOrigen = itemData.catalogoOrigen ?? null;
           item.descripcion = itemData.descripcion;
           item.cantidad = itemData.cantidad;
           item.orden = index;
@@ -2829,13 +3656,17 @@ runUserRolesMigration()
   });
 
   // Manejo de errores (p. ej. multer o errores no capturados en rutas)
-  app.use((err: any, _req: Request, res: Response, _next: Function) => {
+  app.use((err: any, req: Request, res: Response, _next: Function) => {
     console.error('Error en petición:', err);
     if (res.headersSent) return;
     const isFileTooLarge = err?.code === 'LIMIT_FILE_SIZE' || err?.message?.includes('File too large');
     const msg = isFileTooLarge
-      ? 'Archivo demasiado grande. Límite: 50 MB. Comprima el Excel o use un archivo más pequeño.'
+      ? `Archivo demasiado grande. Límite: ${CATALOGO_MAX_MB} MB. Comprima el Excel o use un archivo más pequeño.`
       : (err?.message || String(err));
+    updateCatalogoTrabajo(String(req.query?.trabajoId ?? '') || null, {
+      estado: 'ERROR',
+      mensaje: msg,
+    });
     res.status(isFileTooLarge ? 413 : 500).json({ message: msg });
   });
 

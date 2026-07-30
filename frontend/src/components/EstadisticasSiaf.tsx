@@ -33,6 +33,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import api from '../api';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 interface EstadisticasData {
   dias: number;
@@ -145,8 +146,8 @@ const EstadisticasSiaf: React.FC<EstadisticasSiafProps> = ({ tabInicial = 0, ocu
       subtitle: 'Desde generación hasta autorización',
       detail: `${data.cantidadAutorizados ?? 0} SIAF autorizados`,
       icon: <CheckCircle />,
-      color: '#0D47A1',
-      borderLeft: '4px solid #1565C0',
+      color: IGSS_COLORS.azulOscuro,
+      borderLeft: `4px solid ${IGSS_COLORS.azul}`,
     },
     {
       title: 'Tiempo de revisión (total)',
@@ -154,8 +155,8 @@ const EstadisticasSiaf: React.FC<EstadisticasSiafProps> = ({ tabInicial = 0, ocu
       subtitle: 'Hasta autorización o rechazo',
       detail: `${data.cantidadRevisados} revisados`,
       icon: <Speed />,
-      color: '#1565C0',
-      borderLeft: '4px solid #1565C0',
+      color: IGSS_COLORS.azul,
+      borderLeft: `4px solid ${IGSS_COLORS.azulClaro}`,
     },
     {
       title: 'Tiempo de corrección',
@@ -163,8 +164,8 @@ const EstadisticasSiaf: React.FC<EstadisticasSiafProps> = ({ tabInicial = 0, ocu
       subtitle: 'Desde rechazo hasta corrección',
       detail: `${data.cantidadConCorreccion} correcciones`,
       icon: <Timeline />,
-      color: '#1B5E20',
-      borderLeft: '4px solid #2E7D32',
+      color: IGSS_COLORS.verdeOscuro,
+      borderLeft: `4px solid ${IGSS_COLORS.verde}`,
     },
     {
       title: 'Total revisados',
@@ -172,7 +173,7 @@ const EstadisticasSiaf: React.FC<EstadisticasSiafProps> = ({ tabInicial = 0, ocu
       subtitle: 'Autorizados o rechazados',
       icon: <TrendingUp />,
       color: 'text.primary',
-      borderLeft: '4px solid #757575',
+      borderLeft: `4px solid ${IGSS_COLORS.grisOscuro}`,
     },
     {
       title: 'Correcciones',
@@ -180,7 +181,7 @@ const EstadisticasSiaf: React.FC<EstadisticasSiafProps> = ({ tabInicial = 0, ocu
       subtitle: 'Tras rechazo',
       icon: <HourglassEmpty />,
       color: 'text.secondary',
-      borderLeft: '4px solid #9E9E9E',
+      borderLeft: `4px solid ${IGSS_COLORS.gris}`,
     },
   ];
 
@@ -392,8 +393,8 @@ function ChartHoras({
           labelFormatter={(label) => `Semana ${label}`}
         />
         <Legend wrapperStyle={{ paddingTop: 8 }} iconType="square" iconSize={12} />
-        <Bar dataKey="revision" name="Revisión" fill="#1565C0" radius={[4, 4, 0, 0]} maxBarSize={40} />
-        <Bar dataKey="autorizacion" name="Autorización" fill="#0D47A1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+        <Bar dataKey="revision" name="Revisión" fill={IGSS_COLORS.azulClaro} radius={[4, 4, 0, 0]} maxBarSize={40} />
+        <Bar dataKey="autorizacion" name="Autorización" fill={IGSS_COLORS.azul} radius={[4, 4, 0, 0]} maxBarSize={40} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -412,7 +413,7 @@ function ChartCorreccion({ data }: { data: Array<{ semana: string; correccionMin
           formatter={(value: number) => [`${Number(value).toFixed(0)} min`, 'Corrección']}
           labelFormatter={(label) => `Semana ${label}`}
         />
-        <Bar dataKey="correccionMin" name="Corrección" fill="#2E7D32" radius={[4, 4, 0, 0]} maxBarSize={56} />
+        <Bar dataKey="correccionMin" name="Corrección" fill={IGSS_COLORS.verde} radius={[4, 4, 0, 0]} maxBarSize={56} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -433,7 +434,7 @@ function ChartMotivosRechazo({ data }: { data: Array<{ clave: string; etiqueta: 
           formatter={(value: number) => [value, 'Rechazos']}
           labelFormatter={(label) => label}
         />
-        <Bar dataKey="cantidad" name="Rechazos" fill="#C62828" radius={[0, 4, 4, 0]} barSize={28} />
+        <Bar dataKey="cantidad" name="Rechazos" fill={IGSS_COLORS.error} radius={[0, 4, 4, 0]} barSize={28} />
       </BarChart>
     </ResponsiveContainer>
   );

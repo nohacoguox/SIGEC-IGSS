@@ -132,7 +132,9 @@ export const unidadesMedicasData = [
   {
     "nombre": "Consultorio de Palin",
     "departamento": "Escuintla",
-    "telefonos": "7884-8683, 7882-7016, 7882-7015, 7839-9141"
+    "telefonos": "7884-8683, 7882-7016, 7882-7015, 7839-9141",
+    "codigo": "210",
+    "direccion": "Km. 36 CA-SUR, Boulevard Interior, Zona Industrial A Fracción A-82, Palín, Escuintla, Bodega 9 y 10"
   },
   {
     "nombre": "Consultorio de Siquinalá",

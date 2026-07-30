@@ -32,6 +32,15 @@ import { Add as AddIcon, History as HistoryIcon, Refresh as RefreshIcon, Remove 
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
 import PdfViewerWithClick from './PdfViewerWithClick';
+import {
+  tableHeaderCellStyle,
+  tableHeaderRowStyle,
+  tableHeaderCellSx,
+} from '../theme/institutionalStyles';
+
+const headerCellStyle = tableHeaderCellStyle;
+const headerRowStyle = tableHeaderRowStyle;
+const headerCellSx = tableHeaderCellSx;
 
 const MOTIVOS_RECHAZO = [
   'Falta firma',
@@ -59,10 +68,6 @@ type ExpedienteRevision = {
 };
 
 type DocEnDetalle = { id: number; tipoDocumento: string; nombreArchivo: string; mimeType?: string; enUltimoRechazo?: boolean };
-
-const headerCellStyle = { backgroundColor: '#0d47a1', color: '#ffffff' };
-const headerRowStyle = { backgroundColor: '#0d47a1' };
-const headerCellSx = { fontWeight: 700, fontSize: '0.9375rem', py: 2, borderBottom: 'none' };
 
 const RevisarExpedientesDD: React.FC = () => {
   const { showSuccess, showError } = useNotification();

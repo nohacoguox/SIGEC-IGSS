@@ -23,7 +23,6 @@ import {
 import { Add, Edit, Delete } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../api';
-import { useThemeMode } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 
 interface Puesto {
@@ -33,7 +32,6 @@ interface Puesto {
 }
 
 const PuestoManagementPage: React.FC = () => {
-  const { mode } = useThemeMode();
   const { showSuccess, showError } = useNotification();
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,13 +121,9 @@ const PuestoManagementPage: React.FC = () => {
         </Typography>
         <Button
           variant="contained"
+          color="secondary"
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
-          sx={{
-            background: mode !== 'dark'
-              ? 'linear-gradient(135deg, #00A859 0%, #008044 100%)'
-              : 'linear-gradient(135deg, #2FA86B 0%, #1E6B47 100%)',
-          }}
         >
           Nuevo Puesto
         </Button>
@@ -144,13 +138,13 @@ const PuestoManagementPage: React.FC = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ bgcolor: mode !== 'dark' ? '#f5f5f5' : '#2a2a2a' }}>
+                <TableCell>
                   <strong>Nombre del Puesto</strong>
                 </TableCell>
-                <TableCell align="center" sx={{ bgcolor: mode !== 'dark' ? '#f5f5f5' : '#2a2a2a' }}>
+                <TableCell align="center">
                   <strong>Estado</strong>
                 </TableCell>
-                <TableCell align="center" sx={{ bgcolor: mode !== 'dark' ? '#f5f5f5' : '#2a2a2a' }}>
+                <TableCell align="center">
                   <strong>Acciones</strong>
                 </TableCell>
               </TableRow>

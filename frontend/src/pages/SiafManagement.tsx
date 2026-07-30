@@ -42,6 +42,15 @@ import { SiafPdfDocument } from '../components/SiafPdfDocument';
 
 import { useSiaf } from '../context/SiafContext';
 import { useNotification } from '../context/NotificationContext';
+import { usePermissions } from '../hooks/usePermissions';
+import {
+  tableHeaderCellStyle,
+  tableHeaderRowStyle,
+  tableHeaderCellSx,
+  pageTitleSx,
+  primaryButtonSx,
+} from '../theme/institutionalStyles';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 // --- Main Component ---
 const SiafManagement: React.FC = () => {
@@ -49,6 +58,7 @@ const SiafManagement: React.FC = () => {
   const location = useLocation();
   const { siafList, loadSiafs } = useSiaf();
   const { showError } = useNotification();
+  const { hasPermission } = usePermissions();
 
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [selectedSiafData, setSelectedSiafData] = useState<any>(null);
@@ -160,25 +170,25 @@ const SiafManagement: React.FC = () => {
     await loadSiafs();
   };
 
-  /** Encabezados de tabla: estilos en línea para buena visibilidad en cualquier tema */
-  const headerCellStyle = { backgroundColor: '#0d47a1', color: '#ffffff' };
-  const headerRowStyle = { backgroundColor: '#0d47a1' };
-  const headerCellSx = { fontWeight: 700, fontSize: '0.9375rem', py: 2, borderBottom: 'none' };
+  /** Encabezados de tabla: paleta institucional IGSS */
+  const headerCellStyle = tableHeaderCellStyle;
+  const headerRowStyle = tableHeaderRowStyle;
+  const headerCellSx = tableHeaderCellSx;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {!hasPermission('listado-siaf') ? (
+        <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+          No tiene permiso para ver el listado de SIAF.
+        </Typography>
+      ) : (
+      <>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <Box sx={{ mb: 4 }}>
           <Typography
             variant="h4"
             component="h1"
-            fontWeight="bold"
-            sx={{
-              background: 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              mb: 0.5,
-            }}
+            sx={pageTitleSx}
           >
             Gestión de SIAF
           </Typography>
@@ -193,7 +203,7 @@ const SiafManagement: React.FC = () => {
               onClick={() => navigate('/colaborador-dashboard')}
               sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
             >
-              ← Volver
+              Volver
             </Button>
             <Button
               variant="outlined"
@@ -203,15 +213,17 @@ const SiafManagement: React.FC = () => {
             >
               Recargar
             </Button>
+            {hasPermission('crear-siaf') && (
             <Button
               variant="contained"
               color="primary"
               startIcon={<AddIcon />}
               onClick={() => navigate('/siaf-book/crear')}
-              sx={{ borderRadius: 2, py: 1.5, px: 3, textTransform: 'none', fontWeight: 600, boxShadow: 2 }}
+              sx={primaryButtonSx}
             >
-              + Crear Nuevo SIAF
+              Crear Nuevo SIAF
             </Button>
+            )}
           </Box>
         </Box>
       </motion.div>
@@ -555,8 +567,8 @@ const SiafManagement: React.FC = () => {
               fontFamily: '"Segoe UI", Roboto, sans-serif',
             }}
           >
-            <Box sx={{ textAlign: 'center', mb: 3, pb: 2, borderBottom: '2px solid #1565c0' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#1565c0', letterSpacing: '0.02em' }}>
+            <Box sx={{ textAlign: 'center', mb: 3, pb: 2, borderBottom: `2px solid ${IGSS_COLORS.azul}` }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: IGSS_COLORS.azul, letterSpacing: '0.02em' }}>
                 Instituto Guatemalteco de Seguridad Social
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
@@ -575,7 +587,7 @@ const SiafManagement: React.FC = () => {
             <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                  <TableRow sx={{ bgcolor: IGSS_COLORS.fondo }}>
                     <TableCell sx={{ fontWeight: 700, color: '#333', borderColor: '#e0e0e0' }}>Fecha</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: '#333', borderColor: '#e0e0e0' }}>Tipo</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: '#333', borderColor: '#e0e0e0' }}>Usuario</TableCell>
@@ -598,7 +610,7 @@ const SiafManagement: React.FC = () => {
                             fontSize: '0.75rem',
                             fontWeight: 600,
                             bgcolor: b.tipo === 'rechazo' ? '#ffebee' : b.tipo === 'correccion' ? '#e3f2fd' : '#e8f5e9',
-                            color: b.tipo === 'rechazo' ? '#c62828' : b.tipo === 'correccion' ? '#1565c0' : '#2e7d32',
+                            color: b.tipo === 'rechazo' ? IGSS_COLORS.error : b.tipo === 'correccion' ? IGSS_COLORS.azul : IGSS_COLORS.verde,
                           }}
                         >
                           {b.tipo === 'rechazo' ? 'Rechazo' : b.tipo === 'correccion' ? 'Corrección' : b.tipo === 'aprobado_dd' ? 'Aprobado (DD)' : 'Autorizado'}
@@ -719,6 +731,8 @@ const SiafManagement: React.FC = () => {
           )}
         </DialogActions>
       </Dialog>
+      </>
+      )}
     </Container>
   );
 };

@@ -110,6 +110,9 @@ export class SiafItem {
   @Column({ type: 'varchar', length: 50 })
   codigo: string;
 
+  @Column({ type: 'varchar', length: 20, nullable: true, name: 'catalogo_origen' })
+  catalogoOrigen: 'MINFIN' | 'SIBOFA' | null;
+
   @Column({ type: 'text' })
   descripcion: string;
 

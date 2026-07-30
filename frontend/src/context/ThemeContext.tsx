@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { createTheme, ThemeProvider as MuiThemeProvider, PaletteMode } from '@mui/material';
 import { esES } from '@mui/material/locale';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 export type ThemeMode = 'light' | 'dark' | 'gray';
 
@@ -58,36 +59,36 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           palette: {
             mode: muiPaletteMode,
             primary: {
-              main: mode === 'dark' ? '#4A9FD8' : '#0066A1',
-              light: mode === 'dark' ? '#6BB3E0' : '#3385B5',
-              dark: mode === 'dark' ? '#2E7FB0' : '#004D7A',
-              contrastText: '#FFFFFF',
+              main: mode === 'dark' ? IGSS_COLORS.azulClaro : IGSS_COLORS.azul,
+              light: IGSS_COLORS.azulClaro,
+              dark: IGSS_COLORS.azulOscuro,
+              contrastText: IGSS_COLORS.blanco,
             },
             secondary: {
-              main: mode === 'dark' ? '#4DC98A' : '#00A859',
-              light: mode === 'dark' ? '#70D4A3' : '#33BA77',
-              dark: mode === 'dark' ? '#2FA86B' : '#008044',
-              contrastText: '#FFFFFF',
+              main: mode === 'dark' ? IGSS_COLORS.verdeClaro : IGSS_COLORS.verde,
+              light: IGSS_COLORS.verdeClaro,
+              dark: IGSS_COLORS.verdeOscuro,
+              contrastText: IGSS_COLORS.blanco,
             },
             background: {
-              default: mode === 'dark' ? '#121212' : mode === 'gray' ? '#E5E7EB' : '#F5F7FA',
-              paper: mode === 'dark' ? '#1E1E1E' : mode === 'gray' ? '#F3F4F6' : '#FFFFFF',
+              default: mode === 'dark' ? '#121212' : mode === 'gray' ? IGSS_COLORS.gris : IGSS_COLORS.fondo,
+              paper: IGSS_COLORS.blanco,
             },
             text: {
-              primary: mode === 'dark' ? '#E8EAED' : mode === 'gray' ? '#374151' : '#1A2332',
+              primary: mode === 'dark' ? '#E8EAED' : mode === 'gray' ? '#374151' : IGSS_COLORS.textoOscuro,
               secondary: mode === 'dark' ? '#9AA0A6' : mode === 'gray' ? '#6B7280' : '#5F6C7B',
             },
             error: {
-              main: '#D32F2F',
+              main: IGSS_COLORS.error,
             },
             warning: {
-              main: '#F57C00',
+              main: '#E65100',
             },
             info: {
-              main: '#0288D1',
+              main: IGSS_COLORS.azulClaro,
             },
             success: {
-              main: '#388E3C',
+              main: IGSS_COLORS.verde,
             },
             divider: mode === 'dark' ? '#2C2C2C' : mode === 'gray' ? '#D1D5DB' : '#E0E0E0',
           },
@@ -234,7 +235,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
                 root: {
                   '& .MuiTableCell-head': {
                     fontWeight: 700,
-                    backgroundColor: mode !== 'dark' ? (mode === 'gray' ? '#E5E7EB' : '#F5F7FA') : '#2C2C2C',
+                    backgroundColor: mode === 'dark' ? IGSS_COLORS.azulOscuro : IGSS_COLORS.azul,
+                    color: IGSS_COLORS.blanco,
                   },
                 },
               },

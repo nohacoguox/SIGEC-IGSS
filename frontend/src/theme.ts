@@ -1,21 +1,36 @@
 import { createTheme } from '@mui/material/styles';
+import { IGSS_COLORS } from './theme/institutionalColors';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#005f9e', // Azul principal del login
-      light: '#0077c2', // Azul claro del login
+      main: IGSS_COLORS.azul,
+      light: IGSS_COLORS.azulClaro,
+      dark: IGSS_COLORS.azulOscuro,
+      contrastText: IGSS_COLORS.blanco,
     },
     secondary: {
-      main: '#ffc107', // Un ámbar vibrante para contraste y acciones secundarias
+      main: IGSS_COLORS.verde,
+      light: IGSS_COLORS.verdeClaro,
+      dark: IGSS_COLORS.verdeOscuro,
+      contrastText: IGSS_COLORS.blanco,
     },
     background: {
-      default: '#f4f6f8', // Un gris muy claro para el fondo general
-      paper: '#ffffff', // Blanco puro para superficies como tarjetas y diálogos
+      default: IGSS_COLORS.fondo,
+      paper: IGSS_COLORS.blanco,
     },
     text: {
-      primary: '#212121', // Negro suave para el texto principal
-      secondary: '#757575', // Gris para texto secundario y descriptivo
+      primary: IGSS_COLORS.textoOscuro,
+      secondary: '#5F6C7B',
+    },
+    success: {
+      main: IGSS_COLORS.verde,
+    },
+    info: {
+      main: IGSS_COLORS.azulClaro,
+    },
+    error: {
+      main: IGSS_COLORS.error,
     },
   },
   typography: {
@@ -57,9 +72,9 @@ const theme = createTheme({
     MuiTableHead: {
       styleOverrides: {
         root: {
-          backgroundColor: '#005f9e', // Usar el nuevo color primario para las cabeceras
+          backgroundColor: IGSS_COLORS.azul,
           '& .MuiTableCell-root': {
-            color: 'white',
+            color: IGSS_COLORS.blanco,
             fontWeight: 'bold',
           },
         },

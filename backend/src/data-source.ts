@@ -13,6 +13,9 @@ import { Municipio } from './entity/Municipio';
 import { SiafSolicitud, SiafItem, SiafSubproducto, SiafAutorizacion, SiafDocumentoAdjunto, SiafBitacora } from './entity/SiafSolicitud';
 import { Expediente, ExpedienteDocumento, ExpedienteBitacora, ExpedienteBitacoraDetalle, ExpedienteDocumentoVersion } from './entity/Expediente';
 import { ProductoCatalogo } from './entity/ProductoCatalogo';
+import { ProductoCatalogoConfig } from './entity/ProductoCatalogoConfig';
+import { SiafCorrelativoConfig } from './entity/SiafCorrelativoConfig';
+import { SiafCorrelativoReserva } from './entity/SiafCorrelativoReserva';
 
 /** Esquema SIGEC-IGSS (nombre técnico en PostgreSQL: sigec_igss; sin guiones). */
 const dbSchema = process.env.DB_SCHEMA || 'sigec_igss';
@@ -48,7 +51,10 @@ export const AppDataSource = new DataSource({
     ExpedienteBitacora,
     ExpedienteBitacoraDetalle,
     ExpedienteDocumentoVersion,
-    ProductoCatalogo
+    ProductoCatalogo,
+    ProductoCatalogoConfig,
+    SiafCorrelativoConfig,
+    SiafCorrelativoReserva,
   ],
   migrations: [],
   subscribers: [],

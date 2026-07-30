@@ -6,7 +6,7 @@ export class Permission {
   id: number;
 
   @Column({ unique: true })
-  name: string; // e.g., 'crear-siaf', 'autorizar-siaf'
+  name: string; // e.g., 'crear-siaf', 'listado-siaf'
 
   @Column()
   description: string;

@@ -48,6 +48,13 @@ import api from '../api';
 import { useNotification } from '../context/NotificationContext';
 import { usePermissions } from '../hooks/usePermissions';
 import PdfViewerWithClick from '../components/PdfViewerWithClick';
+import {
+  tableHeaderCellStyle,
+  tableHeaderRowStyle,
+  tableHeaderCellSx,
+  pageTitleSx,
+  primaryButtonSx,
+} from '../theme/institutionalStyles';
 
 type ExpedienteRow = {
   id: number;
@@ -101,9 +108,9 @@ const TIPOS_DOCUMENTO = [
 
 const TITULOS_OPCIONES = ['Bien/Producto', 'Servicio'];
 
-const headerCellStyle = { backgroundColor: '#0d47a1', color: '#ffffff' };
-const headerRowStyle = { backgroundColor: '#0d47a1' };
-const headerCellSx = { fontWeight: 700, fontSize: '0.9375rem', py: 2, borderBottom: 'none' };
+const headerCellStyle = tableHeaderCellStyle;
+const headerRowStyle = tableHeaderRowStyle;
+const headerCellSx = tableHeaderCellSx;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -619,13 +626,7 @@ const ExpedientesPage: React.FC = () => {
           <Typography
             variant="h4"
             component="h1"
-            fontWeight="bold"
-            sx={{
-              background: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              mb: 0.5,
-            }}
+            sx={pageTitleSx}
           >
             Creación de Expediente
           </Typography>
@@ -640,7 +641,7 @@ const ExpedientesPage: React.FC = () => {
               onClick={() => navigate('/colaborador-dashboard')}
               sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
             >
-              ← Volver
+              Volver
             </Button>
             <Button
               variant="outlined"
@@ -654,20 +655,12 @@ const ExpedientesPage: React.FC = () => {
             {puedeCrear && (
               <Button
                 variant="contained"
+                color="primary"
                 startIcon={<AddIcon />}
                 onClick={() => setCrearOpen(true)}
-                sx={{
-                  borderRadius: 2,
-                  py: 1.5,
-                  px: 3,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  boxShadow: 2,
-                  background: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)',
-                  '&:hover': { opacity: 0.9 },
-                }}
+                sx={primaryButtonSx}
               >
-                + Crear Nuevo Expediente
+                Crear Nuevo Expediente
               </Button>
             )}
           </Box>
@@ -873,7 +866,6 @@ const ExpedientesPage: React.FC = () => {
                       startIcon={<AttachFileIcon />}
                       onClick={() => setAgregarDocOpen(true)}
                       sx={{
-                        background: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)',
                         textTransform: 'none',
                         fontWeight: 600,
                       }}

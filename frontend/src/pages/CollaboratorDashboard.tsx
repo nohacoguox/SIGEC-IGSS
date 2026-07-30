@@ -3,8 +3,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Avatar,
   Box,
-  Card,
-  CardContent,
   Collapse,
   Drawer,
   Grid,
@@ -17,13 +15,20 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import DashboardBackground from '../components/dashboard/DashboardBackground';
+import PageHeader from '../components/dashboard/PageHeader';
+import ActionCard from '../components/dashboard/ActionCard';
+import { getDrawerSx, navItemSx, sidebarActionSx } from '../components/dashboard/sidebarStyles';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 import {
   AssignmentInd as AssignmentIndIcon,
   AssignmentLate as AssignmentLateIcon,
   BarChart as BarChartIcon,
+  Add as AddIcon,
   Book as BookIcon,
+  FormatListBulleted as FormatListBulletedIcon,
   Brightness4 as Brightness4Icon,
   Brightness7 as Brightness7Icon,
   Description as DescriptionIcon,
@@ -43,19 +48,31 @@ import RevisarDireccionDepartamental from '../components/RevisarDireccionDeparta
 import RevisarExpedientesDD from '../components/RevisarExpedientesDD';
 import EstadisticasSiaf from '../components/EstadisticasSiaf';
 
-const drawerWidth = 280;
+const pageTitles: Record<string, { title: string; subtitle: string }> = {
+  dashboard: { title: 'Panel de Control', subtitle: 'Bienvenido al panel de control del colaborador' },
+  'direccion-departamental': { title: 'Revisión Dirección Departamental', subtitle: 'Autoriza o rechaza SIAFs pendientes de su departamento (todos los municipios)' },
+  'estadisticas-tiempos': { title: 'Tiempos SIAF', subtitle: 'Revisión, autorización y corrección de SIAFs' },
+  'estadisticas-motivos': { title: 'Motivos de rechazo', subtitle: 'Rechazos clasificados por categoría' },
+  'revision-expedientes-dd': { title: 'Revisión Expedientes (DD)', subtitle: 'Aprobar o rechazar expedientes enviados a revisión' },
+};
 
 // --- Main Component ---
 const CollaboratorDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
+  const location = useLocation();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const { mode, toggleTheme, nextModeLabel } = useThemeMode();
   const [selectedView, setSelectedView] = useState<'dashboard' | 'direccion-departamental' | 'estadisticas-tiempos' | 'estadisticas-motivos' | 'revision-expedientes-dd'>('dashboard');
   const [estadisticasOpen, setEstadisticasOpen] = useState(false);
+  const [libroSiafOpen, setLibroSiafOpen] = useState(false);
+
+  const isSiafListRoute = location.pathname === '/siaf-book' || location.pathname.startsWith('/siaf-book/corregir');
+  const isSiafCreateRoute = location.pathname === '/siaf-book/crear';
 
   // Si tenía estadísticas seleccionado pero no tiene permiso, volver al dashboard
   useEffect(() => {
-    if ((selectedView === 'estadisticas-tiempos' || selectedView === 'estadisticas-motivos') && !hasPermission('ver-estadisticas')) {
+    if ((selectedView === 'estadisticas-tiempos' || selectedView === 'estadisticas-motivos') &&
+      !hasPermission('estadisticas-tiempos') && !hasPermission('estadisticas-motivos')) {
       setSelectedView('dashboard');
     }
   }, [selectedView, hasPermission]);
@@ -66,6 +83,13 @@ const CollaboratorDashboard: React.FC = () => {
       setEstadisticasOpen(true);
     }
   }, [selectedView]);
+
+  // Mantener abierta la sección Libro SIAF cuando se está en rutas SIAF
+  useEffect(() => {
+    if (isSiafListRoute || isSiafCreateRoute) {
+      setLibroSiafOpen(true);
+    }
+  }, [isSiafListRoute, isSiafCreateRoute]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -80,23 +104,10 @@ const CollaboratorDashboard: React.FC = () => {
       {/* Sidebar */}
       <Drawer
         variant="permanent"
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-            background: mode !== 'dark' 
-              ? 'linear-gradient(180deg, #0066A1 0%, #004D7A 100%)'
-              : 'linear-gradient(180deg, #1E1E1E 0%, #121212 100%)',
-            color: '#FFFFFF',
-            borderRight: 'none',
-            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.1)',
-          },
-        }}
+        sx={getDrawerSx(mode)}
       >
         <Box sx={{ pt: 2, px: 2, textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', letterSpacing: 1, display: 'block', mb: 1 }}>
+          <Typography variant="caption" sx={{ color: IGSS_COLORS.gris, letterSpacing: 1, display: 'block', mb: 1 }}>
             SIGEC-IGSS
           </Typography>
         </Box>
@@ -109,20 +120,19 @@ const CollaboratorDashboard: React.FC = () => {
                 mb: 2,
                 mx: 'auto',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 100%)',
+                bgcolor: IGSS_COLORS.verde,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                border: '3px solid rgba(255, 255, 255, 0.4)',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+                border: `3px solid ${IGSS_COLORS.blanco}`,
               }}
             >
               <Avatar
                 sx={{
-                  width: 90,
-                  height: 90,
-                  bgcolor: 'rgba(255, 255, 255, 0.2)',
-                  color: 'white',
+                  width: 88,
+                  height: 88,
+                  bgcolor: IGSS_COLORS.azul,
+                  color: IGSS_COLORS.blanco,
                   fontSize: '2.5rem',
                 }}
               >
@@ -135,8 +145,8 @@ const CollaboratorDashboard: React.FC = () => {
             <Typography
               variant="body2"
               sx={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                color: IGSS_COLORS.blanco,
+                backgroundColor: IGSS_COLORS.azulOscuro,
                 borderRadius: 2,
                 px: 2,
                 py: 0.5,
@@ -162,11 +172,10 @@ const CollaboratorDashboard: React.FC = () => {
                 width: '100%',
                 borderRadius: 2,
                 py: 1.5,
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                },
+                backgroundColor: IGSS_COLORS.azulOscuro,
+                color: IGSS_COLORS.blanco,
+                border: `1px solid ${IGSS_COLORS.blanco}`,
+                '&:hover': { backgroundColor: IGSS_COLORS.azulClaro },
               }}
             >
               {mode === 'light' ? <TonalityIcon /> : mode === 'gray' ? <Brightness4Icon /> : <Brightness7Icon />}
@@ -184,25 +193,7 @@ const CollaboratorDashboard: React.FC = () => {
             <ListItemButton
               onClick={() => setSelectedView('dashboard')}
               selected={selectedView === 'dashboard'}
-              sx={{
-                borderRadius: 2,
-                mb: 1.5,
-                py: 1.5,
-                backgroundColor: selectedView === 'dashboard' 
-                  ? 'rgba(255, 255, 255, 0.25)' 
-                  : 'rgba(255, 255, 255, 0.1)',
-                '&:hover': { 
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  transform: 'translateX(8px)',
-                  transition: 'all 0.3s ease',
-                },
-                '&.Mui-selected': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                },
-              }}
+              sx={navItemSx(selectedView === 'dashboard')}
             >
               <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                 <DashboardIcon />
@@ -217,39 +208,72 @@ const CollaboratorDashboard: React.FC = () => {
             </ListItemButton>
           </motion.div>
 
-          {/* Libro de SIAF */}
-          {hasPermission('crear-siaf') && (
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <ListItemButton
-                onClick={() => navigate('/siaf-book')}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { 
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                }}
+          {/* Libro SIAF */}
+          {hasAnyPermission(['listado-siaf', 'crear-siaf']) && (
+            <>
+              <motion.div
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
-                  <BookIcon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary={
-                    <Typography fontWeight="600" sx={{ color: 'white' }}>
-                      Libro de SIAF
-                    </Typography>
-                  } 
-                />
-              </ListItemButton>
-            </motion.div>
+                <ListItemButton
+                  onClick={() => setLibroSiafOpen(!libroSiafOpen)}
+                  sx={navItemSx(libroSiafOpen || isSiafListRoute || isSiafCreateRoute)}
+                >
+                  <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
+                    <BookIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography fontWeight="600" sx={{ color: 'white' }}>
+                        Libro SIAF
+                      </Typography>
+                    }
+                  />
+                  {libroSiafOpen ? <ExpandLessIcon sx={{ color: 'white' }} /> : <ExpandMoreIcon sx={{ color: 'white' }} />}
+                </ListItemButton>
+              </motion.div>
+              <Collapse in={libroSiafOpen} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                  {hasPermission('listado-siaf') && (
+                  <ListItemButton
+                    onClick={() => navigate('/siaf-book')}
+                    selected={isSiafListRoute}
+                    sx={{ ...navItemSx(isSiafListRoute), pl: 4, py: 1.2 }}
+                  >
+                    <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                      <FormatListBulletedIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                          Listado de SIAF
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                  )}
+                  {hasPermission('crear-siaf') && (
+                  <ListItemButton
+                    onClick={() => navigate('/siaf-book/crear')}
+                    selected={isSiafCreateRoute}
+                    sx={{ ...navItemSx(isSiafCreateRoute), pl: 4, py: 1.2 }}
+                  >
+                    <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                      <AddIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                          Crear SIAF
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                  )}
+                </List>
+              </Collapse>
+            </>
           )}
 
           {hasPermission('revisar-siaf-direccion-departamental') && (
@@ -261,17 +285,7 @@ const CollaboratorDashboard: React.FC = () => {
               <ListItemButton
                 onClick={() => setSelectedView('direccion-departamental')}
                 selected={selectedView === 'direccion-departamental'}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: selectedView === 'direccion-departamental' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                }}
+                sx={navItemSx(selectedView === 'direccion-departamental')}
               >
                 <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                   <AssignmentIndIcon />
@@ -295,17 +309,7 @@ const CollaboratorDashboard: React.FC = () => {
             >
               <ListItemButton
                 onClick={() => navigate('/actualizar-codigos-productos')}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                }}
+                sx={navItemSx(false)}
               >
                 <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                   <UpdateIcon />
@@ -322,7 +326,7 @@ const CollaboratorDashboard: React.FC = () => {
           )}
 
           {/* Estadísticas: menú colapsable con sub-items (como Gestiones) */}
-          {hasPermission('ver-estadisticas') && (
+          {hasAnyPermission(['estadisticas-tiempos', 'estadisticas-motivos']) && (
             <>
               <motion.div
                 initial={{ opacity: 0, x: -50 }}
@@ -331,17 +335,7 @@ const CollaboratorDashboard: React.FC = () => {
               >
                 <ListItemButton
                   onClick={() => setEstadisticasOpen(!estadisticasOpen)}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    py: 1.5,
-                    backgroundColor: estadisticasOpen ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.1)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      transform: 'translateX(8px)',
-                      transition: 'all 0.3s ease',
-                    },
-                  }}
+                  sx={navItemSx(estadisticasOpen)}
                 >
                   <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                     <BarChartIcon />
@@ -358,25 +352,11 @@ const CollaboratorDashboard: React.FC = () => {
               </motion.div>
               <Collapse in={estadisticasOpen} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
+                  {hasPermission('estadisticas-tiempos') && (
                   <ListItemButton
                     onClick={() => setSelectedView('estadisticas-tiempos')}
                     selected={selectedView === 'estadisticas-tiempos'}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 1,
-                      py: 1.2,
-                      pl: 4,
-                      backgroundColor: selectedView === 'estadisticas-tiempos' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                        transform: 'translateX(8px)',
-                        transition: 'all 0.3s ease',
-                      },
-                      '&.Mui-selected': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
-                      },
-                    }}
+                    sx={{ ...navItemSx(selectedView === 'estadisticas-tiempos'), pl: 4, py: 1.2 }}
                   >
                     <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
                       <ScheduleIcon />
@@ -388,31 +368,18 @@ const CollaboratorDashboard: React.FC = () => {
                         </Typography>
                       }
                       secondary={
-                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                        <Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>
                           Revisión y corrección
                         </Typography>
                       }
                     />
                   </ListItemButton>
+                  )}
+                  {hasPermission('estadisticas-motivos') && (
                   <ListItemButton
                     onClick={() => setSelectedView('estadisticas-motivos')}
                     selected={selectedView === 'estadisticas-motivos'}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 1.5,
-                      py: 1.2,
-                      pl: 4,
-                      backgroundColor: selectedView === 'estadisticas-motivos' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                        transform: 'translateX(8px)',
-                        transition: 'all 0.3s ease',
-                      },
-                      '&.Mui-selected': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
-                      },
-                    }}
+                    sx={{ ...navItemSx(selectedView === 'estadisticas-motivos'), pl: 4, py: 1.2 }}
                   >
                     <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
                       <AssignmentLateIcon />
@@ -425,6 +392,7 @@ const CollaboratorDashboard: React.FC = () => {
                       }
                     />
                   </ListItemButton>
+                  )}
                 </List>
               </Collapse>
             </>
@@ -439,17 +407,7 @@ const CollaboratorDashboard: React.FC = () => {
             >
               <ListItemButton
                 onClick={() => navigate('/expedientes')}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: selectedView === 'revision-expedientes-dd' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { 
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                }}
+                sx={navItemSx(false)}
               >
                 <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                   <DescriptionIcon />
@@ -474,17 +432,7 @@ const CollaboratorDashboard: React.FC = () => {
               <ListItemButton
                 onClick={() => setSelectedView('revision-expedientes-dd')}
                 selected={selectedView === 'revision-expedientes-dd'}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: selectedView === 'revision-expedientes-dd' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.1)',
-                  '&:hover': { 
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  },
-                }}
+                sx={navItemSx(selectedView === 'revision-expedientes-dd')}
               >
                 <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                   <AssignmentIndIcon />
@@ -523,16 +471,7 @@ const CollaboratorDashboard: React.FC = () => {
           <List sx={{ px: 2, pb: 1 }}>
             <ListItemButton
               onClick={() => navigate('/admin-dashboard')}
-              sx={{
-                borderRadius: 2,
-                py: 1.2,
-                backgroundColor: 'rgba(0, 102, 161, 0.3)',
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 102, 161, 0.5)',
-                  transform: 'translateX(8px)',
-                  transition: 'all 0.3s ease',
-                },
-              }}
+              sx={sidebarActionSx('azul')}
             >
               <ListItemIcon sx={{ color: 'white' }}>
                 <AdminPanelSettingsIcon />
@@ -551,16 +490,7 @@ const CollaboratorDashboard: React.FC = () => {
            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.8 }}>
               <ListItemButton
                 onClick={handleLogout}
-                sx={{ 
-                  borderRadius: 2, 
-                  py: 1.5,
-                  backgroundColor: 'rgba(211, 47, 47, 0.2)',
-                  '&:hover': { 
-                    backgroundColor: 'rgba(211, 47, 47, 0.4)',
-                    transform: 'translateX(8px)',
-                    transition: 'all 0.3s ease',
-                  } 
-                }}
+                sx={sidebarActionSx('salir')}
               >
                 <ListItemIcon sx={{ color: 'white' }}><ExitToAppIcon /></ListItemIcon>
                 <ListItemText 
@@ -577,301 +507,134 @@ const CollaboratorDashboard: React.FC = () => {
       </Drawer>
 
       {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: 4 }}>
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <Box sx={{ mb: 4 }}>
-            <Typography 
-              variant="h3" 
-              component="h1" 
-              fontWeight="bold" 
-              sx={{ 
-                background: mode !== 'dark'
-                  ? 'linear-gradient(135deg, #0066A1 0%, #00A859 100%)'
-                  : 'linear-gradient(135deg, #4A9FD8 0%, #4DC98A 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 1,
-              }}
-            >
-              {selectedView === 'dashboard' && 'Panel de Control'}
-              {selectedView === 'direccion-departamental' && 'Revisión Dirección Departamental'}
-              {selectedView === 'estadisticas-tiempos' && 'Tiempos SIAF'}
-              {selectedView === 'estadisticas-motivos' && 'Motivos de rechazo'}
-              {selectedView === 'revision-expedientes-dd' && 'Revisión Expedientes (DD)'}
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              {selectedView === 'dashboard' && 'Bienvenido al panel de control del colaborador'}
-              {selectedView === 'direccion-departamental' && 'Autoriza o rechaza SIAFs pendientes de su departamento (todos los municipios)'}
-              {selectedView === 'estadisticas-tiempos' && 'Revisión, autorización y corrección de SIAFs'}
-              {selectedView === 'estadisticas-motivos' && 'Rechazos clasificados por categoría'}
-              {selectedView === 'revision-expedientes-dd' && 'Aprobar o rechazar expedientes enviados a revisión'}
-            </Typography>
-          </Box>
-
+      <DashboardBackground>
+        <PageHeader
+          title={pageTitles[selectedView]?.title ?? 'Panel'}
+          subtitle={pageTitles[selectedView]?.subtitle ?? ''}
+        />
+        <AnimatePresence mode="wait">
+          <Box
+            component={motion.div}
+            key={selectedView}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
           {selectedView === 'dashboard' && (
             <Grid container spacing={3}>
+              {hasPermission('listado-siaf') && (
+                <Grid item xs={12} md={6} lg={4}>
+                  <ActionCard
+                    title="Listado de SIAF"
+                    description="Consulte y administre sus solicitudes SIAF"
+                    icon={<FormatListBulletedIcon />}
+                    accent={IGSS_COLORS.azul}
+                    onClick={() => navigate('/siaf-book')}
+                    delay={0.05}
+                  />
+                </Grid>
+              )}
               {hasPermission('crear-siaf') && (
                 <Grid item xs={12} md={6} lg={4}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        height: '100%',
-                        background: mode !== 'dark'
-                          ? 'linear-gradient(135deg, #0066A1 0%, #004D7A 100%)'
-                          : 'linear-gradient(135deg, #2E7FB0 0%, #1E5A7A 100%)',
-                        color: 'white',
-                        '&:hover': {
-                          boxShadow: '0 12px 40px rgba(0, 102, 161, 0.3)',
-                        },
-                      }}
-                      onClick={() => navigate('/siaf-book')}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <BookIcon sx={{ fontSize: 48, mr: 2 }} />
-                          <Typography variant="h5" fontWeight="bold">
-                            Libro de SIAF
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                          Gestiona y crea solicitudes de compra de bienes y servicios
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  <ActionCard
+                    title="Crear SIAF"
+                    description="Crear una nueva solicitud de compra"
+                    icon={<AddIcon />}
+                    accent={IGSS_COLORS.azulOscuro}
+                    onClick={() => navigate('/siaf-book/crear')}
+                    delay={0.08}
+                  />
                 </Grid>
               )}
-
               {hasPermission('revisar-siaf-direccion-departamental') && (
                 <Grid item xs={12} md={6} lg={4}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        height: '100%',
-                        background: mode !== 'dark'
-                          ? 'linear-gradient(135deg, #1565C0 0%, #0D47A1 100%)'
-                          : 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)',
-                        color: 'white',
-                        '&:hover': {
-                          boxShadow: '0 12px 40px rgba(21, 101, 192, 0.3)',
-                        },
-                      }}
-                      onClick={() => setSelectedView('direccion-departamental')}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <AssignmentIndIcon sx={{ fontSize: 48, mr: 2 }} />
-                          <Typography variant="h5" fontWeight="bold">
-                            Revisión Dirección Departamental
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                          Autoriza o rechaza SIAFs pendientes de su departamento (todos los municipios)
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  <ActionCard
+                    title="Revisión Dirección Departamental"
+                    description="Autoriza o rechaza SIAFs pendientes de su departamento (todos los municipios)"
+                    icon={<AssignmentIndIcon />}
+                    accent={IGSS_COLORS.azulOscuro}
+                    onClick={() => setSelectedView('direccion-departamental')}
+                    delay={0.1}
+                  />
                 </Grid>
               )}
-
               {hasPermission('actualizar-codigos-productos') && (
                 <Grid item xs={12} md={6} lg={4}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        height: '100%',
-                        background: mode !== 'dark'
-                          ? 'linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%)'
-                          : 'linear-gradient(135deg, #9C27B0 0%, #6A1B9A 100%)',
-                        color: 'white',
-                        '&:hover': {
-                          boxShadow: '0 12px 40px rgba(123, 31, 162, 0.3)',
-                        },
-                      }}
-                      onClick={() => navigate('/actualizar-codigos-productos')}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <UpdateIcon sx={{ fontSize: 48, mr: 2 }} />
-                          <Typography variant="h5" fontWeight="bold">
-                            Actualización de Códigos y Productos
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                          Actualiza el catálogo de códigos y descripciones desde el Excel oficial
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  <ActionCard
+                    title="Actualización de Códigos y Productos"
+                    description="Actualiza el catálogo de códigos y descripciones desde el Excel oficial"
+                    icon={<UpdateIcon />}
+                    accent={IGSS_COLORS.azulClaro}
+                    onClick={() => navigate('/actualizar-codigos-productos')}
+                    delay={0.15}
+                  />
                 </Grid>
               )}
-
-              {hasPermission('ver-estadisticas') && (
-                <>
+              {hasPermission('estadisticas-tiempos') && (
                   <Grid item xs={12} md={6} lg={4}>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Card
-                        sx={{
-                          cursor: 'pointer',
-                          height: '100%',
-                          background: mode !== 'dark'
-                            ? 'linear-gradient(135deg, #00838F 0%, #006064 100%)'
-                            : 'linear-gradient(135deg, #00ACC1 0%, #00838F 100%)',
-                          color: 'white',
-                          '&:hover': { boxShadow: '0 12px 40px rgba(0, 131, 143, 0.3)' },
-                        }}
-                        onClick={() => setSelectedView('estadisticas-tiempos')}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                            <ScheduleIcon sx={{ fontSize: 48, mr: 2 }} />
-                            <Typography variant="h5" fontWeight="bold">Tiempos SIAF</Typography>
-                          </Box>
-                          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                            Revisión, autorización y corrección (gráficos y métricas)
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
+                    <ActionCard
+                      title="Tiempos SIAF"
+                      description="Revisión, autorización y corrección (gráficos y métricas)"
+                      icon={<ScheduleIcon />}
+                      accent={IGSS_COLORS.verde}
+                      onClick={() => setSelectedView('estadisticas-tiempos')}
+                      delay={0.2}
+                    />
                   </Grid>
-                  <Grid item xs={12} md={6} lg={4}>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Card
-                        sx={{
-                          cursor: 'pointer',
-                          height: '100%',
-                          background: mode !== 'dark'
-                            ? 'linear-gradient(135deg, #C62828 0%, #B71C1C 100%)'
-                            : 'linear-gradient(135deg, #E53935 0%, #C62828 100%)',
-                          color: 'white',
-                          '&:hover': { boxShadow: '0 12px 40px rgba(198, 40, 40, 0.3)' },
-                        }}
-                        onClick={() => setSelectedView('estadisticas-motivos')}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                            <AssignmentLateIcon sx={{ fontSize: 48, mr: 2 }} />
-                            <Typography variant="h5" fontWeight="bold">Motivos de rechazo</Typography>
-                          </Box>
-                          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                            Rechazos clasificados por categoría
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                </>
               )}
-
+              {hasPermission('estadisticas-motivos') && (
+                  <Grid item xs={12} md={6} lg={4}>
+                    <ActionCard
+                      title="Motivos de rechazo"
+                      description="Rechazos clasificados por categoría"
+                      icon={<AssignmentLateIcon />}
+                      accent={IGSS_COLORS.verdeOscuro}
+                      onClick={() => setSelectedView('estadisticas-motivos')}
+                      delay={0.25}
+                    />
+                  </Grid>
+              )}
               {hasPermission('crear-expediente') && (
                 <Grid item xs={12} md={6} lg={4}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        height: '100%',
-                        background: mode !== 'dark'
-                          ? 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)'
-                          : 'linear-gradient(135deg, #FB8C00 0%, #EF6C00 100%)',
-                        color: 'white',
-                        '&:hover': {
-                          boxShadow: '0 12px 40px rgba(245, 124, 0, 0.3)',
-                        },
-                      }}
-                      onClick={() => navigate('/expedientes')}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <DescriptionIcon sx={{ fontSize: 48, mr: 2 }} />
-                          <Typography variant="h5" fontWeight="bold">
-                            Creación de Expediente
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                          Crea y administra expedientes de manera eficiente
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  <ActionCard
+                    title="Creación de Expediente"
+                    description="Crea y administra expedientes de manera eficiente"
+                    icon={<DescriptionIcon />}
+                    accent={IGSS_COLORS.azul}
+                    onClick={() => navigate('/expedientes')}
+                    delay={0.3}
+                  />
                 </Grid>
               )}
               {(hasPermission('revisar-expediente-direccion-departamental') || hasPermission('revisar-siaf-direccion-departamental')) && (
                 <Grid item xs={12} md={6} lg={4}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        height: '100%',
-                        background: mode !== 'dark'
-                          ? 'linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%)'
-                          : 'linear-gradient(135deg, #43A047 0%, #2E7D32 100%)',
-                        color: 'white',
-                        '&:hover': { boxShadow: '0 12px 40px rgba(46, 125, 50, 0.3)' },
-                      }}
-                      onClick={() => setSelectedView('revision-expedientes-dd')}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                          <AssignmentIndIcon sx={{ fontSize: 48, mr: 2 }} />
-                          <Typography variant="h5" fontWeight="bold">
-                            Revisión Expedientes (DD)
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                          Aprobar o rechazar expedientes enviados a revisión
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  <ActionCard
+                    title="Revisión Expedientes (DD)"
+                    description="Aprobar o rechazar expedientes enviados a revisión"
+                    icon={<AssignmentIndIcon />}
+                    accent={IGSS_COLORS.verde}
+                    onClick={() => setSelectedView('revision-expedientes-dd')}
+                    delay={0.35}
+                  />
                 </Grid>
               )}
             </Grid>
           )}
 
           {selectedView === 'direccion-departamental' && <RevisarDireccionDepartamental />}
-              {selectedView === 'revision-expedientes-dd' && (hasPermission('revisar-expediente-direccion-departamental') || hasPermission('revisar-siaf-direccion-departamental')) && <RevisarExpedientesDD />}
-          {selectedView === 'estadisticas-tiempos' && hasPermission('ver-estadisticas') && <EstadisticasSiaf tabInicial={0} ocultarTabs />}
-          {selectedView === 'estadisticas-motivos' && hasPermission('ver-estadisticas') && <EstadisticasSiaf tabInicial={1} ocultarTabs />}
-          {(selectedView === 'estadisticas-tiempos' || selectedView === 'estadisticas-motivos') && !hasPermission('ver-estadisticas') && (
-            <Typography color="text.secondary">No tiene permiso para ver estadísticas.</Typography>
+          {selectedView === 'revision-expedientes-dd' && (hasPermission('revisar-expediente-direccion-departamental') || hasPermission('revisar-siaf-direccion-departamental')) && <RevisarExpedientesDD />}
+          {selectedView === 'estadisticas-tiempos' && hasPermission('estadisticas-tiempos') && <EstadisticasSiaf tabInicial={0} ocultarTabs />}
+          {selectedView === 'estadisticas-motivos' && hasPermission('estadisticas-motivos') && <EstadisticasSiaf tabInicial={1} ocultarTabs />}
+          {selectedView === 'estadisticas-tiempos' && !hasPermission('estadisticas-tiempos') && (
+            <Typography color="text.secondary">No tiene permiso para ver estadísticas de tiempos.</Typography>
           )}
-        </motion.div>
-      </Box>
+          {selectedView === 'estadisticas-motivos' && !hasPermission('estadisticas-motivos') && (
+            <Typography color="text.secondary">No tiene permiso para ver motivos de rechazo.</Typography>
+          )}
+          </Box>
+        </AnimatePresence>
+      </DashboardBackground>
     </Box>
   );
 };
