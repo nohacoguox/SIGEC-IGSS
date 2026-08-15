@@ -201,5 +201,25 @@ export async function ensureCorrelativoTables(): Promise<void> {
     );
   }
 
+  await AppDataSource.query(`
+    CREATE TABLE IF NOT EXISTS expediente_correlativo_config (
+      id SERIAL PRIMARY KEY,
+      siguiente_numero INT NOT NULL DEFAULT 1,
+      numero_inicio INT NOT NULL DEFAULT 1,
+      digitos INT NOT NULL DEFAULT 4,
+      anio_actual INT NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  const expedienteConfig = await AppDataSource.query(`SELECT id FROM expediente_correlativo_config LIMIT 1`);
+  if (!expedienteConfig?.length) {
+    await AppDataSource.query(
+      `INSERT INTO expediente_correlativo_config (siguiente_numero, numero_inicio, digitos, anio_actual)
+       VALUES (1, 1, 4, $1)`,
+      [new Date().getFullYear()]
+    );
+  }
+
   console.log('[correlativos] Tablas de secuencia/reservas listas (formato número/año)');
 }

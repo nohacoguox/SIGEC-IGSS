@@ -12,7 +12,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tab,
   TextField,
+  Tabs,
   Typography,
   Grid,
 } from '@mui/material';
@@ -38,15 +40,16 @@ interface EstadoCorrelativos {
   siguienteNumero: number;
   numeroInicio: number;
   digitos: number;
-  minutosReserva: number;
+  minutosReserva?: number;
   correlativoSiguientePreview: string;
-  ultimoUsado: { correlativo: string; numero: number | null } | null;
+  ultimoUsado: { correlativo: string; numero: number | null } | string | null;
   enUso: ReservaEnUso[];
   totalReservasActivas: number;
 }
 
 const CorrelativoManagementPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
+  const [tipoCorrelativo, setTipoCorrelativo] = useState<'siaf' | 'expedientes'>('siaf');
   const [estado, setEstado] = useState<EstadoCorrelativos | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,17 +58,25 @@ const CorrelativoManagementPage: React.FC = () => {
   const [digitos, setDigitos] = useState('0');
   const [minutosReserva, setMinutosReserva] = useState('120');
   const [loadError, setLoadError] = useState('');
+  const ultimoCorrelativo = estado?.ultimoUsado
+    ? typeof estado.ultimoUsado === 'string'
+      ? estado.ultimoUsado
+      : estado.ultimoUsado.correlativo
+    : '—';
 
   const loadEstado = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/correlativos/estado');
+      const endpoint = tipoCorrelativo === 'siaf'
+        ? '/correlativos/estado'
+        : '/correlativos/expedientes/estado';
+      const res = await api.get(endpoint);
       const data: EstadoCorrelativos = res.data;
       setEstado(data);
       setNumeroInicio(String(data.numeroInicio));
       setSiguienteNumero(String(data.siguienteNumero));
       setDigitos(String(data.digitos));
-      setMinutosReserva(String(data.minutosReserva));
+      setMinutosReserva(String(data.minutosReserva ?? 120));
       setLoadError('');
     } catch (err: any) {
       const status = err?.response?.status;
@@ -85,7 +96,7 @@ const CorrelativoManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [showError]);
+  }, [showError, tipoCorrelativo]);
 
   useEffect(() => {
     loadEstado();
@@ -94,14 +105,18 @@ const CorrelativoManagementPage: React.FC = () => {
   const handleGuardar = async () => {
     setSaving(true);
     try {
-      const res = await api.put('/correlativos/config', {
+      const endpoint = tipoCorrelativo === 'siaf'
+        ? '/correlativos/config'
+        : '/correlativos/expedientes/config';
+      const payload: Record<string, number> = {
         numeroInicio: Number(numeroInicio),
         siguienteNumero: Number(siguienteNumero),
         digitos: Number(digitos),
-        minutosReserva: Number(minutosReserva),
-      });
+      };
+      if (tipoCorrelativo === 'siaf') payload.minutosReserva = Number(minutosReserva);
+      const res = await api.put(endpoint, payload);
       setEstado(res.data.estado);
-      showSuccess('Configuración de correlativos actualizada');
+      showSuccess(`Configuración de correlativos de ${tipoCorrelativo === 'siaf' ? 'SIAF' : 'expedientes'} actualizada`);
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al guardar');
     } finally {
@@ -112,7 +127,10 @@ const CorrelativoManagementPage: React.FC = () => {
   const handleAplicarInicio = async () => {
     setSaving(true);
     try {
-      const res = await api.put('/correlativos/config', {
+      const endpoint = tipoCorrelativo === 'siaf'
+        ? '/correlativos/config'
+        : '/correlativos/expedientes/config';
+      const res = await api.put(endpoint, {
         numeroInicio: Number(numeroInicio),
       });
       setEstado(res.data.estado);
@@ -149,16 +167,27 @@ const CorrelativoManagementPage: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" fontWeight="bold">
-            Correlativos SIAF
+            Gestión de Correlativos
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Defina desde qué número inicia la secuencia. Al crear un SIAF el sistema asigna automáticamente el siguiente libre.
+            Configure de forma independiente la numeración automática de SIAF y expedientes de compras.
           </Typography>
         </Box>
         <Button startIcon={<RefreshIcon />} variant="outlined" onClick={loadEstado} disabled={loading}>
           Actualizar
         </Button>
       </Box>
+
+      <Paper elevation={0} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
+        <Tabs
+          value={tipoCorrelativo}
+          onChange={(_, value: 'siaf' | 'expedientes') => setTipoCorrelativo(value)}
+          sx={{ px: 1, '& .MuiTab-root': { textTransform: 'none', fontWeight: 700 } }}
+        >
+          <Tab value="siaf" label="SIAF" />
+          <Tab value="expedientes" label="Expedientes de Compras" />
+        </Tabs>
+      </Paper>
 
       {loadError && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setLoadError('')}>
@@ -180,15 +209,20 @@ const CorrelativoManagementPage: React.FC = () => {
         </Grid>
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 3, height: '100%', borderTop: `4px solid ${IGSS_COLORS.verde}` }} elevation={2}>
-            <Typography variant="overline" color="text.secondary">Último usado (SIAF guardado)</Typography>
+            <Typography variant="overline" color="text.secondary">
+              Último usado ({tipoCorrelativo === 'siaf' ? 'SIAF guardado' : 'expediente creado'})
+            </Typography>
             <Typography variant="h3" fontWeight={800} sx={{ my: 1, color: IGSS_COLORS.verdeOscuro }}>
-              {estado?.ultimoUsado?.correlativo ?? '—'}
+              {ultimoCorrelativo}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {estado?.ultimoUsado ? 'Registrado en solicitudes' : 'Aún no hay SIAF guardados'}
+              {estado?.ultimoUsado
+                ? tipoCorrelativo === 'siaf' ? 'Registrado en solicitudes' : 'Registrado en expedientes'
+                : tipoCorrelativo === 'siaf' ? 'Aún no hay SIAF guardados' : 'Aún no hay expedientes creados'}
             </Typography>
           </Paper>
         </Grid>
+        {tipoCorrelativo === 'siaf' && (
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 3, height: '100%', borderTop: `4px solid ${IGSS_COLORS.azulClaro}` }} elevation={2}>
             <Typography variant="overline" color="text.secondary">En uso ahora (reservados)</Typography>
@@ -200,6 +234,7 @@ const CorrelativoManagementPage: React.FC = () => {
             </Typography>
           </Paper>
         </Grid>
+        )}
       </Grid>
 
       <Paper sx={{ p: 3, mb: 3 }} elevation={2}>
@@ -208,13 +243,14 @@ const CorrelativoManagementPage: React.FC = () => {
           <Typography variant="h6" fontWeight={700}>Configurar secuencia</Typography>
         </Box>
         <Alert severity="info" sx={{ mb: 2 }}>
-          Formato del correlativo: <strong>número/año</strong> (ej. <strong>1/{new Date().getFullYear()}</strong>).
-          Al fijar el inicio, el siguiente SIAF tomará ese número del año en curso.
-          Si alguien cancela el formulario, el correlativo se libera para el próximo usuario.
-          Al cambiar de año, la numeración reinicia automáticamente.
+          {tipoCorrelativo === 'siaf' ? (
+            <>Formato: <strong>número/año</strong> (ej. <strong>1/{new Date().getFullYear()}</strong>). Si alguien cancela el formulario, el correlativo se libera para el próximo usuario.</>
+          ) : (
+            <>Formato: <strong>EXP-número/año</strong> (ej. <strong>EXP-0001/{new Date().getFullYear()}</strong>). El sistema lo asigna automáticamente al guardar el expediente.</>
+          )}
         </Alert>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
             <TextField
               label="Iniciar desde"
               type="number"
@@ -225,7 +261,7 @@ const CorrelativoManagementPage: React.FC = () => {
               inputProps={{ min: 1 }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
             <TextField
               label="Siguiente número"
               type="number"
@@ -236,7 +272,7 @@ const CorrelativoManagementPage: React.FC = () => {
               inputProps={{ min: 1 }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
             <TextField
               label="Dígitos (ceros a la izq.)"
               type="number"
@@ -247,6 +283,7 @@ const CorrelativoManagementPage: React.FC = () => {
               inputProps={{ min: 0, max: 12 }}
             />
           </Grid>
+          {tipoCorrelativo === 'siaf' && (
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               label="Minutos de reserva"
@@ -258,6 +295,7 @@ const CorrelativoManagementPage: React.FC = () => {
               inputProps={{ min: 5, max: 1440 }}
             />
           </Grid>
+          )}
         </Grid>
         <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
           <Button
@@ -279,6 +317,7 @@ const CorrelativoManagementPage: React.FC = () => {
         </Box>
       </Paper>
 
+      {tipoCorrelativo === 'siaf' && (
       <Paper sx={{ p: 3 }} elevation={2}>
         <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
           Correlativos en uso (reservas activas)
@@ -329,6 +368,7 @@ const CorrelativoManagementPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Paper>
+      )}
     </Box>
   );
 };

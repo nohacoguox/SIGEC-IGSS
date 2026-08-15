@@ -1,0 +1,26 @@
+﻿ID_caso,T1_Identificacion_clara,T2_Fecha_inicio_documentada,T3_Responsable_o_area,T4_Historial_devoluciones_reconstruible,T5_Estado_final_DAF_claro,T6_Versiones_distinguibles,T7_Fecha_cambios_localizable,Cumple_global_T1_a_T5,Minutos_localizar_ultima_version_y_estado,Observaciones
+LB-01,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin devoluciones
+LB-02,Sí,Sí,Sí,No,Sí,No,No,No,9,Anexo; mismo mes
+LB-03,Sí,Sí,Sí,No,Sí,No,No,No,10,Soporte incompleto
+LB-04,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-05,Sí,Sí,Sí,No,Sí,No,No,No,14,Justificacion reelaborada
+LB-06,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: ajuste justificacion
+LB-07,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-08,Sí,Sí,Sí,No,Sí,No,No,No,10,Especificacion incompleta
+LB-09,Sí,Sí,Sí,No,Sí,No,No,No,20,Mala produccion; pendiente junio
+LB-10,Sí,Sí,Sí,No,Sí,No,No,No,10,Falta anexo; mismo mes
+LB-11,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Aprobado primer analisis
+LB-12,Sí,Sí,Sí,No,Sí,No,No,No,19,Rechazo; reingreso en mayo
+LB-13,Sí,Sí,Sí,No,Sí,No,No,No,9,Cotizacion; mismo mes
+LB-14,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: redaccion objetada
+LB-15,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Aprobado primer analisis
+LB-16,Sí,Sí,Sí,No,Sí,No,No,No,10,Documento de soporte
+LB-17,Sí,Sí,Sí,No,Sí,No,No,No,14,Descripcion SIAF ajustada
+LB-18,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-19,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin devoluciones
+LB-20,Sí,Sí,Sí,No,Sí,No,No,No,9,Correccion menor; mismo mes
+LB-21,Sí,Sí,Sí,No,Sí,No,No,No,19,Servicio; paso a abril
+LB-22,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: justificacion SIAF
+LB-23,Sí,Sí,Sí,No,Sí,No,No,No,19,Varias vueltas; paso a junio
+LB-24,Sí,Sí,Sí,No,Sí,No,No,No,9,Observacion menor; mismo mes
+LB-25,Sí,Sí,Sí,No,Sí,No,No,No,14,Palabras/descripcion SIAF

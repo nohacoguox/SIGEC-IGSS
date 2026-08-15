@@ -25,6 +25,14 @@ export class Expediente {
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
+  /** Número de orden de compra (O.C.). */
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'numero_orden_compra' })
+  numeroOrdenCompra: string | null;
+
+  /** Correlativo SIAF asociado; permite identificar el mismo caso en el piloto académico. */
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'numero_siaf' })
+  numeroSiaf: string | null;
+
   @Column({ type: 'varchar', length: 20, default: 'abierto' })
   estado: string; // abierto, en_proceso, cerrado, archivado
 
@@ -161,6 +169,10 @@ export class ExpedienteBitacoraDetalle {
   @Column({ name: 'expediente_documento_id' })
   expedienteDocumentoId: number;
 
+  /** Versión exacta del archivo que DAF revisó al dejar este motivo. */
+  @Column({ type: 'int', nullable: true, name: 'expediente_documento_version_id' })
+  expedienteDocumentoVersionId: number | null;
+
   /** Nombre del documento al momento del rechazo (respaldo por si se reemplaza después). */
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'nombre_documento' })
   nombreDocumento: string | null;
@@ -196,6 +208,10 @@ export class ExpedienteDocumentoVersion {
 
   @Column({ type: 'int', default: 1 })
   numeroVersion: number;
+
+  /** Indica cuál archivo es el vigente para el documento del expediente. */
+  @Column({ type: 'boolean', default: false, name: 'es_actual' })
+  esActual: boolean;
 
   @Column({ type: 'varchar', length: 255 })
   nombreArchivo: string;

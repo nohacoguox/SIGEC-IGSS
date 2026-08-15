@@ -30,9 +30,12 @@ function App() {
                 ya que el backend debe validar el token de cambio de contraseña si lo hubiera. */}
             <Route path="/change-password" element={<ChangePasswordPage />} />
 
+            {/* Entrada: siempre al login (la sesión no reabre el panel de roles al arrancar) */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+
             {/* Rutas Privadas */}
             <Route element={<PrivateRoute />}>
-              <Route path="/" element={<HomeRedirect />} />
+              <Route path="/inicio" element={<HomeRedirect />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
               <Route path="/colaborador-dashboard" element={<CollaboratorDashboard />} />
               <Route path="/actualizar-codigos-productos" element={<ActualizarCodigosProductosPage />} />
@@ -43,7 +46,7 @@ function App() {
             </Route>
 
             {/* Redirección por defecto para cualquier ruta no encontrada */}
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </SiafProvider>
       </Router>

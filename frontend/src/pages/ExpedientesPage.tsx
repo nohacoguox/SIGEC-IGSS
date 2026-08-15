@@ -12,7 +12,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Drawer,
   IconButton,
   MenuItem,
   Paper,
@@ -25,6 +24,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  alpha,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -43,6 +43,13 @@ import {
   Send as SendIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
+  DescriptionOutlined as DescriptionIcon,
+  HourglassTopOutlined as HourglassIcon,
+  TaskAlt as TaskAltIcon,
+  HighlightOff as HighlightOffIcon,
+  FolderOpen as FolderOpenIcon,
+  Numbers as NumbersIcon,
+  ShoppingCart as ShoppingCartIcon,
 } from '@mui/icons-material';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
@@ -55,6 +62,7 @@ import {
   pageTitleSx,
   primaryButtonSx,
 } from '../theme/institutionalStyles';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 type ExpedienteRow = {
   id: number;
@@ -64,6 +72,8 @@ type ExpedienteRow = {
   estado: string;
   fechaApertura: string;
   descripcion?: string | null;
+  numeroOrdenCompra?: string | null;
+  numeroSiaf?: string | null;
 };
 
 type DocumentoRow = {
@@ -108,9 +118,61 @@ const TIPOS_DOCUMENTO = [
 
 const TITULOS_OPCIONES = ['Bien/Producto', 'Servicio'];
 
+/** Lista corta de extensiones: los comodines MIME (image/*) hacen lento el diálogo nativo de Windows. */
+const ARCHIVOS_ACEPTADOS = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png';
+
+function esArchivoPrevisualizable(file: File | null): boolean {
+  if (!file) return false;
+  const mime = (file.type || '').toLowerCase();
+  const nombre = file.name.toLowerCase();
+  return (
+    mime === 'application/pdf' ||
+    mime.startsWith('image/') ||
+    nombre.endsWith('.pdf') ||
+    /\.(jpg|jpeg|png|gif|webp)$/i.test(nombre)
+  );
+}
+
+function esPdfLocal(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+}
+
 const headerCellStyle = tableHeaderCellStyle;
 const headerRowStyle = tableHeaderRowStyle;
 const headerCellSx = tableHeaderCellSx;
+
+const estadoConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactElement }> = {
+  abierto: {
+    label: 'Abierto',
+    color: IGSS_COLORS.azul,
+    bg: alpha(IGSS_COLORS.azul, 0.12),
+    icon: <DescriptionIcon />,
+  },
+  en_proceso: {
+    label: 'En revisión',
+    color: '#B26A00',
+    bg: alpha('#ED6C02', 0.14),
+    icon: <HourglassIcon />,
+  },
+  aprobado: {
+    label: 'Aprobado',
+    color: '#1565C0',
+    bg: alpha('#1976D2', 0.12),
+    icon: <TaskAltIcon />,
+  },
+  cerrado: {
+    label: 'Cerrado',
+    color: '#1565C0',
+    bg: alpha('#1976D2', 0.12),
+    icon: <TaskAltIcon />,
+  },
+  rechazado: {
+    label: 'Rechazado',
+    color: IGSS_COLORS.error,
+    bg: alpha(IGSS_COLORS.error, 0.12),
+    icon: <HighlightOffIcon />,
+  },
+};
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -126,11 +188,14 @@ const ExpedientesPage: React.FC = () => {
   const [expedientes, setExpedientes] = useState<ExpedienteRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [crearOpen, setCrearOpen] = useState(false);
-  const [nuevoNumero, setNuevoNumero] = useState('');
   const [nuevoTipo, setNuevoTipo] = useState('Compras');
   const [nuevoTitulo, setNuevoTitulo] = useState(TITULOS_OPCIONES[0]);
   const [nuevoDescripcion, setNuevoDescripcion] = useState('');
+  const [nuevoNumeroOc, setNuevoNumeroOc] = useState('');
+  const [nuevoNumeroSiaf, setNuevoNumeroSiaf] = useState('');
   const [creando, setCreando] = useState(false);
+  const [siguienteCorrelativo, setSiguienteCorrelativo] = useState<string | null>(null);
+  const [cargandoCorrelativo, setCargandoCorrelativo] = useState(false);
 
   // Editar expediente (solo si no aprobado/cerrado/archivado)
   const [editOpen, setEditOpen] = useState(false);
@@ -138,6 +203,8 @@ const ExpedientesPage: React.FC = () => {
   const [editNumero, setEditNumero] = useState('');
   const [editTitulo, setEditTitulo] = useState(TITULOS_OPCIONES[0]);
   const [editDescripcion, setEditDescripcion] = useState('');
+  const [editNumeroOc, setEditNumeroOc] = useState('');
+  const [editNumeroSiaf, setEditNumeroSiaf] = useState('');
   const [guardandoEdit, setGuardandoEdit] = useState(false);
 
   // Detalle / documentos
@@ -148,10 +215,12 @@ const ExpedientesPage: React.FC = () => {
   const [detalleLoading, setDetalleLoading] = useState(false);
   const [agregarDocOpen, setAgregarDocOpen] = useState(false);
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   const [docTipo, setDocTipo] = useState(TIPOS_DOCUMENTO[0]);
   const [docTipoOtro, setDocTipoOtro] = useState(''); // Cuando el tipo es "Otro", texto libre
   const [docComentario, setDocComentario] = useState('');
   const [subiendoDoc, setSubiendoDoc] = useState(false);
+  const [arrastrandoDoc, setArrastrandoDoc] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [confirmEliminarOpen, setConfirmEliminarOpen] = useState(false);
   const [docAEliminar, setDocAEliminar] = useState<{ id: number; nombre: string } | null>(null);
@@ -179,12 +248,27 @@ const ExpedientesPage: React.FC = () => {
   const [replaceDocOpen, setReplaceDocOpen] = useState(false);
   const [replaceDocTarget, setReplaceDocTarget] = useState<{ docId: number; nombre: string } | null>(null);
   const [replaceDocFile, setReplaceDocFile] = useState<File | null>(null);
+  const [replacePreviewUrl, setReplacePreviewUrl] = useState<string | null>(null);
   const [reemplazandoDoc, setReemplazandoDoc] = useState(false);
 
   // Historial de versiones de un documento
   const [versionesOpen, setVersionesOpen] = useState(false);
   const [versionesTarget, setVersionesTarget] = useState<{ docId: number; nombre: string } | null>(null);
-  const [versionesList, setVersionesList] = useState<Array<{ id: number; numeroVersion: number; nombreArchivo: string; fechaSubida: string; tamanioBytes: number; subidoPor?: { nombres?: string; apellidos?: string } | null }>>([]);
+  const [versionesList, setVersionesList] = useState<Array<{
+    id: number;
+    numeroVersion: number;
+    esActual: boolean;
+    nombreArchivo: string;
+    fechaSubida: string;
+    tamanioBytes: number;
+    subidoPor?: { nombres?: string; apellidos?: string } | null;
+    observaciones?: Array<{
+      comentario: string;
+      pagina?: number | null;
+      fecha?: string | null;
+      usuario?: { nombres?: string; apellidos?: string } | null;
+    }>;
+  }>>([]);
   const [versionesLoading, setVersionesLoading] = useState(false);
 
   // Ver marca de rechazo (posición donde DAF hizo clic derecho en el documento)
@@ -198,6 +282,8 @@ const ExpedientesPage: React.FC = () => {
   const [verMarcaZoom, setVerMarcaZoom] = useState(1);
   const verMarcaContainerRef = useRef<HTMLDivElement>(null);
   const verMarcaImageRef = useRef<HTMLImageElement>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadExpedientes = async () => {
     setLoading(true);
@@ -212,6 +298,8 @@ const ExpedientesPage: React.FC = () => {
         estado: e.estado ?? 'abierto',
         fechaApertura: e.fechaApertura ?? e.createdAt ?? '',
         descripcion: e.descripcion ?? null,
+        numeroOrdenCompra: e.numeroOrdenCompra ?? null,
+        numeroSiaf: e.numeroSiaf ?? null,
       })));
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al cargar expedientes.');
@@ -225,6 +313,45 @@ const ExpedientesPage: React.FC = () => {
     loadExpedientes();
   }, []);
 
+  // Vista previa local del archivo a subir (antes de enviarlo al servidor)
+  useEffect(() => {
+    if (!docFile || !esArchivoPrevisualizable(docFile)) {
+      setDocPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    const url = URL.createObjectURL(docFile);
+    setDocPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+    return () => URL.revokeObjectURL(url);
+  }, [docFile]);
+
+  useEffect(() => {
+    if (!replaceDocFile || !esArchivoPrevisualizable(replaceDocFile)) {
+      setReplacePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    const url = URL.createObjectURL(replaceDocFile);
+    setReplacePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+    return () => URL.revokeObjectURL(url);
+  }, [replaceDocFile]);
+
+  const resumen = ['abierto', 'en_proceso', 'aprobado', 'rechazado'].map((estado) => ({
+    estado,
+    total: expedientes.filter((expediente) => expediente.estado === estado).length,
+    ...estadoConfig[estado],
+  }));
+
   // Solo se puede editar si está abierto o rechazado (no mientras está en revisión)
   const expedienteEditable = (e: ExpedienteRow) => e.estado === 'abierto' || e.estado === 'rechazado';
 
@@ -233,18 +360,27 @@ const ExpedientesPage: React.FC = () => {
     setEditNumero(e.numeroExpediente);
     setEditTitulo(TITULOS_OPCIONES.includes(e.titulo) ? e.titulo : TITULOS_OPCIONES[0]);
     setEditDescripcion(e.descripcion ?? '');
+    setEditNumeroOc(e.numeroOrdenCompra ?? '');
+    setEditNumeroSiaf(e.numeroSiaf ?? '');
     setEditOpen(true);
   };
 
   const handleGuardarEdicion = async () => {
     if (editId == null) return;
     const tit = editTitulo.trim();
+    const desc = editDescripcion.trim();
+    const oc = editNumeroOc.trim();
+    const siaf = editNumeroSiaf.trim();
     if (!tit) { showError('Elija un título (Bien/Producto o Servicio).'); return; }
+    if (!desc) { showError('La descripción es obligatoria.'); return; }
+    if (!oc) { showError('El número de orden de compra (O.C.) es obligatorio.'); return; }
     setGuardandoEdit(true);
     try {
       await api.put(`/expedientes/${editId}`, {
         titulo: tit,
-        descripcion: editDescripcion.trim() || undefined,
+        descripcion: desc,
+        numeroOrdenCompra: oc,
+        numeroSiaf: siaf,
       });
       showSuccess('Expediente actualizado.');
       setEditOpen(false);
@@ -258,22 +394,46 @@ const ExpedientesPage: React.FC = () => {
     }
   };
 
+  const openCrearDialog = async () => {
+    setNuevoTitulo(TITULOS_OPCIONES[0]);
+    setNuevoDescripcion('');
+    setNuevoNumeroOc('');
+    setNuevoNumeroSiaf('');
+    setNuevoTipo('Compras');
+    setSiguienteCorrelativo(null);
+    setCrearOpen(true);
+    setCargandoCorrelativo(true);
+    try {
+      const { data } = await api.get('/correlativos/expedientes/siguiente');
+      setSiguienteCorrelativo(data?.correlativo ?? null);
+    } catch {
+      setSiguienteCorrelativo(null);
+    } finally {
+      setCargandoCorrelativo(false);
+    }
+  };
+
   const handleCrear = async () => {
-    const num = nuevoNumero.trim();
     const tit = nuevoTitulo.trim();
-    if (!num) { showError('Indique el número de expediente.'); return; }
+    const desc = nuevoDescripcion.trim();
+    const oc = nuevoNumeroOc.trim();
+    const siaf = nuevoNumeroSiaf.trim();
     if (!tit) { showError('Elija un título (Bien/Producto o Servicio).'); return; }
+    if (!desc) { showError('La descripción es obligatoria.'); return; }
+    if (!oc) { showError('El número de orden de compra (O.C.) es obligatorio.'); return; }
     setCreando(true);
     try {
       const { data } = await api.post('/expedientes', {
-        numeroExpediente: num,
         tipoExpediente: nuevoTipo.trim() || 'Compras',
         titulo: tit,
-        descripcion: nuevoDescripcion.trim() || undefined,
+        descripcion: desc,
+        numeroOrdenCompra: oc,
+        numeroSiaf: siaf,
       });
-      showSuccess('Expediente creado correctamente.');
+      showSuccess(data?.numeroExpediente ? `Expediente ${data.numeroExpediente} creado correctamente.` : 'Expediente creado correctamente.');
       setCrearOpen(false);
-      setNuevoNumero(''); setNuevoTitulo(TITULOS_OPCIONES[0]); setNuevoDescripcion(''); setNuevoTipo('Compras');
+      setSiguienteCorrelativo(null);
+      setNuevoTitulo(TITULOS_OPCIONES[0]); setNuevoDescripcion(''); setNuevoNumeroOc(''); setNuevoNumeroSiaf(''); setNuevoTipo('Compras');
       await loadExpedientes();
       if (data?.id) openDetalle(data.id);
     } catch (err: any) {
@@ -299,6 +459,8 @@ const ExpedientesPage: React.FC = () => {
         estado: e.estado ?? 'abierto',
         fechaApertura: e.fechaApertura ?? e.createdAt ?? '',
         descripcion: e.descripcion ?? null,
+        numeroOrdenCompra: e.numeroOrdenCompra ?? null,
+        numeroSiaf: e.numeroSiaf ?? null,
       });
       const docs = (e.documentos || []).map((d: any) => ({
         id: d.id,
@@ -506,6 +668,13 @@ const ExpedientesPage: React.FC = () => {
     return () => clearTimeout(t);
   }, [verMarcaOpen, verMarcaUrl, verMarcaData?.mimeType, verMarcaData?.xPercent, verMarcaData?.yPercent, measureVerMarcaPosition]);
 
+  /** Limpia el valor antes de abrir para que se pueda volver a elegir el mismo archivo. */
+  const abrirSelectorArchivo = (ref: React.RefObject<HTMLInputElement>) => {
+    if (!ref.current) return;
+    ref.current.value = '';
+    ref.current.click();
+  };
+
   const handleAgregarDocumento = async () => {
     if (!expedienteDetalle) return;
     if (!docFile) { showError('Seleccione un archivo.'); return; }
@@ -620,26 +789,55 @@ const ExpedientesPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={drawerOpen ? 'xl' : 'lg'} sx={{ py: 4 }}>
+      {/* Inputs siempre montados y fuera de los diálogos: el navegador abre el selector sin esperas. */}
+      <input
+        ref={docFileInputRef}
+        type="file"
+        accept={ARCHIVOS_ACEPTADOS}
+        style={{ display: 'none' }}
+        onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+      />
+      <input
+        ref={replaceFileInputRef}
+        type="file"
+        accept={ARCHIVOS_ACEPTADOS}
+        style={{ display: 'none' }}
+        onChange={(e) => setReplaceDocFile(e.target.files?.[0] || null)}
+      />
+
+      {!drawerOpen && (
+      <>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={pageTitleSx}
-          >
-            Creación de Expediente
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Crea y administra expedientes de compras. Agregue los documentos que conforman cada expediente (Orden de Compras, ACTA, SIAF autorizado, etc.).
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+        <Box
+          sx={{
+            mb: 3,
+            p: { xs: 2.5, md: 3.5 },
+            borderRadius: 3,
+            color: '#fff',
+            background: `linear-gradient(135deg, ${IGSS_COLORS.azulOscuro} 0%, ${IGSS_COLORS.azulClaro} 100%)`,
+            boxShadow: `0 10px 30px ${alpha(IGSS_COLORS.azulOscuro, 0.28)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
+            <Box sx={{ minWidth: 260 }}>
+              <Typography variant="h4" component="h1" sx={{ ...pageTitleSx, color: '#fff', mb: 0.5 }}>
+                Expedientes de Compras
+              </Typography>
+              <Typography variant="body1" sx={{ color: alpha('#fff', 0.85), maxWidth: 580 }}>
+                Cree y administre expedientes de compras. Agregue los documentos que conforman cada expediente y envíelo a revisión cuando esté listo.
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
             <Button
               variant="outlined"
-              color="secondary"
               startIcon={<ArrowBackIcon />}
               onClick={() => navigate('/colaborador-dashboard')}
-              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+              sx={{
+                borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#fff',
+                borderColor: alpha('#fff', 0.6),
+                '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
+              }}
             >
               Volver
             </Button>
@@ -648,7 +846,11 @@ const ExpedientesPage: React.FC = () => {
               startIcon={<RefreshIcon />}
               onClick={loadExpedientes}
               disabled={loading}
-              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: 'grey.400', color: 'grey.700' }}
+              sx={{
+                borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#fff',
+                borderColor: alpha('#fff', 0.6),
+                '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
+              }}
             >
               Recargar
             </Button>
@@ -657,13 +859,49 @@ const ExpedientesPage: React.FC = () => {
                 variant="contained"
                 color="primary"
                 startIcon={<AddIcon />}
-                onClick={() => setCrearOpen(true)}
-                sx={primaryButtonSx}
+                onClick={openCrearDialog}
+                sx={{
+                  ...primaryButtonSx,
+                  bgcolor: '#fff',
+                  color: IGSS_COLORS.azulOscuro,
+                  '&:hover': { bgcolor: alpha('#fff', 0.88) },
+                }}
               >
                 Crear Nuevo Expediente
               </Button>
             )}
+            </Box>
           </Box>
+        </Box>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+          {resumen.map((item) => (
+            <Card
+              key={item.estado}
+              elevation={0}
+              sx={{
+                flex: '1 1 150px',
+                minWidth: 140,
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                transition: 'transform .2s ease, box-shadow .2s ease',
+                '&:hover': { transform: 'translateY(-3px)', boxShadow: `0 8px 20px ${alpha('#000', 0.08)}` },
+              }}
+            >
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.75, py: 2.25 }}>
+                <Box sx={{ width: 46, height: 46, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: item.bg, color: item.color }}>
+                  {item.icon}
+                </Box>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.1, color: item.color }}>{item.total}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{item.label}</Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
         </Box>
       </motion.div>
 
@@ -671,10 +909,11 @@ const ExpedientesPage: React.FC = () => {
         <Card
           elevation={0}
           sx={{
-            borderRadius: 2,
+            borderRadius: 3,
             border: '1px solid',
             borderColor: 'divider',
             overflow: 'hidden',
+            boxShadow: `0 4px 18px ${alpha('#000', 0.05)}`,
           }}
         >
           <Box
@@ -684,13 +923,14 @@ const ExpedientesPage: React.FC = () => {
               borderBottom: '1px solid',
               borderColor: 'divider',
               bgcolor: 'action.hover',
+            borderLeft: `4px solid ${IGSS_COLORS.verde}`,
             }}
           >
             <Typography variant="h6" fontWeight="700" sx={{ color: 'grey.800' }}>
-              Expedientes creados
+              Expedientes Existentes
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Listado de expedientes. Use «Ver» para gestionar los documentos de cada uno (cargar, titular, comentar, visualizar o eliminar).
+              Revise los expedientes, gestione sus documentos y envíelos a revisión cuando estén completos.
             </Typography>
           </Box>
           <CardContent sx={{ p: 0 }}>
@@ -699,6 +939,7 @@ const ExpedientesPage: React.FC = () => {
                 <TableHead>
                   <TableRow style={headerRowStyle}>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Número</TableCell>
+                    <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>O.C.</TableCell>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Título</TableCell>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Descripción</TableCell>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Estado</TableCell>
@@ -709,15 +950,19 @@ const ExpedientesPage: React.FC = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                         <Typography variant="body2" sx={{ color: 'grey.600' }}>Cargando...</Typography>
                       </TableCell>
                     </TableRow>
                   ) : expedientes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 7 }}>
+                        <DescriptionIcon sx={{ fontSize: 48, color: 'grey.400', mb: 1 }} />
+                        <Typography variant="body1" sx={{ color: 'grey.700', fontWeight: 600 }}>
+                          Aún no tiene expedientes
+                        </Typography>
                         <Typography variant="body2" sx={{ color: 'grey.600' }}>
-                          No hay expedientes. Use «Crear Nuevo Expediente» para agregar uno.
+                          Use «Crear Nuevo Expediente» para registrar el primero.
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -727,21 +972,31 @@ const ExpedientesPage: React.FC = () => {
                         key={e.id}
                         sx={{
                           bgcolor: index % 2 === 1 ? 'action.hover' : 'background.paper',
-                          '&:hover': { bgcolor: 'action.selected' },
+                          transition: 'background-color .2s ease',
+                          '&:hover': { bgcolor: alpha(IGSS_COLORS.azul, 0.08) },
                           '& td': { py: 1.75, borderColor: 'divider' },
                         }}
                       >
-                        <TableCell sx={{ fontWeight: 600 }}>{e.numeroExpediente}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: IGSS_COLORS.azulOscuro }}>{e.numeroExpediente}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>{e.numeroOrdenCompra || '—'}</TableCell>
                         <TableCell>{e.titulo}</TableCell>
                         <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descripcion || undefined}>{e.descripcion || '—'}</TableCell>
                         <TableCell>
+                          {(() => {
+                            const config = estadoConfig[e.estado] ?? estadoConfig.abierto;
+                            return (
                           <Chip
-                            label={e.estado}
+                            label={config.label}
                             size="small"
-                            color={e.estado === 'abierto' ? 'default' : e.estado === 'cerrado' ? 'success' : e.estado === 'rechazado' ? 'error' : 'primary'}
-                            variant="filled"
-                            sx={{ fontWeight: 600 }}
+                            sx={{
+                              fontWeight: 700,
+                              bgcolor: config.bg,
+                              color: config.color,
+                              border: `1px solid ${alpha(config.color, 0.35)}`,
+                            }}
                           />
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           {typeof e.fechaApertura === 'string' ? e.fechaApertura.split('T')[0] : String(e.fechaApertura)}
@@ -804,193 +1059,511 @@ const ExpedientesPage: React.FC = () => {
           </CardContent>
         </Card>
       </motion.div>
+      </>
+      )}
 
-      {/* Drawer: detalle del expediente y documentos */}
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={closeDrawer}
-        PaperProps={{
-          sx: { width: { xs: '100%', sm: 560 }, maxWidth: '100%' },
-        }}
-      >
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-              <Box>
-                <Typography variant="h6" fontWeight="700" color="primary.main">
-                  Documentos del expediente
-                </Typography>
-                {expedienteDetalle && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {expedienteDetalle.numeroExpediente} — {expedienteDetalle.titulo}
+      {drawerOpen && (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        {/* Vista detalle a ancho completo */}
+        <Box
+          sx={{
+            mb: 3,
+            p: { xs: 2.5, md: 3.5 },
+            borderRadius: 3,
+            color: '#fff',
+            background: `linear-gradient(135deg, ${IGSS_COLORS.azulOscuro} 0%, ${IGSS_COLORS.azulClaro} 100%)`,
+            boxShadow: `0 10px 30px ${alpha(IGSS_COLORS.azulOscuro, 0.28)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="overline" sx={{ opacity: 0.85, letterSpacing: 1.2, fontWeight: 700 }}>
+                Expediente de compras
+              </Typography>
+              {expedienteDetalle ? (
+                <>
+                  <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.15, letterSpacing: 0.3 }}>
+                    {expedienteDetalle.numeroExpediente}
                   </Typography>
-                )}
-              </Box>
+                  <Typography variant="body1" sx={{ mt: 0.75, opacity: 0.92, maxWidth: 720 }}>
+                    {expedienteDetalle.titulo}
+                    {expedienteDetalle.descripcion ? ` · ${expedienteDetalle.descripcion}` : ''}
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="h5" fontWeight={700}>Cargando expediente…</Typography>
+              )}
+              {expedienteDetalle && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+                  {(() => {
+                    const cfg = estadoConfig[expedienteDetalle.estado] ?? estadoConfig.abierto;
+                    return (
+                      <Chip
+                        size="small"
+                        label={cfg.label}
+                        sx={{ fontWeight: 700, bgcolor: alpha('#fff', 0.95), color: cfg.color }}
+                      />
+                    );
+                  })()}
+                  {expedienteDetalle.numeroOrdenCompra && (
+                    <Chip
+                      size="small"
+                      icon={<ShoppingCartIcon />}
+                      label={`O.C. ${expedienteDetalle.numeroOrdenCompra}`}
+                      sx={{
+                        fontWeight: 700,
+                        bgcolor: alpha('#fff', 0.16),
+                        color: '#fff',
+                        border: `1px solid ${alpha('#fff', 0.28)}`,
+                        '& .MuiChip-icon': { color: '#fff' },
+                      }}
+                    />
+                  )}
+                  <Chip
+                    size="small"
+                    icon={<NumbersIcon />}
+                    label={`${documentos.length} documento${documentos.length === 1 ? '' : 's'}`}
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: alpha('#fff', 0.16),
+                      color: '#fff',
+                      border: `1px solid ${alpha('#fff', 0.28)}`,
+                      '& .MuiChip-icon': { color: '#fff' },
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
+              <Button
+                variant="outlined"
+                startIcon={<ArrowBackIcon />}
+                onClick={closeDrawer}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  color: '#fff',
+                  borderColor: alpha('#fff', 0.65),
+                  '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
+                }}
+              >
+                Volver a la lista
+              </Button>
               {expedienteDetalle && (
                 <Button
-                  size="small"
                   variant="outlined"
                   startIcon={<HistoryIcon />}
                   onClick={() => handleOpenBitacora(expedienteDetalle.id, expedienteDetalle.numeroExpediente)}
-                  sx={{ textTransform: 'none' }}
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    color: '#fff',
+                    borderColor: alpha('#fff', 0.65),
+                    '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
+                  }}
                 >
-                  Ver bitácora
+                  Bitácora
                 </Button>
               )}
             </Box>
           </Box>
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-            {detalleLoading ? (
-              <Typography color="text.secondary">Cargando...</Typography>
-            ) : expedienteDetalle ? (
-              <>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && puedeCrear && (
+        </Box>
+
+        {detalleLoading ? (
+          <Box sx={{ display: 'grid', placeItems: 'center', py: 10 }}>
+            <CircularProgress size={40} />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>Cargando detalle…</Typography>
+          </Box>
+        ) : expedienteDetalle ? (
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: '340px 1fr' },
+              gap: 2.5,
+              alignItems: 'start',
+            }}
+          >
+            {/* Columna izquierda: datos y acciones */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: '#fff',
+                  boxShadow: `0 4px 16px ${alpha('#000', 0.04)}`,
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.75, color: IGSS_COLORS.azulOscuro }}>
+                  Datos del expediente
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75 }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Número
+                    </Typography>
+                    <Typography variant="body1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                      {expedienteDetalle.numeroExpediente}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Orden de compra (O.C.)
+                    </Typography>
+                    <Typography variant="body1" fontWeight={700}>
+                      {expedienteDetalle.numeroOrdenCompra || '—'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Número SIAF
+                    </Typography>
+                    <Typography variant="body1" fontWeight={700}>
+                      {expedienteDetalle.numeroSiaf || '—'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Título
+                    </Typography>
+                    <Typography variant="body1" fontWeight={700}>{expedienteDetalle.titulo}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Descripción
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.25 }}>
+                      {expedienteDetalle.descripcion || 'Sin descripción'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.25,
+                }}
+              >
+                {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AttachFileIcon />}
+                    onClick={() => setAgregarDocOpen(true)}
+                    sx={{
+                      ...primaryButtonSx,
+                      bgcolor: IGSS_COLORS.azulOscuro,
+                      '&:hover': { bgcolor: IGSS_COLORS.azul },
+                    }}
+                  >
+                    Agregar documento
+                  </Button>
+                )}
+                {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && puedeCrear && (
+                  <Button
+                    variant="contained"
+                    startIcon={<SendIcon />}
+                    onClick={enviarARevision}
+                    disabled={enviandoRevision || documentos.length === 0}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      bgcolor: IGSS_COLORS.verde,
+                      '&:hover': { bgcolor: IGSS_COLORS.verdeOscuro },
+                    }}
+                  >
+                    {enviandoRevision ? 'Enviando…' : 'Enviar a revisión'}
+                  </Button>
+                )}
+                {documentos.length === 0 && (expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+                  <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    Agregue al menos un documento para poder enviar a revisión.
+                  </Typography>
+                )}
+              </Paper>
+
+              {expedienteDetalle.estado === 'rechazado' && ultimoRechazo && (
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2.5,
+                    bgcolor: alpha(IGSS_COLORS.error, 0.06),
+                    border: `1px solid ${alpha(IGSS_COLORS.error, 0.25)}`,
+                    borderLeft: `4px solid ${IGSS_COLORS.error}`,
+                  }}
+                >
+                  <Typography variant="subtitle2" fontWeight={800} color="error.dark" sx={{ mb: 0.5 }}>
+                    Motivo del rechazo
+                  </Typography>
+                  {ultimoRechazo.comentario && (
+                    <Typography variant="body2" sx={{ mb: 1 }}>{ultimoRechazo.comentario}</Typography>
+                  )}
+                  {ultimoRechazo.detalle && ultimoRechazo.detalle.length > 0 && (
+                    <>
+                      <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>Observaciones por documento:</Typography>
+                      <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                        {ultimoRechazo.detalle.map((d, i) => (
+                          <li key={i} style={{ marginBottom: 8 }}>
+                            <Typography variant="body2">
+                              <strong>{d.nombreDocumento}</strong>: {d.comentario}
+                              {(d.pagina != null || d.xPercent != null) && (
+                                <>
+                                  <Chip size="small" label="Señalizado" color="warning" sx={{ ml: 0.5, verticalAlign: 'middle' }} icon={<PlaceIcon sx={{ fontSize: 14 }} />} />
+                                  <Button
+                                    size="small"
+                                    startIcon={<PlaceIcon />}
+                                    onClick={() => expedienteDetalle && d.expedienteDocumentoId && openVerMarca(expedienteDetalle.id, d.expedienteDocumentoId, d.nombreDocumento, documentos.find((doc) => doc.id === d.expedienteDocumentoId)?.mimeType ?? 'application/octet-stream', d.xPercent ?? 0, d.yPercent ?? 0, d.pagina, d.comentario, (d as any).documentoVersionIdParaMarca)}
+                                    sx={{ ml: 0.5, verticalAlign: 'middle', textTransform: 'none' }}
+                                  >
+                                    Ver marca de rechazo
+                                  </Button>
+                                </>
+                              )}
+                            </Typography>
+                          </li>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              )}
+            </Box>
+
+            {/* Columna derecha: documentos */}
+            <Paper
+              elevation={0}
+              sx={{
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#fff',
+                overflow: 'hidden',
+                boxShadow: `0 4px 18px ${alpha('#000', 0.05)}`,
+                minHeight: 420,
+              }}
+            >
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 2,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'action.hover',
+                  borderLeft: `4px solid ${IGSS_COLORS.verde}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Box>
+                  <Typography variant="h6" fontWeight={800} sx={{ color: 'grey.800' }}>
+                    Documentos del expediente
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Gestione los archivos que conforman este expediente.
+                  </Typography>
+                </Box>
+                {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AttachFileIcon />}
+                    onClick={() => setAgregarDocOpen(true)}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      bgcolor: IGSS_COLORS.azulOscuro,
+                      '&:hover': { bgcolor: IGSS_COLORS.azul },
+                    }}
+                  >
+                    Agregar
+                  </Button>
+                )}
+              </Box>
+
+              <Box sx={{ p: 2.5 }}>
+                {documentos.length === 0 ? (
+                  <Box
+                    sx={{
+                      p: { xs: 3, md: 5 },
+                      borderRadius: 3,
+                      border: `1.5px dashed ${alpha(IGSS_COLORS.azul, 0.45)}`,
+                      bgcolor: alpha(IGSS_COLORS.azul, 0.04),
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 72,
+                        height: 72,
+                        mx: 'auto',
+                        mb: 1.5,
+                        borderRadius: '50%',
+                        display: 'grid',
+                        placeItems: 'center',
+                        bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.1),
+                        color: IGSS_COLORS.azulOscuro,
+                      }}
+                    >
+                      <FolderOpenIcon sx={{ fontSize: 36 }} />
+                    </Box>
+                    <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 0.75 }}>
+                      Expediente listo para documentar
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 520, mx: 'auto', mb: 2.5 }}>
+                      Agregue los archivos del expediente. Puede iniciar con la Orden de Compras, ACTA, SIAF autorizado, Contrato u otros.
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.75, mb: 3 }}>
+                      {['Orden de Compras', 'ACTA', 'SIAF autorizado', 'Contrato', 'Factura'].map((tipo) => (
+                        <Chip
+                          key={tipo}
+                          size="small"
+                          label={tipo}
+                          sx={{
+                            fontWeight: 600,
+                            bgcolor: '#fff',
+                            border: `1px solid ${alpha(IGSS_COLORS.azul, 0.25)}`,
+                            color: IGSS_COLORS.azulOscuro,
+                          }}
+                        />
+                      ))}
+                    </Box>
+                    {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
                       <Button
                         variant="contained"
-                        color="primary"
-                        startIcon={<SendIcon />}
-                        onClick={enviarARevision}
-                        disabled={enviandoRevision}
-                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                        size="large"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => setAgregarDocOpen(true)}
+                        sx={{
+                          ...primaryButtonSx,
+                          bgcolor: IGSS_COLORS.azulOscuro,
+                          '&:hover': { bgcolor: IGSS_COLORS.azul },
+                          px: 3,
+                        }}
                       >
-                        {enviandoRevision ? 'Enviando…' : 'Enviar a revisión'}
+                        Subir primer documento
                       </Button>
                     )}
                   </Box>
-                  {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
-                    <Button
-                      variant="contained"
-                      startIcon={<AttachFileIcon />}
-                      onClick={() => setAgregarDocOpen(true)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Agregar documento
-                    </Button>
-                  )}
-                </Box>
-                {expedienteDetalle.estado === 'rechazado' && ultimoRechazo && (
-                  <Box sx={{ mb: 2, p: 2, bgcolor: 'error.50', borderLeft: '4px solid', borderColor: 'error.main', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" fontWeight="700" color="error.dark" sx={{ mb: 0.5 }}>Motivo del rechazo</Typography>
-                    {ultimoRechazo.comentario && (
-                      <Typography variant="body2" sx={{ mb: 1 }}>{ultimoRechazo.comentario}</Typography>
-                    )}
-                    {ultimoRechazo.detalle && ultimoRechazo.detalle.length > 0 && (
-                      <>
-                        <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>Observaciones por documento:</Typography>
-                        <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                          {ultimoRechazo.detalle.map((d, i) => (
-                            <li key={i} style={{ marginBottom: 8 }}>
-                              <Typography variant="body2">
-                                <strong>{d.nombreDocumento}</strong>: {d.comentario}
-                                {(d.pagina != null || d.xPercent != null) && (
-                                  <>
-                                    <Chip size="small" label="Señalizado" color="warning" sx={{ ml: 0.5, verticalAlign: 'middle' }} icon={<PlaceIcon sx={{ fontSize: 14 }} />} />
-                                    <Button
-                                      size="small"
-                                      startIcon={<PlaceIcon />}
-                                      onClick={() => expedienteDetalle && d.expedienteDocumentoId && openVerMarca(expedienteDetalle.id, d.expedienteDocumentoId, d.nombreDocumento, documentos.find((doc) => doc.id === d.expedienteDocumentoId)?.mimeType ?? 'application/octet-stream', d.xPercent ?? 0, d.yPercent ?? 0, d.pagina, d.comentario, (d as any).documentoVersionIdParaMarca)}
-                                      sx={{ ml: 0.5, verticalAlign: 'middle', textTransform: 'none' }}
-                                    >
-                                      Ver marca de rechazo
-                                    </Button>
-                                  </>
-                                )}
-                              </Typography>
-                            </li>
-                          ))}
-                        </Box>
-                      </>
-                    )}
-                  </Box>
-                )}
-                {documentos.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                    Aún no hay documentos. Use «Agregar documento» para cargar la Orden de Compras, ACTA, SIAF autorizado u otros.
-                  </Typography>
                 ) : (
-                  <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={headerRowStyle}>
-                          <TableCell sx={{ ...headerCellSx, ...headerCellStyle }}>Título / Tipo</TableCell>
-                          <TableCell sx={{ ...headerCellSx, ...headerCellStyle }}>Comentario</TableCell>
-                          <TableCell sx={{ ...headerCellSx, ...headerCellStyle }}>Tamaño</TableCell>
-                          <TableCell align="center" sx={{ ...headerCellSx, ...headerCellStyle }}>Acciones</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {documentos.map((doc, idx) => (
-                          <TableRow
-                            key={doc.id}
-                            sx={{
-                              bgcolor: idx % 2 === 1 ? 'action.hover' : 'background.paper',
-                              '& td': { borderColor: 'divider', py: 1.5 },
-                            }}
-                          >
-                            <TableCell sx={{ fontWeight: 600 }}>{doc.tipoDocumento || doc.nombreArchivo}</TableCell>
-                            <TableCell sx={{ maxWidth: 200 }}>{doc.descripcion || '—'}</TableCell>
-                            <TableCell>{formatBytes(doc.tamanioBytes)}</TableCell>
-                            <TableCell align="center">
-                              <Tooltip title="Visualizar">
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={() => handleVerDocumento(expedienteDetalle.id, doc.id, doc.nombreArchivo, doc.mimeType)}
-                                  sx={{ mr: 0.25 }}
-                                >
-                                  <VisibilityIcon fontSize="small" />
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                      gap: 1.5,
+                    }}
+                  >
+                    {documentos.map((doc) => (
+                      <Paper
+                        key={doc.id}
+                        elevation={0}
+                        sx={{
+                          p: 2,
+                          borderRadius: 2.5,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          bgcolor: IGSS_COLORS.fondo,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          transition: 'box-shadow .2s ease, border-color .2s ease',
+                          '&:hover': {
+                            borderColor: alpha(IGSS_COLORS.azul, 0.45),
+                            boxShadow: `0 6px 18px ${alpha(IGSS_COLORS.azulOscuro, 0.08)}`,
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 2,
+                            flexShrink: 0,
+                            display: 'grid',
+                            placeItems: 'center',
+                            bgcolor: alpha(IGSS_COLORS.verde, 0.12),
+                            color: IGSS_COLORS.verdeOscuro,
+                          }}
+                        >
+                          <DescriptionIcon />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle2" fontWeight={800} noWrap sx={{ color: IGSS_COLORS.azulOscuro }}>
+                            {doc.tipoDocumento || doc.nombreArchivo}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                            {doc.descripcion || doc.nombreArchivo} · {formatBytes(doc.tamanioBytes)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <Tooltip title="Visualizar">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleVerDocumento(expedienteDetalle.id, doc.id, doc.nombreArchivo, doc.mimeType)}
+                              sx={{ color: IGSS_COLORS.azulOscuro }}
+                            >
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+                            <>
+                              <Tooltip title="Reemplazar archivo">
+                                <IconButton size="small" onClick={() => abrirReemplazarDoc(doc)} sx={{ color: IGSS_COLORS.azul }}>
+                                  <CloudUploadIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
-                                <>
-                                  <Tooltip title="Reemplazar por archivo corregido (guarda la versión anterior)">
-                                    <IconButton size="small" color="primary" onClick={() => abrirReemplazarDoc(doc)} sx={{ mr: 0.25 }}>
-                                      <CloudUploadIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Ver historial de versiones">
-                                    <IconButton size="small" color="primary" onClick={() => abrirVersiones(doc)} sx={{ mr: 0.25 }}>
-                                      <HistoryIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Eliminar">
-                                    <IconButton
-                                      size="small"
-                                      color="error"
-                                      disabled={eliminandoId === doc.id}
-                                      onClick={() => solicitarEliminarDoc(doc)}
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                </>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                              <Tooltip title="Historial de versiones">
+                                <IconButton size="small" onClick={() => abrirVersiones(doc)} sx={{ color: IGSS_COLORS.azul }}>
+                                  <HistoryIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  disabled={eliminandoId === doc.id}
+                                  onClick={() => solicitarEliminarDoc(doc)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                        </Box>
+                      </Paper>
+                    ))}
+                  </Box>
                 )}
-              </>
-            ) : null}
+              </Box>
+            </Paper>
           </Box>
-          <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Button variant="outlined" fullWidth onClick={closeDrawer}>
-              Cerrar
-            </Button>
-          </Box>
-        </Box>
-      </Drawer>
+        ) : null}
+      </motion.div>
+      )}
 
       {/* Dialog: Agregar documento */}
-      <Dialog open={agregarDocOpen} onClose={() => !subiendoDoc && setAgregarDocOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={agregarDocOpen}
+        onClose={() => !subiendoDoc && setAgregarDocOpen(false)}
+        maxWidth={docFile ? 'md' : 'sm'}
+        fullWidth
+        disableEnforceFocus
+        disableRestoreFocus
+      >
         <DialogTitle>Agregar documento al expediente</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -1019,22 +1592,116 @@ const ExpedientesPage: React.FC = () => {
                 size="small"
               />
             )}
-            <Button variant="outlined" component="label" startIcon={<AttachFileIcon />} fullWidth>
-              {docFile ? docFile.name : 'Seleccionar archivo'}
-              <input type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
-            </Button>
+            <Box
+              onDragOver={(ev) => { ev.preventDefault(); setArrastrandoDoc(true); }}
+              onDragLeave={() => setArrastrandoDoc(false)}
+              onDrop={(ev) => {
+                ev.preventDefault();
+                setArrastrandoDoc(false);
+                const archivo = ev.dataTransfer.files?.[0];
+                if (archivo) setDocFile(archivo);
+              }}
+              sx={{
+                p: 2.5,
+                borderRadius: 2.5,
+                textAlign: 'center',
+                border: `1.5px dashed ${alpha(IGSS_COLORS.azul, arrastrandoDoc ? 0.9 : 0.45)}`,
+                bgcolor: alpha(IGSS_COLORS.azul, arrastrandoDoc ? 0.1 : 0.04),
+                transition: 'background-color .15s ease, border-color .15s ease',
+              }}
+            >
+              <CloudUploadIcon sx={{ fontSize: 34, color: IGSS_COLORS.azulOscuro, mb: 0.5 }} />
+              <Typography variant="subtitle2" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                {docFile ? docFile.name : 'Arrastre el archivo aquí'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                {docFile
+                  ? formatBytes(docFile.size)
+                  : 'Es la forma más rápida: no abre el explorador de archivos.'}
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AttachFileIcon />}
+                onClick={() => abrirSelectorArchivo(docFileInputRef)}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                {docFile ? 'Cambiar archivo' : 'Buscar en el equipo'}
+              </Button>
+            </Box>
+
+            {docFile && (
+              <Box
+                sx={{
+                  borderRadius: 2.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                  bgcolor: '#fff',
+                }}
+              >
+                <Box
+                  sx={{
+                    px: 2,
+                    py: 1.25,
+                    bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.06),
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                  }}
+                >
+                  <Typography variant="subtitle2" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                    Vista previa
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Revise que sea el documento correcto antes de subir
+                  </Typography>
+                </Box>
+                {docPreviewUrl ? (
+                  esPdfLocal(docFile) ? (
+                    <Box
+                      component="iframe"
+                      src={`${docPreviewUrl}#toolbar=1`}
+                      title={docFile.name}
+                      sx={{ width: '100%', height: { xs: 360, sm: 480 }, border: 0, display: 'block', bgcolor: '#525659' }}
+                    />
+                  ) : (
+                    <Box sx={{ p: 2, display: 'grid', placeItems: 'center', bgcolor: IGSS_COLORS.fondo, maxHeight: 480, overflow: 'auto' }}>
+                      <Box
+                        component="img"
+                        src={docPreviewUrl}
+                        alt={docFile.name}
+                        sx={{ maxWidth: '100%', maxHeight: 440, objectFit: 'contain', borderRadius: 1 }}
+                      />
+                    </Box>
+                  )
+                ) : (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <DescriptionIcon sx={{ fontSize: 40, color: 'grey.400', mb: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Este tipo de archivo ({docFile.name.split('.').pop()?.toUpperCase() || 'desconocido'}) no se puede previsualizar aquí.
+                      Puede subirlo de todos modos si es el correcto.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
+
             <TextField
               label="Comentario (opcional)"
               value={docComentario}
               onChange={(e) => setDocComentario(e.target.value)}
               multiline
-              rows={3}
+              rows={2}
               fullWidth
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAgregarDocOpen(false)} disabled={subiendoDoc}>Cancelar</Button>
+          <Button onClick={() => { setAgregarDocOpen(false); setDocFile(null); }} disabled={subiendoDoc}>Cancelar</Button>
           <Button variant="contained" onClick={handleAgregarDocumento} disabled={subiendoDoc || !docFile}>
             {subiendoDoc ? 'Subiendo…' : 'Subir'}
           </Button>
@@ -1058,16 +1725,103 @@ const ExpedientesPage: React.FC = () => {
       </Dialog>
 
       {/* Reemplazar documento (guarda la versión anterior como respaldo) */}
-      <Dialog open={replaceDocOpen} onClose={() => !reemplazandoDoc && setReplaceDocOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={replaceDocOpen}
+        onClose={() => !reemplazandoDoc && setReplaceDocOpen(false)}
+        maxWidth={replaceDocFile ? 'md' : 'sm'}
+        fullWidth
+        disableEnforceFocus
+        disableRestoreFocus
+      >
         <DialogTitle>Reemplazar documento (corrección)</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Suba el archivo corregido. El documento actual se guardará como respaldo en el historial de versiones (original y correcciones) para que siempre pueda consultar qué se subió antes.
           </Typography>
-          <Button variant="outlined" component="label" startIcon={<AttachFileIcon />} fullWidth>
-            {replaceDocFile ? replaceDocFile.name : 'Seleccionar archivo corregido'}
-            <input type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" onChange={(e) => setReplaceDocFile(e.target.files?.[0] || null)} />
-          </Button>
+          <Box
+            onDragOver={(ev) => { ev.preventDefault(); }}
+            onDrop={(ev) => {
+              ev.preventDefault();
+              const archivo = ev.dataTransfer.files?.[0];
+              if (archivo) setReplaceDocFile(archivo);
+            }}
+            sx={{
+              p: 2.5,
+              borderRadius: 2.5,
+              textAlign: 'center',
+              border: `1.5px dashed ${alpha(IGSS_COLORS.azul, 0.45)}`,
+              bgcolor: alpha(IGSS_COLORS.azul, 0.04),
+              mb: 2,
+            }}
+          >
+            <CloudUploadIcon sx={{ fontSize: 34, color: IGSS_COLORS.azulOscuro, mb: 0.5 }} />
+            <Typography variant="subtitle2" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro }}>
+              {replaceDocFile ? replaceDocFile.name : 'Arrastre el archivo corregido aquí'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              {replaceDocFile ? formatBytes(replaceDocFile.size) : 'También puede buscarlo en el equipo.'}
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AttachFileIcon />}
+              onClick={() => abrirSelectorArchivo(replaceFileInputRef)}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              {replaceDocFile ? 'Cambiar archivo' : 'Buscar en el equipo'}
+            </Button>
+          </Box>
+
+          {replaceDocFile && (
+            <Box
+              sx={{
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                overflow: 'hidden',
+                bgcolor: '#fff',
+              }}
+            >
+              <Box
+                sx={{
+                  px: 2,
+                  py: 1.25,
+                  bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.06),
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                  Vista previa
+                </Typography>
+              </Box>
+              {replacePreviewUrl ? (
+                esPdfLocal(replaceDocFile) ? (
+                  <Box
+                    component="iframe"
+                    src={`${replacePreviewUrl}#toolbar=1`}
+                    title={replaceDocFile.name}
+                    sx={{ width: '100%', height: { xs: 360, sm: 480 }, border: 0, display: 'block', bgcolor: '#525659' }}
+                  />
+                ) : (
+                  <Box sx={{ p: 2, display: 'grid', placeItems: 'center', bgcolor: IGSS_COLORS.fondo, maxHeight: 480, overflow: 'auto' }}>
+                    <Box
+                      component="img"
+                      src={replacePreviewUrl}
+                      alt={replaceDocFile.name}
+                      sx={{ maxWidth: '100%', maxHeight: 440, objectFit: 'contain', borderRadius: 1 }}
+                    />
+                  </Box>
+                )
+              ) : (
+                <Box sx={{ p: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Este tipo de archivo no se puede previsualizar aquí.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { setReplaceDocOpen(false); setReplaceDocTarget(null); setReplaceDocFile(null); }} disabled={reemplazandoDoc}>Cancelar</Button>
@@ -1078,11 +1832,13 @@ const ExpedientesPage: React.FC = () => {
       </Dialog>
 
       {/* Historial de versiones del documento */}
-      <Dialog open={versionesOpen} onClose={() => setVersionesOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Historial de versiones — {versionesTarget?.nombre}</DialogTitle>
+      <Dialog open={versionesOpen} onClose={() => setVersionesOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.04) }}>
+          Historial de versiones — {versionesTarget?.nombre}
+        </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            La primera subida es la versión original; cada corrección (reemplazo) guarda la anterior como respaldo. Puede descargar cualquier versión.
+            Cada versión conserva el archivo y las observaciones que DAF dejó sobre esa versión específica.
           </Typography>
           {versionesLoading ? (
             <Box display="flex" alignItems="center" gap={1} py={2}>
@@ -1090,36 +1846,87 @@ const ExpedientesPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">Cargando versiones…</Typography>
             </Box>
           ) : versionesList.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">Aún no hay versiones guardadas (se crean al reemplazar el documento).</Typography>
+            <Typography variant="body2" color="text.secondary">Aún no hay versiones registradas para este documento.</Typography>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: 'action.hover' }}>
-                    <TableCell sx={{ fontWeight: 700 }}>Versión</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Fecha</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Tamaño</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>Acción</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {versionesList.map((v) => (
-                    <TableRow key={v.id}>
-                      <TableCell>
-                        {v.numeroVersion === 1 ? 'Versión 1 (original)' : `Versión ${v.numeroVersion} (${v.numeroVersion - 1}.ª corrección)`}
-                      </TableCell>
-                      <TableCell>{typeof v.fechaSubida === 'string' ? v.fechaSubida.split('T')[0] : String(v.fechaSubida)}</TableCell>
-                      <TableCell>{formatBytes(v.tamanioBytes)}</TableCell>
-                      <TableCell align="right">
-                        <Button size="small" startIcon={<DownloadIcon />} onClick={() => descargarVersion(v.id, v.nombreArchivo)}>
-                          Descargar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {versionesList.map((v) => (
+                <Paper
+                  key={v.id}
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2.5,
+                    border: '1px solid',
+                    borderColor: v.esActual ? IGSS_COLORS.verde : 'divider',
+                    bgcolor: v.esActual ? alpha(IGSS_COLORS.verde, 0.045) : '#fff',
+                    boxShadow: v.esActual ? `0 0 0 1px ${alpha(IGSS_COLORS.verde, 0.14)}` : 'none',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        display: 'grid',
+                        placeItems: 'center',
+                        bgcolor: v.esActual ? IGSS_COLORS.verde : alpha(IGSS_COLORS.azulOscuro, 0.12),
+                        color: v.esActual ? '#fff' : IGSS_COLORS.azulOscuro,
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
+                      V{v.numeroVersion}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                          Versión {v.numeroVersion}{v.numeroVersion === 1 ? ' · Original' : ''}
+                        </Typography>
+                        {v.esActual && <Chip size="small" label="Versión vigente" color="success" sx={{ fontWeight: 700 }} />}
+                        {(v.observaciones?.length || 0) > 0 && (
+                          <Chip size="small" label={`${v.observaciones!.length} observación${v.observaciones!.length === 1 ? '' : 'es'}`} color="error" sx={{ fontWeight: 700 }} />
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                        {v.nombreArchivo} · {formatBytes(v.tamanioBytes)} · {typeof v.fechaSubida === 'string' ? new Date(v.fechaSubida).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' }) : String(v.fechaSubida)}
+                      </Typography>
+                      {(v.observaciones?.length || 0) > 0 && (
+                        <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                          {v.observaciones!.map((obs, index) => (
+                            <Box
+                              key={index}
+                              sx={{
+                                px: 1.25,
+                                py: 1,
+                                borderRadius: 1.5,
+                                borderLeft: `3px solid ${IGSS_COLORS.error}`,
+                                bgcolor: alpha(IGSS_COLORS.error, 0.045),
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{obs.comentario}</Typography>
+                              {obs.pagina != null && <Chip size="small" icon={<PlaceIcon />} label={`Pág. ${obs.pagina}`} color="error" variant="outlined" sx={{ mt: 0.75, height: 22 }} />}
+                            </Box>
+                          ))}
+                        </Box>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                      <Tooltip title="Ver esta versión">
+                        <IconButton size="small" onClick={() => expedienteDetalle && abrirVersionReemplazadaBitacora(expedienteDetalle.id, versionesTarget!.docId, v.id)} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Descargar esta versión">
+                        <IconButton size="small" onClick={() => descargarVersion(v.id, v.nombreArchivo)} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
@@ -1424,42 +2231,286 @@ const ExpedientesPage: React.FC = () => {
       </Dialog>
 
       {/* Dialog: Crear nuevo expediente */}
-      <Dialog open={crearOpen} onClose={() => !creando && setCrearOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Crear nuevo expediente</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField label="Número de expediente *" value={nuevoNumero} onChange={(ev) => setNuevoNumero(ev.target.value)} required fullWidth />
-            <TextField label="Título *" select SelectProps={{ native: true }} value={nuevoTitulo} onChange={(ev) => setNuevoTitulo(ev.target.value)} required fullWidth>
+      <Dialog
+        open={crearOpen}
+        onClose={() => !creando && setCrearOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            border: `1px solid ${IGSS_COLORS.gris}`,
+            boxShadow: `0 16px 40px ${alpha(IGSS_COLORS.azulOscuro, 0.18)}`,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            px: 3,
+            pt: 2.5,
+            pb: 1.5,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: alpha(IGSS_COLORS.azul, 0.04),
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: 2,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: IGSS_COLORS.azulOscuro,
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <AddIcon fontSize="small" />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.3 }}>
+                Nuevo expediente de compras
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                Complete los datos básicos. Luego podrá agregar los documentos del expediente.
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 2.5, pb: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.25, pt: 1 }}>
+            <Box
+              sx={{
+                p: 1.75,
+                borderRadius: 2,
+                border: '1px dashed',
+                borderColor: alpha(IGSS_COLORS.azul, 0.45),
+                bgcolor: alpha(IGSS_COLORS.azul, 0.05),
+              }}
+            >
+              <Typography variant="caption" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, letterSpacing: 0.3, textTransform: 'uppercase' }}>
+                Número de expediente a utilizar
+              </Typography>
+              {cargandoCorrelativo ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75 }}>
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">Consultando correlativo…</Typography>
+                </Box>
+              ) : (
+                <>
+                  <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mt: 0.5, letterSpacing: 0.4 }}>
+                    {siguienteCorrelativo || 'Se asignará al crear'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                    {siguienteCorrelativo
+                      ? 'Este será el número interno asignado al guardar el expediente.'
+                      : 'El sistema asignará el siguiente correlativo disponible al crear el expediente.'}
+                  </Typography>
+                </>
+              )}
+            </Box>
+            <TextField
+              label="Título"
+              select
+              value={nuevoTitulo}
+              onChange={(ev) => setNuevoTitulo(ev.target.value)}
+              required
+              fullWidth
+              autoFocus
+              helperText="Clasifique el expediente según el tipo de adquisición"
+              InputLabelProps={{ shrink: true }}
+            >
               {TITULOS_OPCIONES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <MenuItem key={t} value={t}>{t}</MenuItem>
               ))}
             </TextField>
-            <TextField label="Descripción" value={nuevoDescripcion} onChange={(ev) => setNuevoDescripcion(ev.target.value)} multiline rows={3} fullWidth />
+            <TextField
+              label="Número de orden de compra (O.C.)"
+              value={nuevoNumeroOc}
+              onChange={(ev) => setNuevoNumeroOc(ev.target.value)}
+              required
+              fullWidth
+              placeholder="Ej. 12345"
+              helperText="Ingrese el número de la orden de compra asociada"
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Número SIAF"
+              value={nuevoNumeroSiaf}
+              onChange={(ev) => setNuevoNumeroSiaf(ev.target.value)}
+              fullWidth
+              placeholder="Ej. SIAF-44-2026"
+              helperText="Opcional; se usa para identificar este caso en las estadísticas del piloto."
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Descripción"
+              value={nuevoDescripcion}
+              onChange={(ev) => setNuevoDescripcion(ev.target.value)}
+              required
+              multiline
+              rows={3}
+              fullWidth
+              placeholder="Resumen breve del objeto del expediente"
+              helperText="Describa el objeto del expediente"
+              InputLabelProps={{ shrink: true }}
+            />
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCrearOpen(false)} disabled={creando}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCrear} disabled={creando}>Crear</Button>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => setCrearOpen(false)}
+            disabled={creando}
+            sx={{ textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCrear}
+            disabled={creando}
+            startIcon={creando ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+            sx={{
+              ...primaryButtonSx,
+              bgcolor: IGSS_COLORS.azulOscuro,
+              '&:hover': { bgcolor: IGSS_COLORS.azul },
+              minWidth: 120,
+            }}
+          >
+            {creando ? 'Creando…' : 'Crear expediente'}
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Dialog: Editar expediente */}
-      <Dialog open={editOpen} onClose={() => !guardandoEdit && setEditOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Editar expediente</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField label="Número de expediente" value={editNumero} fullWidth disabled />
-            <TextField label="Título *" select SelectProps={{ native: true }} value={editTitulo} onChange={(ev) => setEditTitulo(ev.target.value)} required fullWidth>
+      <Dialog
+        open={editOpen}
+        onClose={() => !guardandoEdit && setEditOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            border: `1px solid ${IGSS_COLORS.gris}`,
+            boxShadow: `0 16px 40px ${alpha(IGSS_COLORS.azulOscuro, 0.18)}`,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            px: 3,
+            pt: 2.5,
+            pb: 1.5,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: alpha(IGSS_COLORS.azul, 0.04),
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: 2,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: IGSS_COLORS.azulOscuro,
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <EditIcon fontSize="small" />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.3 }}>
+                Editar expediente
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                Actualice el título, la O.C. o la descripción del expediente.
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 2.5, pb: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.25, pt: 1 }}>
+            <TextField
+              label="Número de expediente"
+              value={editNumero}
+              fullWidth
+              disabled
+              InputLabelProps={{ shrink: true }}
+              helperText="El número no se puede modificar"
+            />
+            <TextField
+              label="Título"
+              select
+              value={editTitulo}
+              onChange={(ev) => setEditTitulo(ev.target.value)}
+              required
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            >
               {TITULOS_OPCIONES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <MenuItem key={t} value={t}>{t}</MenuItem>
               ))}
             </TextField>
-            <TextField label="Descripción" value={editDescripcion} onChange={(ev) => setEditDescripcion(ev.target.value)} multiline rows={3} fullWidth />
+            <TextField
+              label="Número de orden de compra (O.C.)"
+              value={editNumeroOc}
+              onChange={(ev) => setEditNumeroOc(ev.target.value)}
+              required
+              fullWidth
+              placeholder="Ej. 12345"
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Número SIAF"
+              value={editNumeroSiaf}
+              onChange={(ev) => setEditNumeroSiaf(ev.target.value)}
+              fullWidth
+              placeholder="Ej. SIAF-44-2026"
+              helperText="Opcional; permite relacionar el expediente con las mediciones del piloto."
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Descripción"
+              value={editDescripcion}
+              onChange={(ev) => setEditDescripcion(ev.target.value)}
+              required
+              multiline
+              rows={3}
+              fullWidth
+              placeholder="Resumen breve del objeto del expediente"
+              InputLabelProps={{ shrink: true }}
+            />
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditOpen(false)} disabled={guardandoEdit}>Cancelar</Button>
-          <Button variant="contained" onClick={handleGuardarEdicion} disabled={guardandoEdit}>Guardar</Button>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => setEditOpen(false)}
+            disabled={guardandoEdit}
+            sx={{ textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleGuardarEdicion}
+            disabled={guardandoEdit}
+            startIcon={guardandoEdit ? <CircularProgress size={16} color="inherit" /> : <EditIcon />}
+            sx={{
+              ...primaryButtonSx,
+              bgcolor: IGSS_COLORS.azulOscuro,
+              '&:hover': { bgcolor: IGSS_COLORS.azul },
+              minWidth: 120,
+            }}
+          >
+            {guardandoEdit ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

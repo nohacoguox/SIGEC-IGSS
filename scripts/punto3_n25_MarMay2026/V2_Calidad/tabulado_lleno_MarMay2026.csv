@@ -1,0 +1,26 @@
+﻿ID_caso,Numero_SIAF,Numero_Expediente,Tipo_tramite,N_observaciones,N_rechazos_formales,Motivo_principal_observacion_o_rechazo,Fuente_datos,Observaciones_registro
+LB-01,SIAF-79-2026,EXP-193-2026,Insumos,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Sin devoluciones
+LB-02,SIAF-55-2026,EXP-171-2026,Insumos,1,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Anexo; mismo mes
+LB-03,SIAF-78-2026,EXP-254-2026,Insumos,2,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Soporte incompleto
+LB-04,SIAF-94-2026,EXP-152-2026,Activo fijo,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Sin observaciones
+LB-05,SIAF-60-2026,EXP-131-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Justificacion reelaborada
+LB-06,SIAF-22-2026,EXP-199-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Servicio: ajuste justificacion
+LB-07,SIAF-89-2026,EXP-278-2026,Insumos,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Sin observaciones
+LB-08,SIAF-49-2026,EXP-244-2026,Activo fijo,2,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Especificacion incompleta
+LB-09,SIAF-12-2026,EXP-200-2026,Servicio,5,1,No se corrigio a tiempo / descripcion no conforme,Expediente fisico (muestra Mar-May 2026),Mala produccion; pendiente junio
+LB-10,SIAF-91-2026,EXP-179-2026,Insumos,2,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Falta anexo; mismo mes
+LB-11,SIAF-88-2026,EXP-202-2026,Activo fijo,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Aprobado primer analisis
+LB-12,SIAF-38-2026,EXP-285-2026,Servicio,4,1,No se corrigio a tiempo / descripcion no conforme,Expediente fisico (muestra Mar-May 2026),Rechazo; reingreso en mayo
+LB-13,SIAF-87-2026,EXP-279-2026,Insumos,1,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Cotizacion; mismo mes
+LB-14,SIAF-26-2026,EXP-234-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Servicio: redaccion objetada
+LB-15,SIAF-30-2026,EXP-107-2026,Activo fijo,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Aprobado primer analisis
+LB-16,SIAF-70-2026,EXP-190-2026,Insumos,2,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Documento de soporte
+LB-17,SIAF-86-2026,EXP-106-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Descripcion SIAF ajustada
+LB-18,SIAF-52-2026,EXP-223-2026,Insumos,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Sin observaciones
+LB-19,SIAF-41-2026,EXP-243-2026,Insumos,0,0,N/A,Expediente fisico (muestra Mar-May 2026),Sin devoluciones
+LB-20,SIAF-31-2026,EXP-194-2026,Insumos,1,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Correccion menor; mismo mes
+LB-21,SIAF-76-2026,EXP-198-2026,Servicio,4,1,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Servicio; paso a abril
+LB-22,SIAF-63-2026,EXP-258-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Servicio: justificacion SIAF
+LB-23,SIAF-43-2026,EXP-237-2026,Servicio,4,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Varias vueltas; paso a junio
+LB-24,SIAF-82-2026,EXP-248-2026,Insumos,1,0,Documento/anexo,Expediente fisico (muestra Mar-May 2026),Observacion menor; mismo mes
+LB-25,SIAF-68-2026,EXP-247-2026,Servicio,3,0,Redaccion/justificacion SIAF,Expediente fisico (muestra Mar-May 2026),Palabras/descripcion SIAF

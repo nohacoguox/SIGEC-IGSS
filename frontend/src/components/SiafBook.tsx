@@ -52,8 +52,12 @@ import GroupIcon from '@mui/icons-material/Group';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
+import SpellcheckIcon from '@mui/icons-material/Spellcheck';
+import { PDFDownloadLink, PDFViewer, pdf } from '@react-pdf/renderer';
 import { SiafPdfDocument } from './SiafPdfDocument';
+import PdfViewerWithClick, { PdfMarker } from './PdfViewerWithClick';
+import { limpiarComentarioBitacora, parseMarcadoresBitacora, SiafMarcaBitacora } from '../utils/siafBitacora';
+import PlaceIcon from '@mui/icons-material/Place';
 
 type ItemTipo = 'bien' | 'servicio';
 type CatalogoOrigen = 'MINFIN' | 'SIBOFA';
@@ -75,6 +79,7 @@ interface Item {
 interface Subproducto {
   codigo: string;
   cantidad: number;
+  descripcion?: string;
 }
 
 interface Area {
@@ -122,6 +127,11 @@ const SiafBook: React.FC = () => {
   const [codigoBuscando, setCodigoBuscando] = useState<Record<number, boolean>>({});
   const codigoSearchTimers = useRef<Record<number, number>>({});
   const [subproductos, setSubproductos] = useState<Subproducto[]>([{ codigo: '', cantidad: 0 }]);
+  /** Lista completa del catálogo SUBPRODUCTOS para el combobox del SIAF */
+  const [catalogoSubproductosLista, setCatalogoSubproductosLista] = useState<
+    Array<{ codigo: string; descripcion: string }>
+  >([]);
+  const [catalogoSubproductosLoading, setCatalogoSubproductosLoading] = useState(false);
   const [consistentItem, setConsistentItem] = useState<string>(''); // New state for the consistent item
   const [showConsistentField, setShowConsistentField] = useState<boolean>(false); // State to control visibility
 
@@ -142,6 +152,21 @@ const SiafBook: React.FC = () => {
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewIsDraft, setPreviewIsDraft] = useState(false);
+  const [ortografiaOpen, setOrtografiaOpen] = useState(false);
+  const [ortografiaLoading, setOrtografiaLoading] = useState(false);
+  const [ortografiaTexto, setOrtografiaTexto] = useState('');
+  const [ortografiaSugerencias, setOrtografiaSugerencias] = useState<
+    Array<{
+      original: string;
+      replacement: string;
+      options: string[];
+      message: string;
+      offset: number;
+      length: number;
+    }>
+  >([]);
+  /** Palabra elegida por sugerencia; cadena vacía = no corregir. */
+  const [ortografiaElegidas, setOrtografiaElegidas] = useState<Record<number, string>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [adjuntos, setAdjuntos] = useState<Array<{ id: number; nombreOriginal: string; tamanioBytes: number; mimeType?: string }>>([]);
   const inputFileRef = React.useRef<HTMLInputElement>(null);
@@ -149,6 +174,11 @@ const SiafBook: React.FC = () => {
   const [viewingDoc, setViewingDoc] = useState<{ id: number; nombreOriginal: string; mimeType?: string; url?: string } | null>(null);
   /** Bitácora de rechazos y correcciones (solo en modo corregir) */
   const [bitacora, setBitacora] = useState<Array<{ id: number; tipo: string; comentario: string | null; fecha: string; usuario?: { nombres?: string; apellidos?: string }; detalleAntes?: string | null; detalleDespues?: string | null }>>([]);
+  const [marcasViewerOpen, setMarcasViewerOpen] = useState(false);
+  const [marcasViewerLoading, setMarcasViewerLoading] = useState(false);
+  const [marcasViewerUrl, setMarcasViewerUrl] = useState<string | null>(null);
+  const [marcasViewerList, setMarcasViewerList] = useState<SiafMarcaBitacora[]>([]);
+  const marcasUrlRef = React.useRef<string | null>(null);
   /** Estado del SIAF al cargar (para saber si viene rechazado y mostrar aviso de detección automática) */
   const [estadoSiafCargado, setEstadoSiafCargado] = useState<string | null>(null);
 
@@ -701,23 +731,132 @@ const SiafBook: React.FC = () => {
     setItems(newItems);
   };
   
-  const handleSubproductoChange = (index: number, field: keyof Subproducto, value: string | number) => {
-    const newSubproductos = [...subproductos];
-    (newSubproductos[index] as any)[field] = value;
-    setSubproductos(newSubproductos);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setCatalogoSubproductosLoading(true);
+      try {
+        const res = await api.get('/catalogo-productos/buscar', {
+          params: { origen: 'SUBPRODUCTOS', q: '', limit: 500 },
+        });
+        if (cancelled) return;
+        const items = Array.isArray(res.data?.items) ? res.data.items : [];
+        setCatalogoSubproductosLista(
+          items
+            .map((p: any) => ({
+              codigo: String(p.codigo || '').trim(),
+              descripcion: String(p.descripcion || '').trim(),
+            }))
+            .filter((p: { codigo: string }) => p.codigo)
+            .sort((a: { codigo: string }, b: { codigo: string }) => a.codigo.localeCompare(b.codigo, 'es'))
+        );
+      } catch {
+        if (!cancelled) setCatalogoSubproductosLista([]);
+      } finally {
+        if (!cancelled) setCatalogoSubproductosLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleAddSubproducto = () => {
-    setSubproductos([...subproductos, { codigo: '', cantidad: 0 }]);
+    setSubproductos((prev) => [...prev, { codigo: '', cantidad: 0 }]);
   };
 
   const handleRemoveSubproducto = (index: number) => {
-    const newSubproductos = subproductos.filter((_, i) => i !== index);
-    setSubproductos(newSubproductos);
+    setSubproductos((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
+  const aplicarSubproductoSeleccionado = (
+    index: number,
+    option: { codigo: string; descripcion: string } | null
+  ) => {
+    setSubproductos((prev) => {
+      const next = [...prev];
+      if (!next[index]) return prev;
+      if (!option) {
+        next[index] = { ...next[index], codigo: '', descripcion: '' };
+        return next;
+      }
+      if (next.some((s, i) => i !== index && s.codigo === option.codigo)) {
+        showWarning(`El subproducto ${option.codigo} ya está seleccionado en otra fila.`);
+        return prev;
+      }
+      next[index] = {
+        ...next[index],
+        codigo: option.codigo,
+        descripcion: option.descripcion || '',
+        cantidad: next[index].cantidad > 0 ? next[index].cantidad : 0,
+      };
+      return next;
+    });
   };
 
   const totalItemCantidad = items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0);
-  const totalSubproductoCantidad = totalItemCantidad;
+  const totalSubproductoCantidad = subproductos.reduce((sum, s) => sum + Number(s.cantidad || 0), 0);
+
+  const setCantidadSubproductoFila = (index: number, raw: string) => {
+    const n = Math.max(0, Number(raw) || 0);
+    setSubproductos((prev) => {
+      const otherSum = prev
+        .filter((_, i) => i !== index)
+        .reduce((sum, s) => sum + Number(s.cantidad || 0), 0);
+      const maxAllowed = Math.max(0, totalItemCantidad - otherSum);
+      if (n > maxAllowed) {
+        showWarning(
+          `La suma de cantidades de subproductos no puede exceder el total de bienes/servicios (${totalItemCantidad}). Máximo en esta fila: ${maxAllowed}.`
+        );
+        const next = [...prev];
+        if (next[index]) next[index] = { ...next[index], cantidad: maxAllowed };
+        return next;
+      }
+      const next = [...prev];
+      if (next[index]) next[index] = { ...next[index], cantidad: n };
+      return next;
+    });
+  };
+
+  const handleRevisarOrtografia = async () => {
+    const texto = justificacion.trim();
+    if (!texto) {
+      showWarning('Escriba la justificación antes de revisar la ortografía.');
+      return;
+    }
+    setOrtografiaLoading(true);
+    try {
+      const { data } = await api.post('/ortografia/revisar', { texto });
+      const sugerencias = Array.isArray(data?.suggestions) ? data.suggestions : [];
+      if (sugerencias.length === 0) {
+        showSuccess('No se encontraron correcciones ortográficas.');
+        return;
+      }
+      setOrtografiaTexto(String(data.original || texto));
+      setOrtografiaSugerencias(sugerencias);
+      setOrtografiaElegidas(
+        Object.fromEntries(sugerencias.map((s: any, i: number) => [i, s.replacement]))
+      );
+      setOrtografiaOpen(true);
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'No se pudo revisar la ortografía.');
+    } finally {
+      setOrtografiaLoading(false);
+    }
+  };
+
+  /** Aplica las palabras elegidas de atrás hacia adelante para no alterar los offsets. */
+  const construirTextoCorregido = (): string => {
+    let resultado = ortografiaTexto;
+    const enOrden = ortografiaSugerencias
+      .map((s, i) => ({ ...s, elegida: ortografiaElegidas[i] }))
+      .filter((s) => s.elegida)
+      .sort((a, b) => b.offset - a.offset);
+    for (const s of enOrden) {
+      resultado = resultado.slice(0, s.offset) + s.elegida + resultado.slice(s.offset + s.length);
+    }
+    return resultado;
+  };
 
   const formData = {
       fecha, correlativo, nombreUnidad, direccion, justificacion, items, subproductos, totalSubproductoCantidad,
@@ -725,6 +864,50 @@ const SiafBook: React.FC = () => {
       nombreAutoridad, puestoAutoridad, unidadAutoridad,
       areaUnidad, consistentItem,
   }
+
+  const cerrarMarcasViewer = () => {
+    setMarcasViewerOpen(false);
+    setMarcasViewerList([]);
+    if (marcasUrlRef.current) {
+      URL.revokeObjectURL(marcasUrlRef.current);
+      marcasUrlRef.current = null;
+    }
+    setMarcasViewerUrl(null);
+  };
+
+  const handleVerMarcasEnPdf = async (entry: { detalleAntes?: string | null }) => {
+    const marcas = parseMarcadoresBitacora(entry.detalleAntes);
+    if (marcas.length === 0) {
+      showError('Este rechazo no tiene marcas en el documento.');
+      return;
+    }
+    setMarcasViewerList(marcas);
+    setMarcasViewerOpen(true);
+    setMarcasViewerLoading(true);
+    try {
+      if (marcasUrlRef.current) {
+        URL.revokeObjectURL(marcasUrlRef.current);
+        marcasUrlRef.current = null;
+      }
+      const blob = await pdf(<SiafPdfDocument data={formData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      marcasUrlRef.current = url;
+      setMarcasViewerUrl(url);
+    } catch (e) {
+      console.error(e);
+      showError('No se pudo generar el PDF con las marcas.');
+      cerrarMarcasViewer();
+    } finally {
+      setMarcasViewerLoading(false);
+    }
+  };
+
+  const marcasViewerMarkers: PdfMarker[] = marcasViewerList.map((m, idx) => ({
+    pageNumber: m.pagina,
+    xPercent: m.xPercent,
+    yPercent: m.yPercent,
+    label: idx + 1,
+  }));
 
   /** Validación al crear/editar: todos los campos obligatorios excepto adjuntos. */
   const getValidationError = (): string | null => {
@@ -747,8 +930,17 @@ const SiafBook: React.FC = () => {
     if (validItems.length === 0)
       return 'Debe agregar al menos un bien o servicio con código, descripción y cantidad mayor a 0.';
 
-    const validSubs = subproductos.filter((s) => (s.codigo?.trim() ?? '') !== '');
-    if (validSubs.length === 0) return 'Debe agregar al menos un subproducto con código.';
+    const validSubs = subproductos.filter((s) => (s.codigo?.trim() ?? '') !== '' && Number(s.cantidad) > 0);
+    if (validSubs.length === 0) {
+      return 'Seleccione al menos un subproducto e indique una cantidad mayor a 0.';
+    }
+    const sumaSubs = validSubs.reduce((sum, s) => sum + Number(s.cantidad || 0), 0);
+    const sumaItems = items
+      .filter((i) => (i.codigo?.trim() ?? '') !== '' && Number(i.cantidad) > 0)
+      .reduce((sum, i) => sum + Number(i.cantidad || 0), 0);
+    if (sumaSubs > sumaItems) {
+      return `La suma de cantidades de subproductos (${sumaSubs}) no puede exceder el total de bienes/servicios (${sumaItems}).`;
+    }
 
     if (!nombreSolicitante?.trim()) return 'El nombre del solicitante es obligatorio.';
     if (!puestoSolicitante?.trim()) return 'El puesto del solicitante es obligatorio.';
@@ -802,7 +994,7 @@ const SiafBook: React.FC = () => {
             cantidad,
             catalogoOrigen: tipo === 'bien' ? (catalogoSeleccionado || null) : null,
           })),
-        subproductos: subproductos.filter(sub => sub.codigo),
+        subproductos: subproductos.filter((sub) => sub.codigo && Number(sub.cantidad) > 0),
       };
 
       // Determinar si es creación o actualización
@@ -822,7 +1014,11 @@ const SiafBook: React.FC = () => {
             detalleDespues: b.detalleDespues ?? null,
           })));
         }
-        showSuccess('Solicitud SIAF actualizada exitosamente');
+        showSuccess(
+          estadoSiafCargado && estadoSiafCargado !== 'borrador'
+            ? 'Cambios guardados. El SIAF volvió a Borrador para que decida si lo finaliza o lo envía nuevamente a revisión.'
+            : 'Solicitud SIAF actualizada exitosamente'
+        );
         await loadSiafs();
         navigate('/siaf-book', {
           state: response?.data?.bitacora
@@ -845,6 +1041,7 @@ const SiafBook: React.FC = () => {
           await loadSiafs();
           setPreviewIsDraft(false);
           setPreviewOpen(true);
+          showSuccess('SIAF guardado como borrador. Envíelo a revisión cuando lo necesite.');
         } else {
           showWarning('Solicitud SIAF creada, pero hubo un problema al generar el PDF');
           await loadSiafs();
@@ -1026,20 +1223,36 @@ const SiafBook: React.FC = () => {
                                     color: b.tipo === 'rechazo' ? 'error.dark' : b.tipo === 'correccion' ? 'info.dark' : b.tipo === 'aprobado_dd' ? 'success.dark' : 'success.dark',
                                   }}
                                 >
-                                  {b.tipo === 'rechazo' ? 'Rechazo' : b.tipo === 'correccion' ? 'Corrección' : b.tipo === 'aprobado_dd' ? 'Aprobado (DD)' : 'Autorizado'}
+                                  {b.tipo === 'rechazo' ? 'Rechazo' : b.tipo === 'correccion' ? 'Corrección' : b.tipo === 'aprobado_dd' ? 'Revisión favorable (DD)' : 'Revisado'}
                                 </Box>
                               </TableCell>
                               <TableCell>
                                 {b.usuario ? `${b.usuario.nombres || ''} ${b.usuario.apellidos || ''}`.trim() || '—' : '—'}
                               </TableCell>
                               <TableCell>
-                                {b.tipo === 'correccion' && (b.detalleAntes || b.detalleDespues) ? (
-                                  <Box component="span" sx={{ display: 'block' }}>
+                                {b.tipo === 'correccion' && (b.detalleAntes || b.detalleDespues) && !String(b.detalleAntes || '').includes('"marcadores"') ? (
+                                  <Box component="span" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
                                     {b.detalleAntes && <><strong>Antes:</strong> {b.detalleAntes}</>}
                                     {b.detalleAntes && b.detalleDespues && <br />}
                                     {b.detalleDespues && <><strong>Corregido a:</strong> {b.detalleDespues}</>}
                                   </Box>
-                                ) : (b.comentario || '—')}
+                                ) : (
+                                  <Box>
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                      {limpiarComentarioBitacora(b.comentario)}
+                                    </Typography>
+                                    {b.tipo === 'rechazo' && parseMarcadoresBitacora(b.detalleAntes).length > 0 && (
+                                      <Button
+                                        size="small"
+                                        startIcon={<PlaceIcon />}
+                                        onClick={() => handleVerMarcasEnPdf(b)}
+                                        sx={{ mt: 0.75, textTransform: 'none', fontWeight: 600 }}
+                                      >
+                                        Ver marcas en el SIAF ({parseMarcadoresBitacora(b.detalleAntes).length})
+                                      </Button>
+                                    )}
+                                  </Box>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1425,44 +1638,145 @@ const SiafBook: React.FC = () => {
               )}
               </Box>
 
-              {/* Detalle por Subproducto */}
+              {/* Detalle por Subproducto — combobox del catálogo */}
               <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Detalle por Subproducto *</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Al menos un subproducto con código.</Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Elija el subproducto desde el listado (combobox) e indique la cantidad. La suma no puede
+                  exceder el total de bienes/servicios (<strong>{totalItemCantidad}</strong>).
+                </Typography>
+
+                <Alert
+                  severity={totalSubproductoCantidad > totalItemCantidad ? 'error' : 'info'}
+                  sx={{ mb: 1.5 }}
+                >
+                  Total bienes/servicios: <strong>{totalItemCantidad}</strong>
+                  {' · '}
+                  Asignado a subproductos: <strong>{totalSubproductoCantidad}</strong>
+                  {' · '}
+                  Disponible: <strong>{Math.max(0, totalItemCantidad - totalSubproductoCantidad)}</strong>
+                </Alert>
+
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
                       <TableRow>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold' }}>Código de Subproducto</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', textAlign: 'right' }}>Cantidad</TableCell>
-                      <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', textAlign: 'right' }}>Acciones</TableCell>
+                        <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', minWidth: 320 }}>
+                          Código de Subproducto
+                        </TableCell>
+                        <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 120 }} align="right">
+                          Cantidad
+                        </TableCell>
+                        <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 80 }} align="right">
+                          Acciones
+                        </TableCell>
                       </TableRow>
-                  </TableHead>
-                  <TableBody>
-                      {subproductos.map((sub, index) => (
-                      <TableRow key={index}>
-                          <TableCell><TextField variant="standard" size="small" value={sub.codigo} onChange={(e) => handleSubproductoChange(index, 'codigo', e.target.value)} /></TableCell>
-                          <TableCell>
-  <TextField
-    variant="standard"
-    size="small"
-    type="number"
-    value={totalSubproductoCantidad} // Display the calculated total
-    disabled // Keep it non-editable
-    InputProps={{ readOnly: true }} // Keep it read-only
-  />
-</TableCell>
-                          <TableCell>
-                          <IconButton color="error" onClick={() => handleRemoveSubproducto(index)} disabled={subproductos.length === 1}>
-                              <RemoveCircleOutlineIcon />
-                          </IconButton>
-                          </TableCell>
-                      </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-                <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={handleAddSubproducto} sx={{ mt: 2 }}>
+                    </TableHead>
+                    <TableBody>
+                      {subproductos.map((sub, index) => {
+                        const selectedOption =
+                          sub.codigo
+                            ? {
+                                codigo: sub.codigo,
+                                descripcion:
+                                  sub.descripcion ||
+                                  catalogoSubproductosLista.find((c) => c.codigo === sub.codigo)?.descripcion ||
+                                  '',
+                              }
+                            : null;
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Autocomplete
+                                size="small"
+                                options={catalogoSubproductosLista}
+                                loading={catalogoSubproductosLoading}
+                                value={selectedOption}
+                                getOptionLabel={(opt) =>
+                                  opt.descripcion ? `${opt.codigo} — ${opt.descripcion}` : opt.codigo
+                                }
+                                isOptionEqualToValue={(a, b) => a.codigo === b.codigo}
+                                filterOptions={(opts, state) => {
+                                  const q = state.inputValue.trim().toLowerCase();
+                                  if (!q) return opts;
+                                  return opts.filter(
+                                    (o) =>
+                                      o.codigo.toLowerCase().includes(q) ||
+                                      (o.descripcion || '').toLowerCase().includes(q)
+                                  );
+                                }}
+                                onChange={(_, option) => aplicarSubproductoSeleccionado(index, option)}
+                                noOptionsText={
+                                  catalogoSubproductosLoading
+                                    ? 'Cargando…'
+                                    : catalogoSubproductosLista.length === 0
+                                      ? 'No hay subproductos cargados en el catálogo'
+                                      : 'Sin coincidencias'
+                                }
+                                renderOption={(props, option) => (
+                                  <li {...props} key={option.codigo}>
+                                    <Box sx={{ py: 0.25 }}>
+                                      <Typography variant="body2" fontWeight={700}>{option.codigo}</Typography>
+                                      {option.descripcion && (
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                          {option.descripcion}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  </li>
+                                )}
+                                renderInput={(params) => (
+                                  <TextField
+                                    {...params}
+                                    variant="standard"
+                                    placeholder="Elegir subproducto del catálogo…"
+                                    InputProps={{
+                                      ...params.InputProps,
+                                      endAdornment: (
+                                        <>
+                                          {catalogoSubproductosLoading ? (
+                                            <CircularProgress color="inherit" size={16} />
+                                          ) : null}
+                                          {params.InputProps.endAdornment}
+                                        </>
+                                      ),
+                                    }}
+                                  />
+                                )}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <TextField
+                                variant="standard"
+                                size="small"
+                                type="number"
+                                value={sub.cantidad || ''}
+                                onChange={(e) => setCantidadSubproductoFila(index, e.target.value)}
+                                inputProps={{ min: 0, step: 1, style: { textAlign: 'right' } }}
+                                disabled={!sub.codigo}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <IconButton
+                                color="error"
+                                onClick={() => handleRemoveSubproducto(index)}
+                                disabled={subproductos.length === 1}
+                              >
+                                <RemoveCircleOutlineIcon />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddCircleOutlineIcon />}
+                  onClick={handleAddSubproducto}
+                  sx={{ mt: 2 }}
+                >
                   Añadir Fila
                 </Button>
               </Box>
@@ -1835,7 +2149,18 @@ const SiafBook: React.FC = () => {
 
               {/* Justificación */}
               <Box sx={{ mb: 4 }}>
-                <Typography variant="h6" gutterBottom>Justificación *</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="h6">Justificación *</Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={ortografiaLoading ? <CircularProgress size={16} color="inherit" /> : <SpellcheckIcon />}
+                    onClick={handleRevisarOrtografia}
+                    disabled={ortografiaLoading || !justificacion.trim()}
+                  >
+                    Revisar ortografía
+                  </Button>
+                </Box>
                 <TextField
                   label="Justificación de la Solicitud"
                   fullWidth
@@ -1844,7 +2169,7 @@ const SiafBook: React.FC = () => {
                   rows={4}
                   value={justificacion}
                   onChange={(e) => setJustificacion(e.target.value)}
-                  inputProps={{ maxLength: 500 }}
+                  inputProps={{ maxLength: 500, spellCheck: true }}
                   helperText={`${justificacion.length}/500 caracteres`}
                 />
               </Box>
@@ -1889,6 +2214,84 @@ const SiafBook: React.FC = () => {
         </Container>
       </Box>
       
+      {/* Ortografía Dialog */}
+      <Dialog
+        open={ortografiaOpen}
+        onClose={() => setOrtografiaOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Correcciones ortográficas ({ortografiaSugerencias.length})
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Elija la palabra correcta en cada caso. Si ninguna aplica, seleccione "No corregir".
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+            {ortografiaSugerencias.map((s, idx) => (
+              <Paper key={`${s.original}-${s.offset}`} variant="outlined" sx={{ p: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ textDecoration: 'line-through' }} color="error">
+                    {s.original}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">→</Typography>
+                  <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <Select
+                      value={ortografiaElegidas[idx] ?? ''}
+                      onChange={(e) =>
+                        setOrtografiaElegidas((prev) => ({ ...prev, [idx]: String(e.target.value) }))
+                      }
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>No corregir</em>
+                      </MenuItem>
+                      {s.options.map((opcion) => (
+                        <MenuItem key={opcion} value={opcion}>
+                          {opcion}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+                {s.message ? (
+                  <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {s.message}
+                  </Typography>
+                ) : null}
+              </Paper>
+            ))}
+          </Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Texto corregido
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'action.hover' }}>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              {construirTextoCorregido()}
+            </Typography>
+          </Paper>
+          {construirTextoCorregido().length > 500 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              El texto corregido supera 500 caracteres. Acórtelo antes de guardar el SIAF.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOrtografiaOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setJustificacion(construirTextoCorregido().slice(0, 500));
+              setOrtografiaOpen(false);
+              showSuccess('Correcciones aplicadas a la justificación.');
+            }}
+          >
+            Aplicar correcciones
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Preview Dialog */}
       <Dialog
         open={previewOpen}
@@ -1931,6 +2334,72 @@ const SiafBook: React.FC = () => {
               )}
             </PDFDownloadLink>
           )}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={marcasViewerOpen}
+        onClose={cerrarMarcasViewer}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{ sx: { maxHeight: '95vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PlaceIcon color="error" />
+          Marcas de corrección — SIAF {correlativo || ''}
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 480 }}>
+          <Box sx={{ flex: '1 1 62%', minWidth: 0, height: '70vh', borderRight: 1, borderColor: 'divider', overflow: 'auto', bgcolor: 'grey.100' }}>
+            {marcasViewerLoading || !marcasViewerUrl ? (
+              <Box display="flex" alignItems="center" justifyContent="center" height="100%" gap={1}>
+                <Typography variant="body2" color="text.secondary">Cargando documento…</Typography>
+              </Box>
+            ) : (
+              <PdfViewerWithClick
+                fileUrl={marcasViewerUrl}
+                markers={marcasViewerMarkers}
+                minHeight={400}
+                zoom={1}
+              />
+            )}
+          </Box>
+          <Box sx={{ flex: '0 0 38%', p: 2, overflow: 'auto', maxHeight: '70vh', bgcolor: '#f4f7fa' }}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Correcciones señaladas ({marcasViewerList.length})
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+              {marcasViewerList.map((m, idx) => (
+                <Paper key={m.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1.25 }}>
+                    <Box
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        bgcolor: '#c62828',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {idx + 1}
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{m.descripcion || '—'}</Typography>
+                      <Typography variant="caption" color="text.secondary">Página {m.pagina}</Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={cerrarMarcasViewer} variant="outlined">Cerrar</Button>
         </DialogActions>
       </Dialog>
 

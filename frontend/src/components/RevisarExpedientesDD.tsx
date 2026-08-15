@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -12,7 +13,6 @@ import {
   Grid,
   IconButton,
   InputLabel,
-  Menu,
   MenuItem,
   Paper,
   Select,
@@ -28,7 +28,18 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { Add as AddIcon, History as HistoryIcon, Refresh as RefreshIcon, Remove as RemoveIcon, Visibility as VisibilityIcon, ZoomIn as ZoomInIcon, ZoomOut as ZoomOutIcon } from '@mui/icons-material';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  History as HistoryIcon,
+  Place as PlaceIcon,
+  PushPin as PushPinIcon,
+  Refresh as RefreshIcon,
+  Visibility as VisibilityIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+} from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
 import PdfViewerWithClick from './PdfViewerWithClick';
@@ -37,6 +48,7 @@ import {
   tableHeaderRowStyle,
   tableHeaderCellSx,
 } from '../theme/institutionalStyles';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 const headerCellStyle = tableHeaderCellStyle;
 const headerRowStyle = tableHeaderRowStyle;
@@ -58,6 +70,7 @@ type ExpedienteRevision = {
   numeroExpediente: string;
   titulo: string;
   descripcion: string | null;
+  numeroOrdenCompra?: string | null;
   estado: string;
   fechaApertura: string;
   municipioOrigen?: string | null;
@@ -67,7 +80,14 @@ type ExpedienteRevision = {
   ultimaAccionPorMi?: { tipo: string; fecha?: string } | null;
 };
 
-type DocEnDetalle = { id: number; tipoDocumento: string; nombreArchivo: string; mimeType?: string; enUltimoRechazo?: boolean };
+type DocEnDetalle = {
+  id: number;
+  tipoDocumento: string;
+  nombreArchivo: string;
+  mimeType?: string;
+  versionActualId?: number | null;
+  enUltimoRechazo?: boolean;
+};
 
 const RevisarExpedientesDD: React.FC = () => {
   const { showSuccess, showError } = useNotification();
@@ -81,11 +101,18 @@ const RevisarExpedientesDD: React.FC = () => {
   const [comentarioRechazo, setComentarioRechazo] = useState('');
   const [rechazarDocumentos, setRechazarDocumentos] = useState<DocEnDetalle[]>([]);
   const [rechazarLoading, setRechazarLoading] = useState(false);
-  /** Varios motivos de rechazo por documento; puede incluir posición (señal con clic derecho en el documento). */
+  /** Varios motivos de rechazo por documento; puede incluir posición (marca en el documento). */
   const [rechazosPorDoc, setRechazosPorDoc] = useState<Record<number, Array<{ categoria: string; descripcion: string; pagina?: number | null; xPercent?: number | null; yPercent?: number | null }>>>({});
-  const [contextMenuAnchor, setContextMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ xPercent: number; yPercent: number; pagina?: number } | null>(null);
-  const [mostrarOverlaySeñalar, setMostrarOverlaySeñalar] = useState(false);
+  /** Igual que SIAF: modo marcar + diálogo «Corrección en este punto» */
+  const [modoMarcar, setModoMarcar] = useState(false);
+  const [dialogNuevaMarca, setDialogNuevaMarca] = useState<{
+    open: boolean;
+    pagina: number;
+    xPercent: number;
+    yPercent: number;
+    categoria: string;
+    descripcion: string;
+  } | null>(null);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
   const viewerImageRef = useRef<HTMLImageElement>(null);
   const [previewRechazoUrl, setPreviewRechazoUrl] = useState<string | null>(null);
@@ -94,7 +121,7 @@ const RevisarExpedientesDD: React.FC = () => {
   const [previewRechazoMime, setPreviewRechazoMime] = useState<string>('');
   const [enviando, setEnviando] = useState(false);
   const [verDetalleOpen, setVerDetalleOpen] = useState(false);
-  const [verDetalleData, setVerDetalleData] = useState<{ expedienteId: number; numeroExpediente: string; titulo: string; descripcion: string | null; documentos: DocEnDetalle[] } | null>(null);
+  const [verDetalleData, setVerDetalleData] = useState<{ expedienteId: number; numeroExpediente: string; titulo: string; descripcion: string | null; numeroOrdenCompra?: string | null; documentos: DocEnDetalle[] } | null>(null);
 
   const abrirBitacora = (expedienteId: number, titulo: string) => {
     setBitacoraExpId(expedienteId);
@@ -146,6 +173,7 @@ const RevisarExpedientesDD: React.FC = () => {
         numeroExpediente: e.numeroExpediente ?? '',
         titulo: e.titulo ?? '',
         descripcion: e.descripcion ?? null,
+        numeroOrdenCompra: e.numeroOrdenCompra ?? null,
         estado: e.estado ?? '',
         fechaApertura: e.fechaApertura ?? e.createdAt ?? '',
         municipioOrigen: e.municipioOrigen ?? null,
@@ -177,6 +205,7 @@ const RevisarExpedientesDD: React.FC = () => {
         numeroExpediente: e.numeroExpediente ?? '',
         titulo: e.titulo ?? '',
         descripcion: e.descripcion ?? null,
+        numeroOrdenCompra: e.numeroOrdenCompra ?? null,
         estado: e.estado ?? '',
         fechaApertura: e.fechaApertura ?? e.createdAt ?? '',
         municipioOrigen: e.municipioOrigen ?? null,
@@ -230,14 +259,19 @@ const RevisarExpedientesDD: React.FC = () => {
     setRechazosPorDoc({});
     setPreviewRechazoUrl(null);
     setRechazarDocumentos([]);
+    setModoMarcar(false);
+    setDialogNuevaMarca(null);
     setRechazarOpen(true);
   };
 
   type RechazoEntry = { categoria: string; descripcion: string; pagina?: number | null; xPercent?: number | null; yPercent?: number | null };
   const getRechazosForDoc = (docId: number): RechazoEntry[] => rechazosPorDoc[docId] || [];
 
-  const agregarMotivoRechazo = (docId: number, pos?: { xPercent: number; yPercent: number; pagina?: number | null }) => {
-    const nueva: RechazoEntry = { categoria: '', descripcion: '' };
+  const agregarMotivoRechazo = (docId: number, pos?: { xPercent: number; yPercent: number; pagina?: number | null }, datos?: { categoria: string; descripcion: string }) => {
+    const nueva: RechazoEntry = {
+      categoria: datos?.categoria ?? '',
+      descripcion: datos?.descripcion ?? '',
+    };
     if (pos) {
       nueva.xPercent = pos.xPercent;
       nueva.yPercent = pos.yPercent;
@@ -245,7 +279,7 @@ const RevisarExpedientesDD: React.FC = () => {
     }
     setRechazosPorDoc((prev) => ({
       ...prev,
-      [docId]: [...getRechazosForDoc(docId), nueva],
+      [docId]: [...(prev[docId] || []), nueva],
     }));
   };
 
@@ -263,32 +297,62 @@ const RevisarExpedientesDD: React.FC = () => {
     });
   };
 
-  const handleContextMenuEnDocumento = (e: React.MouseEvent) => {
+  /** Clic en el documento (imagen u overlay): abre el mismo diálogo de SIAF */
+  const handleClickMarcarEnDocumento = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (docEnVistaId == null || !viewerContainerRef.current) return;
-    // Posición relativa al contenido del documento (imagen) para que "Ver marca" sea exacta
+    if (docEnVistaId == null || !viewerContainerRef.current || !modoMarcar) return;
     const isImage = previewRechazoMime.startsWith('image/');
     const rect = isImage && viewerImageRef.current
       ? viewerImageRef.current.getBoundingClientRect()
       : viewerContainerRef.current.getBoundingClientRect();
     const xPercent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
     const yPercent = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-    setContextMenuPosition({ xPercent, yPercent });
-    setContextMenuAnchor({ x: e.clientX, y: e.clientY });
+    setModoMarcar(false);
+    setDialogNuevaMarca({
+      open: true,
+      pagina: 1,
+      xPercent,
+      yPercent,
+      categoria: '',
+      descripcion: '',
+    });
   };
 
-  const cerrarMenuContexto = () => {
-    setContextMenuAnchor(null);
-    setContextMenuPosition(null);
+  const handleClickMarcarPdf = (pageNumber: number, xPercent: number, yPercent: number) => {
+    if (docEnVistaId == null) return;
+    setModoMarcar(false);
+    setDialogNuevaMarca({
+      open: true,
+      pagina: pageNumber,
+      xPercent,
+      yPercent,
+      categoria: '',
+      descripcion: '',
+    });
   };
 
-  const confirmarAgregarRechazoDesdeSeñal = () => {
-    if (docEnVistaId != null && contextMenuPosition) {
-      agregarMotivoRechazo(docEnVistaId, contextMenuPosition);
-      cerrarMenuContexto();
-      setMostrarOverlaySeñalar(false);
+  const confirmarNuevaMarca = () => {
+    if (!dialogNuevaMarca || docEnVistaId == null) return;
+    const desc = (dialogNuevaMarca.descripcion || '').trim();
+    if (!desc) {
+      showError('Escriba qué debe corregirse en este punto.');
+      return;
     }
+    agregarMotivoRechazo(
+      docEnVistaId,
+      {
+        xPercent: dialogNuevaMarca.xPercent,
+        yPercent: dialogNuevaMarca.yPercent,
+        pagina: dialogNuevaMarca.pagina,
+      },
+      {
+        categoria: dialogNuevaMarca.categoria || 'Otro',
+        descripcion: desc,
+      }
+    );
+    setDialogNuevaMarca(null);
+    showSuccess('Marca de corrección agregada al documento.');
   };
 
   const previsualizarDocEnRechazo = async (docId: number, nombre: string, mimeType: string) => {
@@ -317,6 +381,7 @@ const RevisarExpedientesDD: React.FC = () => {
     if (previewRechazoUrl) URL.revokeObjectURL(previewRechazoUrl);
     setPreviewRechazoUrl(null);
     setViewerZoom(1);
+    setModoMarcar(false);
   };
 
   useEffect(() => {
@@ -330,6 +395,7 @@ const RevisarExpedientesDD: React.FC = () => {
           tipoDocumento: d.tipoDocumento ?? '',
           nombreArchivo: d.nombreArchivo ?? '',
           mimeType: d.mimeType ?? 'application/octet-stream',
+          versionActualId: d.versionActualId ?? null,
           enUltimoRechazo: !!d.enUltimoRechazo,
         }));
         setRechazarDocumentos(docs);
@@ -361,7 +427,7 @@ const RevisarExpedientesDD: React.FC = () => {
 
   const handleRechazar = async () => {
     if (expIdRechazar == null) return;
-    const comentariosPorDocumento: Array<{ documentoId: number; comentario: string; pagina?: number; xPercent?: number; yPercent?: number }> = [];
+    const comentariosPorDocumento: Array<{ documentoId: number; documentoVersionId?: number; comentario: string; pagina?: number; xPercent?: number; yPercent?: number }> = [];
     rechazarDocumentos.forEach((d) => {
       const entradas = getRechazosForDoc(d.id);
       entradas.forEach((item) => {
@@ -371,6 +437,7 @@ const RevisarExpedientesDD: React.FC = () => {
           const texto = cat && desc ? `${cat}: ${desc}` : cat || desc;
           comentariosPorDocumento.push({
             documentoId: d.id,
+            documentoVersionId: d.versionActualId ?? undefined,
             comentario: texto,
             pagina: item.pagina != null ? item.pagina : undefined,
             xPercent: item.xPercent != null ? item.xPercent : undefined,
@@ -422,6 +489,7 @@ const RevisarExpedientesDD: React.FC = () => {
         numeroExpediente: e.numeroExpediente ?? '',
         titulo: e.titulo ?? '',
         descripcion: e.descripcion ?? null,
+        numeroOrdenCompra: e.numeroOrdenCompra ?? null,
         documentos: (e.documentos || []).map((d: any) => ({
           id: d.id,
           tipoDocumento: d.tipoDocumento ?? '',
@@ -539,6 +607,7 @@ const RevisarExpedientesDD: React.FC = () => {
           <TableHead>
             <TableRow style={headerRowStyle}>
               <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Número</TableCell>
+              <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>O.C.</TableCell>
               <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Título</TableCell>
               <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Descripción</TableCell>
               <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Origen</TableCell>
@@ -552,10 +621,10 @@ const RevisarExpedientesDD: React.FC = () => {
           </TableHead>
           <TableBody>
             {cargandoTabla ? (
-              <TableRow><TableCell colSpan={esRevisados ? 8 : 7} align="center" sx={{ py: 4 }}>Cargando…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={esRevisados ? 9 : 8} align="center" sx={{ py: 4 }}>Cargando…</TableCell></TableRow>
             ) : datosTabla.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={esRevisados ? 8 : 7} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={esRevisados ? 9 : 8} align="center" sx={{ py: 4 }}>
                   {esRevisados ? 'No hay expedientes revisados por usted.' : 'No hay expedientes pendientes de revisión.'}
                 </TableCell>
               </TableRow>
@@ -569,6 +638,7 @@ const RevisarExpedientesDD: React.FC = () => {
                   }}
                 >
                   <TableCell sx={{ fontWeight: 600 }}>{e.numeroExpediente}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{e.numeroOrdenCompra || '—'}</TableCell>
                   <TableCell>{e.titulo}</TableCell>
                   <TableCell sx={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descripcion || undefined}>{e.descripcion || '—'}</TableCell>
                   <TableCell sx={{ maxWidth: 180 }} title={origenDisplay(e)}>{origenDisplay(e)}</TableCell>
@@ -630,6 +700,7 @@ const RevisarExpedientesDD: React.FC = () => {
             <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
                 <Typography><strong>Número:</strong> {verDetalleData.numeroExpediente}</Typography>
+                <Typography><strong>O.C.:</strong> {verDetalleData.numeroOrdenCompra || '—'}</Typography>
                 <Typography><strong>Título:</strong> {verDetalleData.titulo}</Typography>
                 <Typography><strong>Descripción:</strong> {verDetalleData.descripcion || '—'}</Typography>
               </Box>
@@ -698,7 +769,7 @@ const RevisarExpedientesDD: React.FC = () => {
 
       <Dialog
         open={rechazarOpen}
-        onClose={() => { if (!enviando) { cerrarPreviewRechazo(); setRechazarOpen(false); setDocEnVistaId(null); } }}
+        onClose={() => { if (!enviando) { cerrarPreviewRechazo(); setModoMarcar(false); setDialogNuevaMarca(null); setRechazarOpen(false); setDocEnVistaId(null); } }}
         maxWidth="xl"
         fullWidth
         PaperProps={{ sx: { minHeight: '88vh', maxHeight: '95vh', borderRadius: 2, display: 'flex', flexDirection: 'column' } }}
@@ -711,16 +782,16 @@ const RevisarExpedientesDD: React.FC = () => {
             </Button>
           )}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2, pb: 2, flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <DialogContent sx={{ pt: 2, pb: 2, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2, px: 0.5, flexShrink: 0 }}>
-            <strong>Pasos:</strong> 1) En la lista de la derecha, haga clic en <strong>«Ver»</strong> para abrir cada documento a la izquierda. 2) Use <strong>Acercar / Alejar</strong> si lo necesita. 3) Opcional: active «Señalar error» y haga <strong>clic derecho</strong> en el punto del documento donde está el problema. 4) A la derecha, agregue al menos un <strong>motivo y descripción</strong> por documento. Todo queda registrado en la bitácora.
+            <strong>Pasos:</strong> 1) En la lista de la derecha, haga clic en <strong>«Ver»</strong> para abrir cada documento a la izquierda. 2) Use <strong>Acercar / Alejar</strong> si lo necesita. 3) Active <strong>«Marcar corrección»</strong> y haga <strong>clic</strong> en el punto del documento; se abrirá el diálogo para indicar categoría y qué debe corregirse. 4) También puede agregar motivos desde la derecha. Todo queda en la bitácora.
           </Typography>
           {rechazarLoading ? (
             <Typography variant="body2" color="text.secondary">Cargando documentos…</Typography>
           ) : rechazarDocumentos.length === 0 ? (
             <Typography variant="body2" color="text.secondary">No hay documentos en este expediente.</Typography>
           ) : (
-            <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, overflow: 'hidden', alignItems: 'stretch' }}>
+            <Grid container spacing={2} sx={{ flex: 1, minHeight: { md: 0 }, height: { md: '100%' }, alignItems: 'stretch' }}>
               {/* Columna izquierda: visor del documento (solo esta zona hace scroll) */}
               <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <Box
@@ -767,12 +838,13 @@ const RevisarExpedientesDD: React.FC = () => {
                       {(previewRechazoUrl || previewRechazoLoading) && docEnVistaId != null && (
                         <Button
                           size="small"
-                          variant={mostrarOverlaySeñalar ? 'contained' : 'outlined'}
-                          color="primary"
-                          onClick={() => setMostrarOverlaySeñalar((v) => !v)}
-                          sx={{ ml: 0.5 }}
+                          variant={modoMarcar ? 'contained' : 'outlined'}
+                          color={modoMarcar ? 'error' : 'primary'}
+                          startIcon={<PlaceIcon />}
+                          onClick={() => setModoMarcar((v) => !v)}
+                          sx={{ ml: 0.5, textTransform: 'none', fontWeight: 600 }}
                         >
-                          {mostrarOverlaySeñalar ? 'Cancelar señalar' : 'Señalar error (clic derecho)'}
+                          {modoMarcar ? 'Cancelar marcado' : 'Marcar corrección'}
                         </Button>
                       )}
                       {(previewRechazoUrl || previewRechazoLoading) && (
@@ -780,6 +852,15 @@ const RevisarExpedientesDD: React.FC = () => {
                       )}
                     </Box>
                   </Box>
+                  {modoMarcar && (
+                    <Alert
+                      severity="info"
+                      icon={<PushPinIcon fontSize="inherit" />}
+                      sx={{ borderRadius: 0, py: 0.25, '& .MuiAlert-message': { fontSize: '0.8125rem' } }}
+                    >
+                      Haga <strong>clic</strong> en el punto exacto del documento que debe corregirse. Luego escriba el comentario.
+                    </Alert>
+                  )}
                   <Box
                     ref={viewerContainerRef}
                     sx={{
@@ -800,7 +881,17 @@ const RevisarExpedientesDD: React.FC = () => {
                     ) : previewRechazoUrl && previewRechazoMime.startsWith('image/') ? (
                       <>
                         <Box sx={{ overflow: 'auto', maxWidth: '100%', maxHeight: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                          <Box sx={{ transform: `scale(${viewerZoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease', position: 'relative', display: 'inline-block' }}>
+                          <Box
+                            sx={{
+                              transform: `scale(${viewerZoom})`,
+                              transformOrigin: 'center center',
+                              transition: 'transform 0.2s ease',
+                              position: 'relative',
+                              display: 'inline-block',
+                              cursor: modoMarcar ? 'crosshair' : 'default',
+                            }}
+                            onClick={modoMarcar ? handleClickMarcarEnDocumento : undefined}
+                          >
                             <img ref={viewerImageRef} src={previewRechazoUrl} alt={previewRechazoNombre} style={{ maxWidth: '80vw', maxHeight: '70vh', objectFit: 'contain', display: 'block' }} />
                             {docEnVistaId != null && getRechazosForDoc(docEnVistaId).filter((m) => m.xPercent != null || m.yPercent != null).map((m, idx) => (
                               <Box
@@ -815,67 +906,33 @@ const RevisarExpedientesDD: React.FC = () => {
                                   zIndex: 10,
                                 }}
                               >
-                                <Box component="svg" viewBox="0 0 24 24" width={48} height={48} sx={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))', display: 'block' }}>
-                                  <path fill="#d32f2f" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                                </Box>
+                                <PlaceIcon sx={{ fontSize: 40, color: 'error.main', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} />
                               </Box>
                             ))}
                           </Box>
                         </Box>
-                        {mostrarOverlaySeñalar && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              bgcolor: 'rgba(0,0,0,0.05)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'context-menu',
-                              pointerEvents: 'auto',
-                            }}
-                            onContextMenu={handleContextMenuEnDocumento}
-                          >
-                            <Typography variant="body2" sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 2, boxShadow: 2 }}>
-                              Haga <strong>clic derecho</strong> donde está el error → «Agregar rechazo aquí»
-                            </Typography>
-                          </Box>
-                        )}
                       </>
                     ) : previewRechazoUrl && (previewRechazoMime === 'application/pdf' || previewRechazoNombre.toLowerCase().endsWith('.pdf')) ? (
-                      <>
-                        {mostrarOverlaySeñalar && (
-                          <Typography variant="body2" sx={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', bgcolor: 'background.paper', p: 1.5, borderRadius: 2, boxShadow: 2, zIndex: 2 }}>
-                            Haga <strong>clic derecho</strong> en la página del PDF donde está el error → «Agregar rechazo aquí»
-                          </Typography>
-                        )}
-                        <PdfViewerWithClick
-                          fileUrl={previewRechazoUrl}
-                          enableContextMenu={mostrarOverlaySeñalar}
-                          onContextMenuOnPage={(pageNumber, xPercent, yPercent, e) => {
-                            setContextMenuPosition({ xPercent, yPercent, pagina: pageNumber });
-                            setContextMenuAnchor({ x: e.clientX, y: e.clientY });
-                          }}
-                          markers={docEnVistaId != null
-                            ? getRechazosForDoc(docEnVistaId)
-                                .filter((m) => m.xPercent != null || m.yPercent != null)
-                                .map((m) => ({
-                                  pageNumber: m.pagina != null ? m.pagina : 1,
-                                  xPercent: m.xPercent ?? 0,
-                                  yPercent: m.yPercent ?? 0,
-                                }))
-                            : null}
-                          minHeight={520}
-                          zoom={viewerZoom}
-                        />
-                      </>
+                      <PdfViewerWithClick
+                        fileUrl={previewRechazoUrl}
+                        enableClickMark={modoMarcar}
+                        onClickOnPage={handleClickMarcarPdf}
+                        markers={docEnVistaId != null
+                          ? getRechazosForDoc(docEnVistaId)
+                              .filter((m) => m.xPercent != null || m.yPercent != null)
+                              .map((m) => ({
+                                pageNumber: m.pagina != null ? m.pagina : 1,
+                                xPercent: m.xPercent ?? 0,
+                                yPercent: m.yPercent ?? 0,
+                              }))
+                          : null}
+                        minHeight={520}
+                        zoom={viewerZoom}
+                      />
                     ) : previewRechazoUrl ? (
                       <>
                         <iframe title={previewRechazoNombre} src={previewRechazoUrl} style={{ width: '100%', height: '100%', minHeight: 500, border: 'none' }} />
-                        {mostrarOverlaySeñalar && (
+                        {modoMarcar && (
                           <Box
                             sx={{
                               position: 'absolute',
@@ -887,12 +944,12 @@ const RevisarExpedientesDD: React.FC = () => {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              cursor: 'context-menu',
+                              cursor: 'crosshair',
                             }}
-                            onContextMenu={handleContextMenuEnDocumento}
+                            onClick={handleClickMarcarEnDocumento}
                           >
                             <Typography variant="body2" sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 2, boxShadow: 2 }}>
-                              Haga <strong>clic derecho</strong> en el documento donde está el error → elegir «Agregar rechazo aquí»
+                              Haga <strong>clic</strong> en el documento donde está el error
                             </Typography>
                           </Box>
                         )}
@@ -903,21 +960,28 @@ const RevisarExpedientesDD: React.FC = () => {
                       </Typography>
                     )}
                   </Box>
-                  <Menu
-                    open={contextMenuAnchor !== null}
-                    onClose={cerrarMenuContexto}
-                    anchorReference="anchorPosition"
-                    anchorPosition={contextMenuAnchor ? { left: contextMenuAnchor.x, top: contextMenuAnchor.y } : undefined}
-                  >
-                    <MenuItem onClick={confirmarAgregarRechazoDesdeSeñal}>Agregar rechazo aquí</MenuItem>
-                  </Menu>
                 </Box>
               </Grid>
               {/* Columna derecha: motivos de rechazo por documento (con scroll para ver todos) */}
-              <Grid item xs={12} md={5} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2, bgcolor: 'grey.50' }}>
-                  <Box sx={{ flexShrink: 0, mb: 2 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>Observación (opcional)</Typography>
+              <Grid item xs={12} md={5} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, alignSelf: 'stretch', maxHeight: { xs: '70vh', md: '100%' } }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2.5,
+                    bgcolor: '#fff',
+                    boxShadow: `0 4px 16px ${alpha('#000', 0.04)}`,
+                  }}
+                >
+                  <Box sx={{ flexShrink: 0, px: 2, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.03) }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Observación general (opcional)
+                    </Typography>
                     <TextField
                       value={comentarioRechazo}
                       onChange={(e) => setComentarioRechazo(e.target.value)}
@@ -929,101 +993,245 @@ const RevisarExpedientesDD: React.FC = () => {
                       variant="outlined"
                     />
                   </Box>
-                  <Typography variant="subtitle2" fontWeight="600" color="text.primary" sx={{ mb: 0.5, flexShrink: 0 }}>
-                    Motivos por documento
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', flexShrink: 0 }}>
-                    Puede agregar motivo de rechazo por documento. Si agrega al menos uno, el botón «Aprobar expediente» se deshabilitará.
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1, minHeight: 0, maxHeight: '55vh', overflowY: 'scroll', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+                  <Box sx={{ px: 2, pt: 1.75, pb: 1, flexShrink: 0 }}>
+                    <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.2 }}>
+                      Motivos por documento
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.4 }}>
+                      Desplácese hacia abajo para ver todos los motivos. Marque en el documento o agregue motivos aquí.
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      flex: '1 1 auto',
+                      minHeight: 0,
+                      height: { xs: '42vh', md: 'auto' },
+                      maxHeight: { xs: '48vh', md: 'calc(95vh - 260px)' },
+                      overflowY: 'scroll',
+                      overflowX: 'hidden',
+                      px: 2,
+                      pb: 2.5,
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehavior: 'contain',
+                      scrollbarGutter: 'stable',
+                      '&::-webkit-scrollbar': { width: 10 },
+                      '&::-webkit-scrollbar-thumb': {
+                        bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.35),
+                        borderRadius: 8,
+                      },
+                      '&::-webkit-scrollbar-track': {
+                        bgcolor: alpha(IGSS_COLORS.azulOscuro, 0.06),
+                        borderRadius: 8,
+                      },
+                    }}
+                  >
                   {rechazarDocumentos.map((d) => {
                     const motivos = getRechazosForDoc(d.id);
+                    const activo = docEnVistaId === d.id;
                     return (
-                    <Box
+                    <Paper
                       key={d.id}
+                      elevation={0}
                       sx={{
-                        p: 1.5,
-                        border: '2px solid',
-                        borderColor: docEnVistaId === d.id ? 'primary.main' : 'divider',
-                        borderRadius: 1,
-                        bgcolor: docEnVistaId === d.id ? 'action.hover' : 'background.paper',
-                        transition: 'border-color 0.2s, background-color 0.2s',
+                        p: 0,
+                        border: '1px solid',
+                        borderColor: activo ? IGSS_COLORS.azulOscuro : 'divider',
+                        borderRadius: 2.5,
+                        bgcolor: '#fff',
+                        overflow: 'visible',
+                        flexShrink: 0,
+                        boxShadow: activo ? `0 0 0 2px ${alpha(IGSS_COLORS.azulOscuro, 0.18)}` : `0 2px 10px ${alpha('#000', 0.03)}`,
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                        <Typography variant="body2" fontWeight="600">{d.tipoDocumento || d.nombreArchivo}</Typography>
-                        {d.enUltimoRechazo ? <Chip size="small" label="Corregido" color="info" sx={{ fontWeight: 600 }} /> : <Chip size="small" label="Nuevo" color="default" variant="outlined" />}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.75,
+                          py: 1.25,
+                          bgcolor: activo ? alpha(IGSS_COLORS.azul, 0.08) : alpha(IGSS_COLORS.azulOscuro, 0.03),
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          borderLeft: activo ? `4px solid ${IGSS_COLORS.azulOscuro}` : '4px solid transparent',
+                        }}
+                      >
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle2" fontWeight={800} noWrap sx={{ color: IGSS_COLORS.azulOscuro }}>
+                            {d.tipoDocumento || d.nombreArchivo}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.35, flexWrap: 'wrap' }}>
+                            {d.enUltimoRechazo
+                              ? <Chip size="small" label="Corregido" color="info" sx={{ height: 22, fontWeight: 700 }} />
+                              : <Chip size="small" label="Nuevo" variant="outlined" sx={{ height: 22, fontWeight: 600 }} />}
+                            {motivos.length > 0 && (
+                              <Chip
+                                size="small"
+                                color="error"
+                                label={`${motivos.length} motivo${motivos.length === 1 ? '' : 's'}`}
+                                sx={{ height: 22, fontWeight: 700 }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
                         <Tooltip title="Ver este documento a la izquierda">
                           <IconButton
                             size="small"
-                            color="primary"
                             onClick={() => previsualizarDocEnRechazo(d.id, d.nombreArchivo, d.mimeType ?? '')}
-                            sx={{ bgcolor: docEnVistaId === d.id ? 'primary.light' : undefined }}
+                            sx={{
+                              bgcolor: activo ? IGSS_COLORS.azulOscuro : alpha(IGSS_COLORS.azul, 0.12),
+                              color: activo ? '#fff' : IGSS_COLORS.azulOscuro,
+                              '&:hover': { bgcolor: IGSS_COLORS.azul },
+                            }}
                           >
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>
-                      {motivos.map((item, idx) => (
-                        <Box key={idx} sx={{ mb: idx < motivos.length - 1 ? 1.5 : 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {motivos.length > 1 && (
-                              <Tooltip title="Quitar este motivo">
-                                <IconButton size="small" color="error" onClick={() => quitarMotivoRechazo(d.id, idx)} aria-label="Quitar motivo">
-                                  <RemoveIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Typography variant="caption" color="text.secondary">Motivo {idx + 1}</Typography>
+
+                      <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        {motivos.length === 0 ? (
+                          <Box
+                            sx={{
+                              py: 2,
+                              px: 1.5,
+                              textAlign: 'center',
+                              borderRadius: 2,
+                              border: `1px dashed ${alpha(IGSS_COLORS.azul, 0.35)}`,
+                              bgcolor: alpha(IGSS_COLORS.azul, 0.03),
+                            }}
+                          >
+                            <PlaceIcon sx={{ color: 'error.main', fontSize: 28, mb: 0.5, opacity: 0.85 }} />
+                            <Typography variant="body2" color="text.secondary">
+                              Sin motivos. Marque en el documento o agregue uno abajo.
+                            </Typography>
                           </Box>
-                          <FormControl size="small" fullWidth sx={{ mb: 0.5 }}>
-                            <InputLabel id={`categoria-${d.id}-${idx}`}>Categoría de rechazo</InputLabel>
-                            <Select
-                              labelId={`categoria-${d.id}-${idx}`}
-                              label="Categoría de rechazo"
-                              value={item.categoria}
-                              onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'categoria', e.target.value)}
-                            >
-                              <MenuItem value="">— Ninguna —</MenuItem>
-                              {MOTIVOS_RECHAZO.map((m) => (
-                                <MenuItem key={m} value={m}>{m}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                          <TextField
-                            label="Descripción del problema"
-                            placeholder="Ej. Página 2, falta firma"
-                            value={item.descripcion}
-                            onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'descripcion', e.target.value)}
-                            size="small"
-                            fullWidth
-                            multiline
-                            minRows={1}
-                          />
-                          {(item.xPercent != null || item.yPercent != null) && (
-                            <TextField
-                              label="Página (opcional)"
-                              placeholder="Ej. 3"
-                              type="number"
-                              inputProps={{ min: 1 }}
-                              value={item.pagina ?? ''}
-                              onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'pagina', e.target.value ? parseInt(e.target.value, 10) : null)}
-                              size="small"
-                              sx={{ maxWidth: 120 }}
-                            />
-                          )}
-                        </Box>
-                      ))}
-                      <Button
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={() => agregarMotivoRechazo(d.id)}
-                        variant="outlined"
-                        sx={{ mt: 1 }}
-                      >
-                        {motivos.length === 0 ? 'Agregar motivo de rechazo' : 'Agregar otro motivo'}
-                      </Button>
-                    </Box>
+                        ) : (
+                          motivos.map((item, idx) => {
+                            const marcado = item.xPercent != null || item.yPercent != null;
+                            return (
+                              <Paper
+                                key={idx}
+                                elevation={0}
+                                sx={{
+                                  p: 1.75,
+                                  border: '1px solid',
+                                  borderColor: marcado ? alpha('#c62828', 0.35) : 'divider',
+                                  borderRadius: 2,
+                                  bgcolor: marcado ? alpha('#c62828', 0.03) : alpha(IGSS_COLORS.fondo, 0.9),
+                                  boxShadow: marcado ? `0 0 0 1px ${alpha('#c62828', 0.08)}` : 'none',
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 1.5 }}>
+                                  <Box
+                                    sx={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: '50%',
+                                      bgcolor: '#c62828',
+                                      color: '#fff',
+                                      fontWeight: 700,
+                                      fontSize: 13,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                      mt: 0.15,
+                                    }}
+                                  >
+                                    {idx + 1}
+                                  </Box>
+                                  <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                    <Typography variant="subtitle2" fontWeight={800} sx={{ color: 'grey.800' }}>
+                                      Motivo {idx + 1}
+                                    </Typography>
+                                    {marcado && (
+                                      <Chip
+                                        size="small"
+                                        icon={<PlaceIcon />}
+                                        label={item.pagina != null ? `Pág. ${item.pagina}` : 'Marcado'}
+                                        color="error"
+                                        sx={{ height: 22, fontWeight: 700 }}
+                                      />
+                                    )}
+                                  </Box>
+                                  <Tooltip title="Quitar este motivo">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => quitarMotivoRechazo(d.id, idx)}
+                                      aria-label="Quitar motivo"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                  <FormControl size="small" fullWidth>
+                                    <InputLabel id={`categoria-${d.id}-${idx}`}>Categoría</InputLabel>
+                                    <Select
+                                      labelId={`categoria-${d.id}-${idx}`}
+                                      label="Categoría"
+                                      value={item.categoria}
+                                      onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'categoria', e.target.value)}
+                                    >
+                                      <MenuItem value="">— Ninguna —</MenuItem>
+                                      {MOTIVOS_RECHAZO.map((m) => (
+                                        <MenuItem key={m} value={m}>{m}</MenuItem>
+                                      ))}
+                                    </Select>
+                                  </FormControl>
+                                  <TextField
+                                    label="Qué debe corregirse"
+                                    placeholder="Describa el problema con claridad…"
+                                    value={item.descripcion}
+                                    onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'descripcion', e.target.value)}
+                                    size="small"
+                                    fullWidth
+                                    multiline
+                                    minRows={2}
+                                  />
+                                  {marcado && (
+                                    <TextField
+                                      label="Página"
+                                      type="number"
+                                      inputProps={{ min: 1 }}
+                                      value={item.pagina ?? ''}
+                                      onChange={(e) => actualizarMotivoRechazo(d.id, idx, 'pagina', e.target.value ? parseInt(e.target.value, 10) : null)}
+                                      size="small"
+                                      sx={{ maxWidth: 140 }}
+                                    />
+                                  )}
+                                </Box>
+                              </Paper>
+                            );
+                          })
+                        )}
+
+                        <Button
+                          size="small"
+                          startIcon={<AddIcon />}
+                          onClick={() => agregarMotivoRechazo(d.id)}
+                          variant="outlined"
+                          fullWidth
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            borderRadius: 2,
+                            borderColor: alpha(IGSS_COLORS.azulOscuro, 0.35),
+                            color: IGSS_COLORS.azulOscuro,
+                            py: 0.85,
+                          }}
+                        >
+                          {motivos.length === 0 ? 'Agregar motivo de rechazo' : 'Agregar otro motivo'}
+                        </Button>
+                      </Box>
+                    </Paper>
                   ); })}
                   </Box>
                 </Box>
@@ -1032,11 +1240,58 @@ const RevisarExpedientesDD: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { cerrarPreviewRechazo(); setRechazarOpen(false); setDocEnVistaId(null); }} disabled={enviando}>Cancelar</Button>
+          <Button onClick={() => { cerrarPreviewRechazo(); setModoMarcar(false); setDialogNuevaMarca(null); setRechazarOpen(false); setDocEnVistaId(null); }} disabled={enviando}>Cancelar</Button>
           <Button variant="contained" color="success" onClick={handleAprobarDesdeModal} disabled={enviando || rechazarLoading || tieneAlgunMotivoRechazo}>
             Aprobar expediente
           </Button>
           <Button variant="contained" color="error" onClick={handleRechazar} disabled={enviando || rechazarLoading}>Rechazar expediente</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Misma lógica que SIAF: diálogo al marcar un punto en el documento */}
+      <Dialog
+        open={!!dialogNuevaMarca?.open}
+        onClose={() => setDialogNuevaMarca(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PlaceIcon color="error" />
+          Corrección en este punto
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Página {dialogNuevaMarca?.pagina ?? 1} · posición marcada en el documento. Indique qué debe corregir el solicitante.
+          </Typography>
+          <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
+            <InputLabel>Categoría</InputLabel>
+            <Select
+              value={dialogNuevaMarca?.categoria || ''}
+              label="Categoría"
+              onChange={(e) => setDialogNuevaMarca((prev) => prev ? { ...prev, categoria: e.target.value } : prev)}
+            >
+              {MOTIVOS_RECHAZO.map((m) => (
+                <MenuItem key={m} value={m}>{m}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            multiline
+            rows={3}
+            label="Qué debe corregirse"
+            value={dialogNuevaMarca?.descripcion || ''}
+            onChange={(e) => setDialogNuevaMarca((prev) => prev ? { ...prev, descripcion: e.target.value } : prev)}
+            placeholder="Ej.: Falta la firma del jefe de unidad en la página 1…"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDialogNuevaMarca(null)} variant="outlined">Cancelar</Button>
+          <Button onClick={confirmarNuevaMarca} color="error" variant="contained" startIcon={<PushPinIcon />}>
+            Guardar marca
+          </Button>
         </DialogActions>
       </Dialog>
 

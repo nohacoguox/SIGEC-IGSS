@@ -19,12 +19,26 @@ import { Permission } from './entity/Permission';
 import { Role } from './entity/Role';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { In, DeepPartial } from 'typeorm';
+import { In, DeepPartial, Between } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { pdfGeneratorService } from './services/PdfGeneratorService';
 import { fileStorageService } from './services/FileStorageService';
 import { syncAppScreenPermissions } from './services/syncAppScreens';
 import { ensureCorrelativoTables } from './services/ensureCorrelativoTables';
+import { resolveAnalyticsScope } from './services/analyticsScope';
+import {
+  clasificarAlCorte,
+  construirCierresMensuales,
+  construirTrazabilidad,
+  promediarTiemposDesdeHistoriales,
+} from './services/expedienteAnalytics';
+import {
+  clasificarSiafAlCorte,
+  construirCierresMensualesSiaf,
+  construirTrazabilidadSiaf,
+  promediarTiemposSiaf,
+  unificarEventosSiaf,
+} from './services/siafAnalytics';
 import { APP_SCREENS } from './config/appScreens';
 import {
   reservarCorrelativo,
@@ -35,6 +49,11 @@ import {
   actualizarConfigCorrelativo,
   liberarReservaAdmin,
 } from './services/CorrelativoService';
+import {
+  asignarCorrelativoExpediente,
+  actualizarConfigCorrelativoExpediente,
+  getEstadoCorrelativosExpediente,
+} from './services/ExpedienteCorrelativoService';
 
 dotenv.config();
 
@@ -143,6 +162,54 @@ runUserRolesMigration()
   } catch (e: any) {
     if (!/does not exist/i.test(e?.message || '')) console.error('Aviso al agregar expediente_documento_version_id a bitácora:', e?.message);
   }
+  // Trazabilidad de motivos por versión exacta del documento.
+  try {
+    await AppDataSource.query(`ALTER TABLE expediente_bitacora_detalle ADD COLUMN IF NOT EXISTS expediente_documento_version_id INT`);
+    await AppDataSource.query(`ALTER TABLE expediente_documento_versiones ADD COLUMN IF NOT EXISTS es_actual BOOLEAN NOT NULL DEFAULT FALSE`);
+    await AppDataSource.query(`
+      UPDATE expediente_documento_versiones v
+      SET es_actual = TRUE
+      FROM expediente_documentos d
+      WHERE v.expediente_documento_id = d.id
+        AND v."hashArchivo" = d."hashArchivo"
+    `);
+  } catch (e: any) {
+    if (!/does not exist/i.test(e?.message || '')) console.error('Aviso al asegurar versiones de documentos:', e?.message);
+  }
+  // Versiones creadas por el flujo anterior podían conservar solo el archivo
+  // reemplazado. Se registra una única versión de recuperación para el archivo
+  // vigente que aún no tenga representación; la condición evita duplicarla.
+  try {
+    const docRepo = AppDataSource.getRepository(ExpedienteDocumento);
+    const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
+    const documentosSinVersionActual = await docRepo
+      .createQueryBuilder('d')
+      .where(`NOT EXISTS (
+        SELECT 1 FROM expediente_documento_versiones v
+        WHERE v.expediente_documento_id = d.id AND v.es_actual = TRUE
+      )`)
+      .getMany();
+
+    for (const doc of documentosSinVersionActual) {
+      const ultimaVersion = await versionRepo.findOne({
+        where: { expedienteDocumentoId: doc.id },
+        order: { numeroVersion: 'DESC' },
+      });
+      await versionRepo.save(versionRepo.create({
+        expedienteDocumentoId: doc.id,
+        numeroVersion: (ultimaVersion?.numeroVersion ?? 0) + 1,
+        esActual: true,
+        nombreArchivo: doc.nombreArchivo,
+        rutaArchivo: doc.rutaArchivo,
+        hashArchivo: doc.hashArchivo,
+        tamanioBytes: doc.tamanioBytes,
+        mimeType: doc.mimeType,
+        subidoPorId: doc.subidoPorId,
+      }));
+    }
+  } catch (e: any) {
+    console.error('Aviso al recuperar versiones vigentes de documentos:', e?.message);
+  }
 
   // Columnas opcionales de pantalla (si el usuario de BD no es dueño, se omiten sin romper)
   try {
@@ -228,6 +295,8 @@ runUserRolesMigration()
   try {
     await AppDataSource.query(`ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS unidad_origen VARCHAR(255)`);
     await AppDataSource.query(`ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS municipio_origen VARCHAR(150)`);
+    await AppDataSource.query(`ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS numero_orden_compra VARCHAR(100)`);
+    await AppDataSource.query(`ALTER TABLE expedientes ADD COLUMN IF NOT EXISTS numero_siaf VARCHAR(100)`);
     // Backfill unidad_origen para expedientes ya creados
     await AppDataSource.query(`
       UPDATE expedientes e SET unidad_origen = (SELECT u.unidad_medica FROM users u WHERE u.id = e.usuario_id LIMIT 1)
@@ -286,6 +355,161 @@ runUserRolesMigration()
   } catch (error) {
     console.error('❌ Error al verificar base de datos:', error);
   }
+
+  // Ortografía: revisa texto con LanguageTool (español) y propone correcciones
+  const TERMINOS_INSTITUCIONALES = new Set(
+    ['siaf', 'igss', 'minfin', 'sibofa', 'daf', 'dd', 'a-01', 's/c'].map((t) => t.toLowerCase())
+  );
+
+  const sinTildes = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  const distanciaEdicion = (a: string, b: string): number => {
+    const filas = a.length + 1;
+    const cols = b.length + 1;
+    let previa = Array.from({ length: cols }, (_, j) => j);
+    for (let i = 1; i < filas; i++) {
+      const actual = [i];
+      for (let j = 1; j < cols; j++) {
+        const costo = a[i - 1] === b[j - 1] ? 0 : 1;
+        actual[j] = Math.min(previa[j] + 1, actual[j - 1] + 1, previa[j - 1] + costo);
+      }
+      previa = actual;
+    }
+    return previa[cols - 1];
+  };
+
+  /** true si `corta` se obtiene de `larga` quitando letras (typo por letra omitida). */
+  const esSubsecuencia = (corta: string, larga: string): boolean => {
+    let i = 0;
+    for (let j = 0; j < larga.length && i < corta.length; j++) {
+      if (corta[i] === larga[j]) i++;
+    }
+    return i === corta.length;
+  };
+
+  /** Letras que el usuario escribió y el candidato no contiene (cuenta repeticiones). */
+  const letrasFaltantes = (base: string, candidato: string): number => {
+    const disponibles = new Map<string, number>();
+    for (const letra of candidato) disponibles.set(letra, (disponibles.get(letra) ?? 0) + 1);
+    let faltantes = 0;
+    for (const letra of base) {
+      const quedan = disponibles.get(letra) ?? 0;
+      if (quedan > 0) disponibles.set(letra, quedan - 1);
+      else faltantes++;
+    }
+    return faltantes;
+  };
+
+  /**
+   * LanguageTool ordena por similitud fonética, así que "reqiere" sugiere "refiere"
+   * antes que "requiere". Se reordena favoreciendo los typos más probables al teclear:
+   * el candidato debe conservar las letras que sí se escribieron.
+   */
+  const ordenarSugerencias = (original: string, candidatos: string[]): string[] => {
+    const base = sinTildes(original);
+    return candidatos
+      .map((candidato) => {
+        const comparado = sinTildes(candidato);
+        let puntaje = distanciaEdicion(base, comparado);
+        puntaje += letrasFaltantes(base, comparado) * 1.5;
+        if (esSubsecuencia(base, comparado)) puntaje -= 2;
+        if (base[0] === comparado[0]) puntaje -= 0.5;
+        if (base.length === comparado.length) puntaje -= 0.25;
+        return { candidato, puntaje };
+      })
+      .sort((a, b) => a.puntaje - b.puntaje)
+      .map((x) => x.candidato);
+  };
+
+  app.post('/api/ortografia/revisar', verifyToken, async (req: Request, res: Response) => {
+    try {
+      const texto = String(req.body?.texto ?? '').trim();
+      if (!texto) {
+        return res.status(400).json({ message: 'El texto a revisar es obligatorio.' });
+      }
+      if (texto.length > 2000) {
+        return res.status(400).json({ message: 'El texto no puede superar 2000 caracteres.' });
+      }
+
+      const body = new URLSearchParams();
+      body.set('text', texto);
+      body.set('language', 'es');
+      body.set('enabledOnly', 'false');
+
+      const ltRes = await fetch('https://api.languagetool.org/v2/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+      });
+
+      if (!ltRes.ok) {
+        const detalle = await ltRes.text().catch(() => '');
+        console.error('LanguageTool error:', ltRes.status, detalle);
+        return res.status(502).json({
+          message: 'No se pudo revisar la ortografía en este momento. Intente de nuevo en unos segundos.',
+        });
+      }
+
+      const data: any = await ltRes.json();
+      const matches = Array.isArray(data?.matches) ? data.matches : [];
+
+      type Suggestion = {
+        original: string;
+        replacement: string;
+        options: string[];
+        message: string;
+        offset: number;
+        length: number;
+      };
+
+      const suggestions: Suggestion[] = [];
+      for (const match of matches) {
+        const offset = Number(match?.offset);
+        const length = Number(match?.length);
+        if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
+
+        const original = texto.slice(offset, offset + length);
+        if (!original) continue;
+        if (TERMINOS_INSTITUCIONALES.has(original.toLowerCase())) continue;
+
+        const candidatos: string[] = (Array.isArray(match?.replacements) ? match.replacements : [])
+          .map((r: any) => String(r?.value ?? '').trim())
+          .filter((v: string) => v && v !== original);
+        if (candidatos.length === 0) continue;
+
+        const options = ordenarSugerencias(original, Array.from(new Set(candidatos))).slice(0, 6);
+
+        suggestions.push({
+          original,
+          replacement: options[0],
+          options,
+          message: String(match?.message || 'Corrección sugerida'),
+          offset,
+          length,
+        });
+      }
+
+      // Aplicar de atrás hacia adelante para no alterar offsets
+      let corrected = texto;
+      const applied = [...suggestions].sort((a, b) => b.offset - a.offset);
+      for (const s of applied) {
+        corrected = corrected.slice(0, s.offset) + s.replacement + corrected.slice(s.offset + s.length);
+      }
+
+      return res.json({
+        original: texto,
+        corrected,
+        suggestions: suggestions.sort((a, b) => a.offset - b.offset),
+        count: suggestions.length,
+      });
+    } catch (e: any) {
+      console.error('Error en /api/ortografia/revisar:', e?.message || e);
+      return res.status(500).json({ message: 'Error al revisar ortografía.' });
+    }
+  });
 
   // Auth endpoints
   app.post('/api/auth/login', async (req: Request, res: Response) => {
@@ -602,6 +826,54 @@ runUserRolesMigration()
     }
   );
 
+  // ——— Correlativos de expedientes (asignación automática al guardar) ———
+  // Vista previa para quien crea expedientes (no requiere gestionar-correlativos)
+  app.get(
+    '/api/correlativos/expedientes/siguiente',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador'], ['crear-expediente']),
+    async (_req: Request, res: Response) => {
+      try {
+        const estado = await getEstadoCorrelativosExpediente();
+        res.json({ correlativo: estado.correlativoSiguientePreview });
+      } catch (err: any) {
+        res.status(500).json({ message: err?.message || 'Error al obtener el siguiente correlativo de expediente' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/correlativos/expedientes/estado',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+    async (_req: Request, res: Response) => {
+      try {
+        res.json(await getEstadoCorrelativosExpediente());
+      } catch (err: any) {
+        res.status(500).json({ message: err?.message || 'Error al obtener correlativos de expedientes' });
+      }
+    }
+  );
+
+  app.put(
+    '/api/correlativos/expedientes/config',
+    verifyToken,
+    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+    async (req: Request, res: Response) => {
+      try {
+        const { numeroInicio, siguienteNumero, digitos } = req.body || {};
+        const config = await actualizarConfigCorrelativoExpediente({
+          numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
+          siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
+          digitos: digitos != null ? Number(digitos) : undefined,
+        });
+        res.json({ config, estado: await getEstadoCorrelativosExpediente() });
+      } catch (err: any) {
+        res.status(400).json({ message: err?.message || 'Error al actualizar correlativos de expedientes' });
+      }
+    }
+  );
+
   // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
     try {
@@ -641,19 +913,21 @@ runUserRolesMigration()
     try {
       const userId = (req as any).user?.userId;
       if (!userId) return res.status(401).json({ message: 'Usuario no identificado.' });
-      const { numeroExpediente, tipoExpediente, titulo, descripcion } = req.body || {};
-      const numero = typeof numeroExpediente === 'string' ? numeroExpediente.trim() : '';
+      const { tipoExpediente, titulo, descripcion, numeroOrdenCompra, numeroSiaf } = req.body || {};
       const tipo = typeof tipoExpediente === 'string' ? tipoExpediente.trim() : 'Compras';
       const tit = typeof titulo === 'string' ? titulo.trim() : '';
-      if (!numero) return res.status(400).json({ message: 'El número de expediente es obligatorio.' });
+      const desc = typeof descripcion === 'string' ? descripcion.trim() : '';
+      const oc = typeof numeroOrdenCompra === 'string' ? numeroOrdenCompra.trim() : '';
+      const siaf = typeof numeroSiaf === 'string' ? numeroSiaf.trim() : '';
       if (!tit) return res.status(400).json({ message: 'El título es obligatorio. Elija Bien/Producto o Servicio.' });
       if (!TITULOS_EXPEDIENTE_VALIDOS.includes(tit)) return res.status(400).json({ message: 'El título debe ser "Bien/Producto" o "Servicio".' });
+      if (!desc) return res.status(400).json({ message: 'La descripción es obligatoria.' });
+      if (!oc) return res.status(400).json({ message: 'El número de orden de compra (O.C.) es obligatorio.' });
       const userRepo = AppDataSource.getRepository(User);
       const user = await userRepo.findOneBy({ id: userId });
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
       const repo = AppDataSource.getRepository(Expediente);
-      const existe = await repo.findOne({ where: { numeroExpediente: numero } });
-      if (existe) return res.status(400).json({ message: 'Ya existe un expediente con ese número.' });
+      const numero = await asignarCorrelativoExpediente();
       const hoy = new Date();
       hoy.setHours(0, 0, 0, 0);
       const exp = repo.create({
@@ -662,7 +936,9 @@ runUserRolesMigration()
         usuario: user,
         tipoExpediente: tipo || 'Compras',
         titulo: tit,
-        descripcion: typeof descripcion === 'string' ? descripcion.trim() || null : null,
+        descripcion: desc,
+        numeroOrdenCompra: oc,
+        numeroSiaf: siaf || null,
         estado: 'abierto',
         fechaApertura: hoy,
         fechaCierre: null,
@@ -780,9 +1056,20 @@ runUserRolesMigration()
       const exp = await repo.findOne({ where: { id, usuarioId: userId } });
       if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
       if (exp.estado !== 'abierto' && exp.estado !== 'rechazado') return res.status(400).json({ message: 'Solo se puede enviar a revisión un expediente en estado abierto o rechazado (tras corrección).' });
+      const esReenvio = exp.estado === 'rechazado';
       exp.estado = 'en_proceso';
       exp.comentarioRechazo = null;
       await repo.save(exp);
+      await AppDataSource.getRepository(ExpedienteBitacora).save(
+        AppDataSource.getRepository(ExpedienteBitacora).create({
+          expedienteId: id,
+          tipo: 'envio_revision',
+          usuarioId: userId,
+          comentario: esReenvio
+            ? 'Expediente reenviado a revisión DAF después de corregir observaciones.'
+            : 'Expediente enviado a revisión DAF.',
+        } as any)
+      );
       res.json(exp);
     } catch (err: any) {
       console.error('Error al enviar expediente a revisión:', err?.message || err);
@@ -858,18 +1145,24 @@ runUserRolesMigration()
       const bitacoraGuardada = Array.isArray(saved) ? saved[0] : saved;
       const detalleRepo = AppDataSource.getRepository(ExpedienteBitacoraDetalle);
       const docRepo = AppDataSource.getRepository(ExpedienteDocumento);
+      const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
       for (const item of comentariosPorDocumento) {
         const docId = item.documentoId != null ? parseInt(String(item.documentoId), 10) : NaN;
         const texto = typeof item.comentario === 'string' ? item.comentario.trim() : '';
         if (!isNaN(docId) && texto) {
           const doc = await docRepo.findOne({ where: { id: docId, expedienteId: id } });
           if (doc) {
+            const requestedVersionId = item.documentoVersionId != null ? parseInt(String(item.documentoVersionId), 10) : NaN;
+            const versionRevisada = !isNaN(requestedVersionId)
+              ? await versionRepo.findOne({ where: { id: requestedVersionId, expedienteDocumentoId: docId } })
+              : await versionRepo.findOne({ where: { expedienteDocumentoId: docId, esActual: true } });
             const pagina = item.pagina != null ? parseInt(String(item.pagina), 10) : null;
             const xPercent = item.xPercent != null ? Number(item.xPercent) : null;
             const yPercent = item.yPercent != null ? Number(item.yPercent) : null;
             const det = detalleRepo.create({
               bitacoraId: bitacoraGuardada.id,
               expedienteDocumentoId: docId,
+              expedienteDocumentoVersionId: versionRevisada?.id ?? null,
               nombreDocumento: doc.nombreArchivo || null,
               comentario: texto,
               pagina: pagina ?? undefined,
@@ -894,7 +1187,7 @@ runUserRolesMigration()
       if (!userId) return res.status(401).json({ message: 'Usuario no identificado.' });
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: 'ID de expediente inválido.' });
-      const { tipoExpediente, titulo, descripcion } = req.body || {};
+      const { tipoExpediente, titulo, descripcion, numeroOrdenCompra, numeroSiaf } = req.body || {};
       const repo = AppDataSource.getRepository(Expediente);
       const exp = await repo.findOne({ where: { id, usuarioId: userId } });
       if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
@@ -905,10 +1198,20 @@ runUserRolesMigration()
       if (tit && !TITULOS_EXPEDIENTE_VALIDOS.includes(tit)) return res.status(400).json({ message: 'El título debe ser "Bien/Producto" o "Servicio".' });
       const nuevoTipo = tipo || exp.tipoExpediente;
       const nuevoTit = tit || exp.titulo;
-      const nuevaDesc = typeof descripcion === 'string' ? descripcion.trim() || null : exp.descripcion;
+      if (typeof descripcion === 'string' && !descripcion.trim()) {
+        return res.status(400).json({ message: 'La descripción es obligatoria.' });
+      }
+      if (typeof numeroOrdenCompra === 'string' && !numeroOrdenCompra.trim()) {
+        return res.status(400).json({ message: 'El número de orden de compra (O.C.) es obligatorio.' });
+      }
+      const nuevaDesc = typeof descripcion === 'string' ? descripcion.trim() : exp.descripcion;
+      const nuevaOc = typeof numeroOrdenCompra === 'string' ? numeroOrdenCompra.trim() : exp.numeroOrdenCompra;
+      const nuevoSiaf = typeof numeroSiaf === 'string' ? numeroSiaf.trim() || null : exp.numeroSiaf;
+      if (!nuevaDesc) return res.status(400).json({ message: 'La descripción es obligatoria.' });
+      if (!nuevaOc) return res.status(400).json({ message: 'El número de orden de compra (O.C.) es obligatorio.' });
       await repo.update(
         { id, usuarioId: userId },
-        { tipoExpediente: nuevoTipo, titulo: nuevoTit, descripcion: nuevaDesc } as any
+        { tipoExpediente: nuevoTipo, titulo: nuevoTit, descripcion: nuevaDesc, numeroOrdenCompra: nuevaOc, numeroSiaf: nuevoSiaf } as any
       );
       const actualizado = await repo.findOne({ where: { id } });
       res.json(actualizado ?? exp);
@@ -933,6 +1236,14 @@ runUserRolesMigration()
         relations: ['documentos', 'documentos.subidoPor', 'usuario'],
       });
       if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
+      const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
+      const versionesActuales = exp.documentos?.length
+        ? await versionRepo.find({ where: { expedienteDocumentoId: In(exp.documentos.map((d) => d.id)), esActual: true } })
+        : [];
+      const versionActualPorDocumento = new Map(versionesActuales.map((v) => [v.expedienteDocumentoId, v.id]));
+      (exp.documentos || []).forEach((doc: any) => {
+        doc.versionActualId = versionActualPorDocumento.get(doc.id) ?? null;
+      });
       const esPropietario = exp.usuarioId === userId;
       const esAnalistaDAF = userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental');
       const puedeRevisar = esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado');
@@ -970,7 +1281,8 @@ runUserRolesMigration()
             pagina: d.pagina != null ? Number(d.pagina) : null,
             xPercent: d.xPercent != null ? Number(d.xPercent) : null,
             yPercent: d.yPercent != null ? Number(d.yPercent) : null,
-            documentoVersionIdParaMarca: d.expedienteDocumentoId != null ? docIdToVersionId.get(d.expedienteDocumentoId) : undefined,
+            documentoVersionIdParaMarca: d.expedienteDocumentoVersionId
+              ?? (d.expedienteDocumentoId != null ? docIdToVersionId.get(d.expedienteDocumentoId) : undefined),
           })),
         };
       }
@@ -1062,8 +1374,8 @@ runUserRolesMigration()
               ? correccionesPosteriores.reduce((min: any, f: any) => fechaRechazo(f) < fechaRechazo(min) ? f : min)
               : null;
             const corregido = !!correccionQueReemplazoRechazado;
-            const rawVersionId = correccionQueReemplazoRechazado?.expedienteDocumentoVersionId;
-            const documentoVersionIdParaMarca = (corregido && rawVersionId != null && Number(rawVersionId) > 0)
+            const rawVersionId = d.expedienteDocumentoVersionId ?? correccionQueReemplazoRechazado?.expedienteDocumentoVersionId;
+            const documentoVersionIdParaMarca = (rawVersionId != null && Number(rawVersionId) > 0)
               ? Number(rawVersionId)
               : undefined;
             return {
@@ -1129,6 +1441,7 @@ runUserRolesMigration()
         expedienteDocumentoId: doc.id,
         expedienteDocumento: doc,
         numeroVersion: 1,
+        esActual: true,
         nombreArchivo: nombreOriginal,
         rutaArchivo: pdfInfo.filePath,
         hashArchivo: pdfInfo.hash,
@@ -1167,23 +1480,26 @@ runUserRolesMigration()
       const user = await userRepo.findOneBy({ id: userId });
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
       const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
-      const versionesExistentes = await versionRepo.find({ where: { expedienteDocumentoId: docId }, order: { numeroVersion: 'DESC' }, take: 1 });
-      const siguienteVersion = versionesExistentes.length > 0 ? (versionesExistentes[0].numeroVersion + 1) : 1;
-      const nombreAnterior = doc.nombreArchivo;
-      const versionAnterior = versionRepo.create({
-        expedienteDocumentoId: docId,
-        numeroVersion: siguienteVersion,
-        nombreArchivo: doc.nombreArchivo,
-        rutaArchivo: doc.rutaArchivo,
-        hashArchivo: doc.hashArchivo,
-        tamanioBytes: Number(doc.tamanioBytes),
-        mimeType: doc.mimeType,
-        subidoPorId: doc.subidoPorId,
-        subidoPor: doc.subidoPor,
+      const versionesExistentes = await versionRepo.find({
+        where: { expedienteDocumentoId: docId },
+        order: { numeroVersion: 'DESC' },
       });
-      const versionGuardada = await versionRepo.save(versionAnterior);
+      let versionActual = versionesExistentes.find((v) => v.esActual);
+      if (!versionActual) {
+        versionActual = versionesExistentes.find((v) => v.hashArchivo === doc.hashArchivo);
+        if (versionActual) {
+          versionActual.esActual = true;
+          await versionRepo.save(versionActual);
+        }
+      }
+      const siguienteVersion = (versionesExistentes[0]?.numeroVersion ?? 0) + 1;
+      const nombreAnterior = doc.nombreArchivo;
       const nombreOriginal = file.originalname || doc.nombreArchivo || `documento-${Date.now()}`;
       const pdfInfo = await fileStorageService.saveExpedienteDocument(file.buffer, exp.numeroExpediente, nombreOriginal);
+      if (versionActual) {
+        versionActual.esActual = false;
+        await versionRepo.save(versionActual);
+      }
       doc.nombreArchivo = nombreOriginal;
       doc.rutaArchivo = pdfInfo.filePath;
       doc.hashArchivo = pdfInfo.hash;
@@ -1192,17 +1508,30 @@ runUserRolesMigration()
       doc.subidoPorId = userId;
       doc.subidoPor = user;
       await docRepo.save(doc);
+      const versionNueva = await versionRepo.save(versionRepo.create({
+        expedienteDocumentoId: docId,
+        expedienteDocumento: doc,
+        numeroVersion: siguienteVersion,
+        esActual: true,
+        nombreArchivo: nombreOriginal,
+        rutaArchivo: pdfInfo.filePath,
+        hashArchivo: pdfInfo.hash,
+        tamanioBytes: pdfInfo.size,
+        mimeType: file.mimetype || 'application/octet-stream',
+        subidoPorId: userId,
+        subidoPor: user,
+      }));
 
-      // Registrar corrección en la bitácora (documento reemplazado; guardamos la versión que quedó como respaldo)
+      // Registrar corrección: conserva la versión anterior y deja claro cuál es la nueva.
       const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
       const bitacoraCorreccion = bitacoraRepo.create({
         expedienteId,
         tipo: 'correccion',
         usuarioId: userId,
         usuario: user,
-        comentario: `Documento «${nombreAnterior}» reemplazado por «${nombreOriginal}».`,
+        comentario: `Versión ${versionActual?.numeroVersion ?? 'anterior'} («${nombreAnterior}») reemplazada por versión ${versionNueva.numeroVersion} («${nombreOriginal}»).`,
         expedienteDocumentoId: docId,
-        expedienteDocumentoVersionId: versionGuardada.id,
+        expedienteDocumentoVersionId: versionActual?.id ?? null,
       });
       await bitacoraRepo.save(bitacoraCorreccion);
 
@@ -1235,13 +1564,37 @@ runUserRolesMigration()
         relations: ['subidoPor'],
         order: { numeroVersion: 'DESC' },
       });
+      const detalleRepo = AppDataSource.getRepository(ExpedienteBitacoraDetalle);
+      const detalles = versiones.length
+        ? await detalleRepo.find({
+          where: { expedienteDocumentoVersionId: In(versiones.map((v) => v.id)) },
+          relations: ['bitacora', 'bitacora.usuario'],
+          order: { id: 'DESC' },
+        })
+        : [];
+      const observacionesPorVersion = new Map<number, any[]>();
+      for (const detalle of detalles) {
+        if (detalle.expedienteDocumentoVersionId == null) continue;
+        const list = observacionesPorVersion.get(detalle.expedienteDocumentoVersionId) ?? [];
+        list.push({
+          comentario: detalle.comentario,
+          pagina: detalle.pagina,
+          fecha: detalle.bitacora?.fecha ?? null,
+          usuario: detalle.bitacora?.usuario
+            ? { nombres: detalle.bitacora.usuario.nombres, apellidos: detalle.bitacora.usuario.apellidos }
+            : null,
+        });
+        observacionesPorVersion.set(detalle.expedienteDocumentoVersionId, list);
+      }
       const list = versiones.map((v: any) => ({
         id: v.id,
         numeroVersion: v.numeroVersion,
+        esActual: !!v.esActual,
         nombreArchivo: v.nombreArchivo,
         fechaSubida: v.fechaSubida,
         tamanioBytes: v.tamanioBytes,
         subidoPor: v.subidoPor ? { nombres: v.subidoPor.nombres, apellidos: v.subidoPor.apellidos } : null,
+        observaciones: observacionesPorVersion.get(v.id) ?? [],
       }));
       res.json(list);
     } catch (err: any) {
@@ -1964,7 +2317,7 @@ runUserRolesMigration()
 
   // Catálogo de productos (código -> descripción): consulta para formulario SIAF; importación Excel solo con permiso
   const productoCatalogoRepository = AppDataSource.getRepository(ProductoCatalogo);
-  const CATALOGO_ORIGENES = ['MINFIN', 'SIBOFA'] as const;
+  const CATALOGO_ORIGENES = ['MINFIN', 'SIBOFA', 'SUBPRODUCTOS'] as const;
   type CatalogoOrigenApi = (typeof CATALOGO_ORIGENES)[number];
   const parseOrigen = (raw: unknown): CatalogoOrigenApi | null => {
     const v = String(raw ?? '').trim().toUpperCase();
@@ -2029,7 +2382,7 @@ runUserRolesMigration()
       }
       const origenFiltro = parseOrigen(req.query.origen);
       if (!origenFiltro) {
-        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN o SIBOFA.' });
+        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
       }
       const qb = productoCatalogoRepository
         .createQueryBuilder('p')
@@ -2050,33 +2403,40 @@ runUserRolesMigration()
     }
   });
 
-  // Autocompletado de códigos para el formulario SIAF (cualquier usuario autenticado)
+  // Autocompletado / listado de códigos para el formulario SIAF (cualquier usuario autenticado)
   app.get('/api/catalogo-productos/buscar', verifyToken, async (req: Request, res: Response) => {
     try {
       const origen = parseOrigen(req.query.origen);
       if (!origen) {
-        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN o SIBOFA.' });
+        return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
       }
       const q = String(req.query.q ?? '').trim();
-      if (q.length < 1) {
+      const maxLimit = origen === 'SUBPRODUCTOS' ? 500 : 25;
+      const defaultLimit = origen === 'SUBPRODUCTOS' && q.length < 1 ? 200 : 15;
+      const limit = Math.min(maxLimit, Math.max(1, parseInt(String(req.query.limit ?? String(defaultLimit)), 10) || defaultLimit));
+      // Para ítems MINFIN/SIBOFA se exige texto; para subproductos se permite listar sin filtro.
+      if (q.length < 1 && origen !== 'SUBPRODUCTOS') {
         return res.json({ items: [] });
       }
-      const limit = Math.min(25, Math.max(1, parseInt(String(req.query.limit ?? '15'), 10) || 15));
-      const found = await productoCatalogoRepository
+      const qb = productoCatalogoRepository
         .createQueryBuilder('p')
         .select(['p.codigo', 'p.descripcion', 'p.origen'])
         .where('p.origen = :origen', { origen })
-        .andWhere('(p.codigo ILIKE :q OR p.descripcion ILIKE :q)', { q: `%${q}%` })
         .orderBy('p.codigo', 'ASC')
-        .take(limit)
-        .getMany();
+        .take(limit);
+      if (q.length >= 1) {
+        qb.andWhere('(p.codigo ILIKE :q OR p.descripcion ILIKE :q)', { q: `%${q}%` });
+      }
+      const found = await qb.getMany();
       const qLower = q.toLowerCase();
-      const items = [...found].sort((a, b) => {
-        const aPrefix = a.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
-        const bPrefix = b.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
-        if (aPrefix !== bPrefix) return aPrefix - bPrefix;
-        return a.codigo.localeCompare(b.codigo, 'es');
-      });
+      const items = q
+        ? [...found].sort((a, b) => {
+            const aPrefix = a.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
+            const bPrefix = b.codigo.toLowerCase().startsWith(qLower) ? 0 : 1;
+            if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+            return a.codigo.localeCompare(b.codigo, 'es');
+          })
+        : found;
       res.json({
         items: items.map((p) => ({
           codigo: p.codigo,
@@ -2158,7 +2518,7 @@ runUserRolesMigration()
       }
       const origen = parseOrigen(req.body?.origen);
       if (!origen) {
-        return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN o SIBOFA).' });
+        return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN, SIBOFA o SUBPRODUCTOS).' });
       }
       const file = (req as any).file;
       const buffer = file?.buffer ?? file;
@@ -2185,7 +2545,15 @@ runUserRolesMigration()
       const headerRowIndex = detectCatalogHeaderRow(rows);
       const headers = buildUniqueHeaders(rows[headerRowIndex] || []);
       const normalizedHeaders = headers.map(normalizeCatalogHeader);
-      let codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo') && header.includes('insumo'));
+      let codigoIdx = -1;
+      if (origen === 'SUBPRODUCTOS') {
+        codigoIdx = normalizedHeaders.findIndex(
+          (header) => header.includes('codigo') && header.includes('subproduct')
+        );
+      }
+      if (codigoIdx < 0) {
+        codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo') && header.includes('insumo'));
+      }
       if (codigoIdx < 0) codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo'));
       if (codigoIdx < 0) {
         return res.status(400).json({
@@ -2195,8 +2563,14 @@ runUserRolesMigration()
 
       const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
       const previousConfig = await configRepository.findOne({ where: { origen } });
-      const selectedDescriptionColumns = (previousConfig?.columnasDescripcion ?? [])
+      let selectedDescriptionColumns = (previousConfig?.columnasDescripcion ?? [])
         .filter((column) => headers.includes(column));
+      // Primera carga de subproductos: usar columna de descripción si existe
+      if (selectedDescriptionColumns.length === 0 && origen === 'SUBPRODUCTOS') {
+        selectedDescriptionColumns = headers.filter((h) =>
+          normalizeCatalogHeader(h).includes('descripcion')
+        );
+      }
 
       type RegistroImportado = {
         codigo: string;
@@ -2298,7 +2672,7 @@ runUserRolesMigration()
     try {
       const origen = parseOrigen(req.query.origen);
       if (!origen) {
-        return res.status(400).json({ message: 'Debe indicar origen=MINFIN o origen=SIBOFA.' });
+        return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA o SUBPRODUCTOS.' });
       }
       const config = await AppDataSource.getRepository(ProductoCatalogoConfig).findOne({ where: { origen } });
       res.json({
@@ -2323,7 +2697,7 @@ runUserRolesMigration()
       });
       const origen = parseOrigen(req.body?.origen);
       if (!origen) {
-        return res.status(400).json({ message: 'Debe indicar el catálogo MINFIN o SIBOFA.' });
+        return res.status(400).json({ message: 'Debe indicar el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
       }
       const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
       const config = await configRepository.findOne({ where: { origen } });
@@ -2417,17 +2791,23 @@ runUserRolesMigration()
         const s = await buildStats(origenFiltro);
         return res.json({ origen: origenFiltro, ...s });
       }
-      const [minfin, sibofa] = await Promise.all([buildStats('MINFIN'), buildStats('SIBOFA')]);
+      const [minfin, sibofa, subproductos] = await Promise.all([
+        buildStats('MINFIN'),
+        buildStats('SIBOFA'),
+        buildStats('SUBPRODUCTOS'),
+      ]);
       res.json({
         MINFIN: minfin,
         SIBOFA: sibofa,
-        total: minfin.total + sibofa.total,
+        SUBPRODUCTOS: subproductos,
+        total: minfin.total + sibofa.total + subproductos.total,
       });
     } catch (err: any) {
       console.error('Error al obtener estadísticas del catálogo:', err);
       res.json({
         MINFIN: { total: 0, ultimaActualizacion: null },
         SIBOFA: { total: 0, ultimaActualizacion: null },
+        SUBPRODUCTOS: { total: 0, ultimaActualizacion: null },
         total: 0,
       });
     }
@@ -2438,7 +2818,7 @@ runUserRolesMigration()
     try {
       const origen = parseOrigen(req.query.origen);
       if (!origen) {
-        return res.status(400).json({ message: 'Debe indicar origen=MINFIN o origen=SIBOFA.' });
+        return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA o SUBPRODUCTOS.' });
       }
       const q = String(req.query.q ?? '').trim();
       const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
@@ -2593,6 +2973,8 @@ runUserRolesMigration()
 
       // 4. Crear y poblar la solicitud
       const nuevaSolicitud = new SiafSolicitud();
+      // Nace como borrador: enviar a revisión es una decisión del solicitante.
+      nuevaSolicitud.estado = 'borrador';
       nuevaSolicitud.correlativo = correlativoFinal;
       nuevaSolicitud.fecha = new Date(siafData.fecha);
       nuevaSolicitud.nombreUnidad = siafData.nombreUnidad;
@@ -3059,6 +3441,732 @@ runUserRolesMigration()
     }
   });
 
+  // Indicadores del piloto PG2. Se calculan exclusivamente con el expediente
+  // digital y su bitácora; no sustituyen la línea base documental n=25.
+  app.get('/api/estadisticas/tesis-piloto', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos']), async (req: Request, res: Response) => {
+    try {
+      const dias = Math.min(3650, Math.max(1, parseInt(String(req.query.dias || 365), 10) || 365));
+      const desde = new Date();
+      desde.setDate(desde.getDate() - dias);
+      desde.setHours(0, 0, 0, 0);
+      const expRepo = AppDataSource.getRepository(Expediente);
+      const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
+      const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
+      const expedientes = (await expRepo.find({ relations: ['documentos'] }))
+        .filter((e) => new Date(e.createdAt).getTime() >= desde.getTime())
+        .filter((e) => !!e.numeroOrdenCompra && !!e.numeroSiaf);
+      const ids = expedientes.map((e) => e.id);
+      const bitacora = ids.length
+        ? await bitacoraRepo.find({ where: { expedienteId: In(ids) }, relations: ['detalle'], order: { fecha: 'ASC' } })
+        : [];
+      const versiones = ids.length
+        ? await versionRepo.find({ where: { expedienteDocumentoId: In(expedientes.flatMap((e) => (e.documentos || []).map((d) => d.id))) } })
+        : [];
+      const porExpediente = new Map<number, ExpedienteBitacora[]>();
+      bitacora.forEach((evento) => {
+        const eventos = porExpediente.get(evento.expedienteId) ?? [];
+        eventos.push(evento);
+        porExpediente.set(evento.expedienteId, eventos);
+      });
+      const versionesPorDocumento = new Map<number, number>();
+      versiones.forEach((version) => {
+        versionesPorDocumento.set(version.expedienteDocumentoId, (versionesPorDocumento.get(version.expedienteDocumentoId) ?? 0) + 1);
+      });
+      const diasHabilesEntre = (inicio: Date, fin: Date) => {
+        if (fin < inicio) return null;
+        const cursor = new Date(inicio);
+        cursor.setHours(0, 0, 0, 0);
+        const limite = new Date(fin);
+        limite.setHours(0, 0, 0, 0);
+        let total = 0;
+        cursor.setDate(cursor.getDate() + 1); // mismo criterio: no contar el día inicial
+        while (cursor <= limite) {
+          const dia = cursor.getDay();
+          if (dia !== 0 && dia !== 6) total += 1;
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        return total;
+      };
+      const ciclos: number[] = [];
+      const observaciones: number[] = [];
+      const rechazosFormales: number[] = [];
+      const ciclosTotales: number[] = [];
+      const primerasRespuestas: number[] = [];
+      let devueltos = 0;
+      let pasanMes = 0;
+      let trazables = 0;
+      let versionesDistinguibles = 0;
+
+      for (const exp of expedientes) {
+        const eventos = porExpediente.get(exp.id) ?? [];
+        const envios = eventos.filter((e) => e.tipo === 'envio_revision');
+        const rechazos = eventos.filter((e) => e.tipo === 'rechazo');
+        const aprobacion = eventos.find((e) => e.tipo === 'aprobacion');
+        const primeraResolucion = eventos.find((e) => e.tipo === 'rechazo' || e.tipo === 'aprobacion');
+        const numeroCiclos = rechazos.length;
+        const numeroObservaciones = rechazos.reduce((total, rechazo) => total + (rechazo.detalle?.length ?? 0), 0);
+        ciclos.push(numeroCiclos);
+        observaciones.push(numeroObservaciones);
+        rechazosFormales.push(numeroCiclos);
+        if (numeroCiclos > 0) devueltos += 1;
+
+        const inicioRevision = envios[0]?.fecha ? new Date(envios[0].fecha) : null;
+        const fin = aprobacion?.fecha ? new Date(aprobacion.fecha) : null;
+        if (inicioRevision && primeraResolucion?.fecha) {
+          const diasPrimeraRespuesta = diasHabilesEntre(inicioRevision, new Date(primeraResolucion.fecha));
+          if (diasPrimeraRespuesta != null) primerasRespuestas.push(diasPrimeraRespuesta);
+        }
+        if (inicioRevision && fin) {
+          const diasCiclo = diasHabilesEntre(inicioRevision, fin);
+          if (diasCiclo != null) ciclosTotales.push(diasCiclo);
+          if (inicioRevision.getMonth() !== fin.getMonth() || inicioRevision.getFullYear() !== fin.getFullYear()) pasanMes += 1;
+        }
+
+        const t1 = !!exp.numeroExpediente;
+        const t2 = !!exp.createdAt;
+        const t3 = !!exp.usuarioId;
+        const t4 = envios.length > 0 && (rechazos.length === 0 || rechazos.every((r) => !!r.fecha));
+        const t5 = !!exp.estado;
+        if (t1 && t2 && t3 && t4 && t5) trazables += 1;
+        const docs = exp.documentos || [];
+        if (docs.length > 0 && docs.every((doc) => (versionesPorDocumento.get(doc.id) ?? 0) > 0)) versionesDistinguibles += 1;
+      }
+
+      const promedio = (valores: number[]) => valores.length
+        ? valores.reduce((a, b) => a + b, 0) / valores.length
+        : null;
+      const n = expedientes.length;
+      res.json({
+        periodo: { dias, desde: desde.toISOString() },
+        muestra: { total: n, meta: 25, identificados: n, pendientesParaMeta: Math.max(0, 25 - n) },
+        lineaBase: {
+          eficiencia: { promedioCiclos: 0.92, devueltosPorcentaje: 72, pasaronMes: 5 },
+          calidad: { observacionesPromedio: 1.88, rechazosPor100: 12 },
+          trazabilidad: { cumplePorcentaje: 28, minutosBusqueda: 10.72 },
+          tiempos: { cicloDiasHabiles: 15.4, primeraRespuestaDiasHabiles: 2.52 },
+        },
+        piloto: {
+          eficiencia: { promedioCiclos: promedio(ciclos), devueltosPorcentaje: n ? (devueltos / n) * 100 : null, pasaronMes: pasanMes },
+          calidad: { observacionesPromedio: promedio(observaciones), rechazosPor100: n ? (rechazosFormales.reduce((a, b) => a + b, 0) / n) * 100 : null },
+          trazabilidad: {
+            cumplePorcentaje: n ? (trazables / n) * 100 : null,
+            versionesDistinguiblesPorcentaje: n ? (versionesDistinguibles / n) * 100 : null,
+            minutosBusqueda: null,
+            notaMinutosBusqueda: 'Debe medirse con cronometraje conforme al instrumento V3; el sistema no puede inferir el tiempo humano de búsqueda.',
+          },
+          tiempos: { cicloDiasHabiles: promedio(ciclosTotales), primeraRespuestaDiasHabiles: promedio(primerasRespuestas) },
+        },
+      });
+    } catch (err: any) {
+      console.error('Error al obtener estadísticas del piloto:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener estadísticas del piloto.' });
+    }
+  });
+
+  // Catálogos para selectores analíticos, filtrados por alcance del usuario.
+  app.get('/api/estadisticas/filtros-analitica', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos', 'ver-estadisticas-unidad']), async (req: Request, res: Response) => {
+    try {
+      const userRepo = AppDataSource.getRepository(User);
+      const scopeResult = await resolveAnalyticsScope(req, userRepo);
+      // Para armar el catálogo permitimos personal aunque unidad fallara por falta de unidad seleccionada.
+      let ownerIds: number[] | null = null;
+      let canViewUnidad = false;
+      let canPickUnidad = false;
+      let unidadesDisponibles: Array<{ nombre: string }> = [];
+      let colaboradores: Array<{ id: number; etiqueta: string; unidadMedica: string }> = [];
+      let alcanceMeta: any = { alcance: 'personal' };
+
+      if (scopeResult.ok) {
+        ownerIds = scopeResult.scope.ownerIds;
+        canViewUnidad = scopeResult.scope.canViewUnidad;
+        canPickUnidad = scopeResult.scope.canPickUnidad;
+        alcanceMeta = {
+          alcance: scopeResult.scope.alcance,
+          unidadFiltro: scopeResult.scope.unidadFiltro,
+          usuarioFiltroId: scopeResult.scope.usuarioFiltroId,
+          viewerId: scopeResult.scope.viewerId,
+          viewerNombre: scopeResult.scope.viewerNombre,
+          unidadMedica: scopeResult.scope.unidadMedica,
+          canViewUnidad,
+          canPickUnidad,
+        };
+        if (canViewUnidad) {
+          if (canPickUnidad) {
+            unidadesDisponibles = (await AppDataSource.getRepository(UnidadMedica).find({
+              select: ['nombre'],
+              order: { nombre: 'ASC' },
+            })).map((u) => ({ nombre: u.nombre }));
+          } else if (scopeResult.scope.unidadMedica) {
+            unidadesDisponibles = [{ nombre: scopeResult.scope.unidadMedica }];
+          }
+          const miembrosUnidad = scopeResult.scope.unidades.length
+            ? await userRepo.find({
+                where: { unidadMedica: In(scopeResult.scope.unidades) },
+                select: ['id', 'nombres', 'apellidos', 'unidadMedica'],
+                order: { apellidos: 'ASC' },
+              })
+            : [];
+          colaboradores = miembrosUnidad.map((u) => ({
+            id: u.id,
+            etiqueta: `${u.nombres} ${u.apellidos}`.trim(),
+            unidadMedica: u.unidadMedica,
+          }));
+        }
+      } else if (scopeResult.status === 400 && String(req.query.alcance || '') === 'unidad') {
+        // Super admin sin unidad aún: devolver catálogo de unidades para que elija.
+        const roles: string[] = (req as any).user?.roles ?? [];
+        const esSuper = roles.some((r) => String(r || '').toLowerCase() === 'super administrador');
+        if (esSuper) {
+          canViewUnidad = true;
+          canPickUnidad = true;
+          unidadesDisponibles = (await AppDataSource.getRepository(UnidadMedica).find({
+            select: ['nombre'],
+            order: { nombre: 'ASC' },
+          })).map((u) => ({ nombre: u.nombre }));
+          alcanceMeta = {
+            alcance: 'unidad',
+            canViewUnidad: true,
+            canPickUnidad: true,
+            requiereUnidad: true,
+            message: scopeResult.message,
+          };
+          return res.json({
+            ...alcanceMeta,
+            unidades: unidadesDisponibles,
+            colaboradores: [],
+            expedientes: [],
+            siafs: [],
+          });
+        }
+        return res.status(scopeResult.status).json({ message: scopeResult.message });
+      } else if (!scopeResult.ok) {
+        return res.status(scopeResult.status).json({ message: scopeResult.message });
+      }
+
+      if (!ownerIds || ownerIds.length === 0) {
+        return res.json({
+          ...alcanceMeta,
+          unidades: unidadesDisponibles,
+          colaboradores,
+          expedientes: [],
+          siafs: [],
+        });
+      }
+
+      const [expedientes, siafs] = await Promise.all([
+        AppDataSource.getRepository(Expediente).find({
+          where: { usuarioId: In(ownerIds) },
+          select: ['id', 'numeroExpediente', 'titulo', 'numeroOrdenCompra', 'estado'],
+          order: { numeroExpediente: 'DESC' },
+        }),
+        AppDataSource.getRepository(SiafSolicitud)
+          .createQueryBuilder('s')
+          .innerJoin('s.usuarioSolicitante', 'sol')
+          .where('sol.id IN (:...ownerIds)', { ownerIds })
+          .select(['s.id', 's.correlativo', 's.estado', 's.fecha', 's.createdAt'])
+          .orderBy('s.createdAt', 'DESC')
+          .getMany(),
+      ]);
+
+      res.json({
+        ...alcanceMeta,
+        unidades: unidadesDisponibles,
+        colaboradores,
+        expedientes: expedientes.map((exp) => ({
+          id: exp.id,
+          etiqueta: `${exp.numeroExpediente} · ${exp.titulo}${exp.numeroOrdenCompra ? ` · O.C. ${exp.numeroOrdenCompra}` : ''}`,
+          estado: exp.estado,
+        })),
+        siafs: siafs.map((siaf) => ({
+          id: siaf.id,
+          etiqueta: `${siaf.correlativo} · ${siaf.fecha}`,
+          estado: siaf.estado,
+        })),
+      });
+    } catch (err: any) {
+      console.error('Error al obtener filtros analíticos:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener los filtros analíticos.' });
+    }
+  });
+
+  // Tablero operativo de expedientes: identifica demoras, rechazos, ciclos y
+  // motivos para que el área pueda detectar cuellos de botella y tabular V1–V4.
+  app.get('/api/estadisticas/expedientes-analitica', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos', 'ver-estadisticas-unidad']), async (req: Request, res: Response) => {
+    try {
+      const scopeResult = await resolveAnalyticsScope(req, AppDataSource.getRepository(User));
+      if (!scopeResult.ok) return res.status(scopeResult.status).json({ message: scopeResult.message });
+      const scope = scopeResult.scope;
+      if (!scope.ownerIds.length) {
+        return res.json({
+          dias: 0,
+          desde: new Date().toISOString(),
+          hasta: new Date().toISOString(),
+          agrupacion: 'mes',
+          alcance: scope,
+          general: {
+            resumen: { total: 0, aprobados: 0, rechazadosAlCierre: 0, pendientesCorreccion: 0, pendientesRevisionDaf: 0 },
+            cierreMensual: [],
+            mesReferencia: null,
+          },
+          porExpediente: {
+            tiempos: {
+              primeraRespuestaHoras: null, correccionHoras: null, respuestaTrasReenvioHoras: null, cicloCompletoHoras: null,
+              muestraPrimeraRespuesta: 0, muestraCorreccion: 0, muestraRespuestaTrasReenvio: 0, muestraCicloCompleto: 0,
+            },
+            ciclos: [],
+            motivos: [],
+            casos: [],
+            trazabilidad: [],
+            totalesEventos: { dictamenesRechazo: 0, correcciones: 0 },
+          },
+          resumen: { total: 0, enRevision: 0, aprobados: 0, rechazadosActuales: 0, tasaDevolucion: null, aprobacionPrimerEnvio: null, observacionesPromedio: null },
+          tiempos: { primeraRespuestaHoras: null, correccionHoras: null, cicloCompletoHoras: null, muestraPrimeraRespuesta: 0, muestraCorreccion: 0, muestraCicloCompleto: 0 },
+          ciclos: [],
+          motivos: [],
+          operadores: [],
+          tendencia: [],
+          cierreMensual: [],
+          trazabilidad: [],
+        });
+      }
+
+      const dias = Math.min(3650, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
+      const fechaConsulta = (valor: unknown, finDelDia = false) => {
+        if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+        const fecha = new Date(`${valor}T${finDelDia ? '23:59:59.999' : '00:00:00.000'}`);
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+      };
+      const hasta = fechaConsulta(req.query.hasta, true) ?? new Date();
+      const desde = fechaConsulta(req.query.desde) ?? new Date(hasta);
+      if (!fechaConsulta(req.query.desde)) desde.setDate(desde.getDate() - dias);
+      desde.setHours(0, 0, 0, 0);
+      if (desde.getTime() > hasta.getTime()) return res.status(400).json({ message: 'La fecha inicial no puede ser posterior a la fecha final.' });
+      const expedienteId = parseInt(String(req.query.expedienteId || ''), 10);
+      const filtrarExpediente = Number.isInteger(expedienteId) && expedienteId > 0;
+      const agrupacion = ['dia', 'semana', 'mes', 'anio'].includes(String(req.query.agrupacion)) ? String(req.query.agrupacion) : 'semana';
+      const expRepo = AppDataSource.getRepository(Expediente);
+      const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
+
+      if (filtrarExpediente) {
+        const dueño = await expRepo.findOne({ where: { id: expedienteId } });
+        if (!dueño || !scope.ownerIds.includes(dueño.usuarioId)) {
+          return res.status(403).json({ message: 'No tiene acceso a las estadísticas de ese expediente.' });
+        }
+      }
+
+      const eventosDelPeriodo = filtrarExpediente
+        ? await bitacoraRepo.find({
+            where: { expedienteId },
+            relations: ['detalle', 'usuario'],
+            order: { fecha: 'ASC' },
+          })
+        : await bitacoraRepo
+          .createQueryBuilder('b')
+          .innerJoin('b.expediente', 'e')
+          .leftJoinAndSelect('b.detalle', 'detalle')
+          .leftJoinAndSelect('b.usuario', 'usuario')
+          .where('b.fecha BETWEEN :desde AND :hasta', { desde, hasta })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .orderBy('b.fecha', 'ASC')
+          .getMany();
+
+      const idsActivos = new Set(eventosDelPeriodo.map((e) => e.expedienteId));
+      const expedientesCreados = filtrarExpediente
+        ? []
+        : await expRepo.createQueryBuilder('e')
+          .where('e.created_at BETWEEN :desde AND :hasta', { desde, hasta })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .getMany();
+      // También casos abiertos creados antes del rango (pueden quedar rechazados al cierre).
+      const abiertosPrevios = filtrarExpediente
+        ? []
+        : await expRepo.createQueryBuilder('e')
+          .where('e.created_at < :desde', { desde })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .andWhere("e.estado IN ('abierto', 'en_proceso', 'rechazado')")
+          .getMany();
+      const ids = filtrarExpediente
+        ? [expedienteId]
+        : [...new Set([
+          ...idsActivos,
+          ...expedientesCreados.map((e) => e.id),
+          ...abiertosPrevios.map((e) => e.id),
+        ])];
+      const expedientes = ids.length ? await expRepo.find({ where: { id: In(ids) } }) : [];
+
+      // Historial completo de cada caso (necesario para cierres mensuales y trazabilidad).
+      const historialCompleto = ids.length
+        ? await bitacoraRepo.find({
+            where: { expedienteId: In(ids) },
+            relations: ['detalle', 'usuario'],
+            order: { fecha: 'ASC' },
+          })
+        : [];
+      const eventosPorExpediente = new Map<number, ExpedienteBitacora[]>();
+      historialCompleto.forEach((evento) => {
+        const lista = eventosPorExpediente.get(evento.expedienteId) ?? [];
+        lista.push(evento);
+        eventosPorExpediente.set(evento.expedienteId, lista);
+      });
+
+      const cierresMensuales = construirCierresMensuales(ids, eventosPorExpediente, desde, hasta);
+      const tiempos = promediarTiemposDesdeHistoriales(eventosPorExpediente);
+
+      const motivos = new Map<string, number>();
+      const distribucionCiclos = [0, 0, 0, 0];
+      let dictamenesRechazoTotal = 0;
+      let correccionesTotales = 0;
+      let pendientesCorreccionAhora = 0;
+      let pendientesRevisionDafAhora = 0;
+      let aprobadosAhora = 0;
+      let rechazadosAlCierreAhora = 0;
+
+      const listaPorExpediente = expedientes.map((exp) => {
+        const historial = eventosPorExpediente.get(exp.id) ?? [];
+        const rechazos = historial.filter((e) => e.tipo === 'rechazo');
+        const aprobacion = historial.find((e) => e.tipo === 'aprobacion');
+        const correcciones = historial.filter((e) => e.tipo === 'correccion');
+        distribucionCiclos[Math.min(rechazos.length, 3)] += 1;
+        dictamenesRechazoTotal += rechazos.length;
+        correccionesTotales += correcciones.length;
+        for (const rechazo of rechazos) {
+          for (const detalle of rechazo.detalle ?? []) {
+            const prefijo = (detalle.comentario || '').split(':')[0].trim();
+            const motivo = ['Falta firma', 'Fecha incorrecta o faltante', 'Datos incompletos', 'Documento ilegible', 'No corresponde al tipo de documento'].includes(prefijo)
+              ? prefijo
+              : 'Otro / sin clasificar';
+            motivos.set(motivo, (motivos.get(motivo) ?? 0) + 1);
+          }
+        }
+        const clase = clasificarAlCorte(historial, hasta);
+        if (clase.resultado === 'aprobado') aprobadosAhora += 1;
+        if (clase.resultado === 'pendiente_correccion') {
+          pendientesCorreccionAhora += 1;
+          rechazadosAlCierreAhora += 1;
+        }
+        if (clase.resultado === 'rechazado_al_cierre') rechazadosAlCierreAhora += 1;
+        if (clase.resultado === 'pendiente_revision_daf') pendientesRevisionDafAhora += 1;
+
+        return {
+          id: exp.id,
+          numeroExpediente: exp.numeroExpediente,
+          titulo: exp.titulo,
+          estado: exp.estado,
+          resultadoAlCorte: clase.resultado,
+          devoluciones: rechazos.length,
+          correcciones: correcciones.length,
+          aprobado: !!aprobacion,
+          fechaAprobacion: aprobacion?.fecha ? new Date(aprobacion.fecha).toISOString() : null,
+          trazabilidad: construirTrazabilidad(historial),
+        };
+      });
+
+      const trazabilidadSeleccionada = filtrarExpediente
+        ? (listaPorExpediente[0]?.trazabilidad ?? [])
+        : [];
+
+      const ultimoCierre = cierresMensuales[cierresMensuales.length - 1] ?? null;
+
+      res.json({
+        dias,
+        desde: desde.toISOString(),
+        hasta: hasta.toISOString(),
+        agrupacion,
+        alcance: {
+          modo: scope.alcance,
+          unidad: scope.unidadFiltro,
+          usuarioId: scope.usuarioFiltroId,
+          canViewUnidad: scope.canViewUnidad,
+          canPickUnidad: scope.canPickUnidad,
+        },
+        expedienteSeleccionado: filtrarExpediente ? expedienteId : null,
+        // —— Estadísticas GENERALES (foto / cierre) ——
+        general: {
+          resumen: {
+            total: expedientes.length,
+            aprobados: aprobadosAhora,
+            rechazadosAlCierre: rechazadosAlCierreAhora,
+            pendientesCorreccion: pendientesCorreccionAhora,
+            pendientesRevisionDaf: pendientesRevisionDafAhora,
+            // Compatibilidad con KPIs previos
+            enRevision: pendientesRevisionDafAhora,
+            rechazadosActuales: pendientesCorreccionAhora,
+          },
+          cierreMensual: cierresMensuales,
+          mesReferencia: ultimoCierre,
+        },
+        // —— Estadísticas POR EXPEDIENTE (ciclos, motivos, tiempos) ——
+        porExpediente: {
+          tiempos: {
+            ...tiempos,
+            // alias usados por la UI anterior
+            muestraPrimeraRespuesta: tiempos.muestraPrimeraRespuesta,
+            muestraCorreccion: tiempos.muestraCorreccion,
+            muestraCicloCompleto: tiempos.muestraCicloCompleto,
+          },
+          ciclos: [
+            { etiqueta: 'Sin devolución', cantidad: distribucionCiclos[0] },
+            { etiqueta: '1 devolución', cantidad: distribucionCiclos[1] },
+            { etiqueta: '2 devoluciones', cantidad: distribucionCiclos[2] },
+            { etiqueta: '3 o más', cantidad: distribucionCiclos[3] },
+          ],
+          motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
+          casos: filtrarExpediente ? listaPorExpediente : listaPorExpediente.slice(0, 50),
+          trazabilidad: trazabilidadSeleccionada,
+          totalesEventos: {
+            dictamenesRechazo: dictamenesRechazoTotal,
+            correcciones: correccionesTotales,
+          },
+        },
+        // Campos planos de compatibilidad temporal con la UI vigente
+        resumen: {
+          total: expedientes.length,
+          enRevision: pendientesRevisionDafAhora,
+          aprobados: aprobadosAhora,
+          rechazadosActuales: pendientesCorreccionAhora,
+          expedientesConDevolucion: listaPorExpediente.filter((c) => c.devoluciones > 0).length,
+          dictamenesRechazo: dictamenesRechazoTotal,
+          correccionesTotales,
+          tasaDevolucion: expedientes.length
+            ? (listaPorExpediente.filter((c) => c.devoluciones > 0).length / expedientes.length) * 100
+            : null,
+          aprobacionPrimerEnvio: null,
+          observacionesPromedio: null,
+          pendientesCorreccion: pendientesCorreccionAhora,
+          pendientesRevisionDaf: pendientesRevisionDafAhora,
+          rechazadosAlCierre: rechazadosAlCierreAhora,
+        },
+        tiempos: {
+          primeraRespuestaHoras: tiempos.primeraRespuestaHoras,
+          correccionHoras: tiempos.correccionHoras,
+          cicloCompletoHoras: tiempos.cicloCompletoHoras,
+          respuestaTrasReenvioHoras: tiempos.respuestaTrasReenvioHoras,
+          muestraPrimeraRespuesta: tiempos.muestraPrimeraRespuesta,
+          muestraCorreccion: tiempos.muestraCorreccion,
+          muestraCicloCompleto: tiempos.muestraCicloCompleto,
+          muestraRespuestaTrasReenvio: tiempos.muestraRespuestaTrasReenvio,
+        },
+        ciclos: [
+          { etiqueta: 'Sin devolución', cantidad: distribucionCiclos[0] },
+          { etiqueta: '1 devolución', cantidad: distribucionCiclos[1] },
+          { etiqueta: '2 devoluciones', cantidad: distribucionCiclos[2] },
+          { etiqueta: '3 o más', cantidad: distribucionCiclos[3] },
+        ],
+        motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
+        operadores: [],
+        tendencia: cierresMensuales.map((row) => ({
+          semana: `${row.mes}-01`,
+          enviados: row.activos,
+          conDevolucion: row.rechazadosAlCierre,
+          aprobados: row.aprobados,
+          pendientesCorreccion: row.pendientesCorreccion,
+          pendientesRevisionDaf: row.pendientesRevisionDaf,
+          primeraRespuestaHoras: null,
+        })),
+        cierreMensual: cierresMensuales,
+        trazabilidad: trazabilidadSeleccionada,
+      });
+    } catch (err: any) {
+      console.error('Error al obtener analítica de expedientes:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener analítica de expedientes.' });
+    }
+  });
+
+  // Análisis SIAF: cierre mensual, por caso y motivos (espejo de expedientes).
+  app.get('/api/estadisticas/daf-analitica', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos', 'ver-estadisticas-unidad']), async (req: Request, res: Response) => {
+    try {
+      const scopeResult = await resolveAnalyticsScope(req, AppDataSource.getRepository(User));
+      if (!scopeResult.ok) return res.status(scopeResult.status).json({ message: scopeResult.message });
+      const scope = scopeResult.scope;
+      if (!scope.ownerIds.length) {
+        return res.json({
+          dias: 0,
+          desde: new Date().toISOString(),
+          hasta: new Date().toISOString(),
+          general: {
+            resumen: { total: 0, aprobados: 0, rechazadosAlCierre: 0, pendientesCorreccion: 0, pendientesRevisionDaf: 0 },
+            cierreMensual: [],
+          },
+          porSiaf: {
+            tiempos: {
+              primeraRespuestaHoras: null, correccionHoras: null, respuestaTrasReenvioHoras: null, cicloCompletoHoras: null,
+              muestraPrimeraRespuesta: 0, muestraCorreccion: 0, muestraRespuestaTrasReenvio: 0, muestraCicloCompleto: 0,
+            },
+            ciclos: [],
+            motivos: [],
+            casos: [],
+            trazabilidad: [],
+          },
+          cierreMensual: [],
+          motivos: [],
+          trazabilidad: [],
+        });
+      }
+
+      const dias = Math.min(3650, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
+      const fechaConsulta = (valor: unknown, finDelDia = false) => {
+        if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+        const fecha = new Date(`${valor}T${finDelDia ? '23:59:59.999' : '00:00:00.000'}`);
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+      };
+      const hasta = fechaConsulta(req.query.hasta, true) ?? new Date();
+      const desde = fechaConsulta(req.query.desde) ?? new Date(hasta);
+      if (!fechaConsulta(req.query.desde)) desde.setDate(desde.getDate() - dias);
+      desde.setHours(0, 0, 0, 0);
+      if (desde.getTime() > hasta.getTime()) return res.status(400).json({ message: 'La fecha inicial no puede ser posterior a la fecha final.' });
+      const siafIdFiltro = parseInt(String(req.query.siafId || ''), 10);
+      const filtrarSiaf = Number.isInteger(siafIdFiltro) && siafIdFiltro > 0;
+      const siafRepo = AppDataSource.getRepository(SiafSolicitud);
+      const autRepo = AppDataSource.getRepository(SiafAutorizacion);
+      const bitacoraRepo = AppDataSource.getRepository(SiafBitacora);
+
+      if (filtrarSiaf) {
+        const siafDueño = await siafRepo.findOne({ where: { id: siafIdFiltro }, relations: ['usuarioSolicitante'] });
+        const ownerId = siafDueño?.usuarioSolicitante?.id;
+        if (!ownerId || !scope.ownerIds.includes(ownerId)) {
+          return res.status(403).json({ message: 'No tiene acceso a las estadísticas de ese SIAF.' });
+        }
+      }
+
+      const siafsBase = filtrarSiaf
+        ? await siafRepo.find({ where: { id: siafIdFiltro }, relations: ['usuarioSolicitante'] })
+        : await siafRepo
+          .createQueryBuilder('s')
+          .innerJoinAndSelect('s.usuarioSolicitante', 'sol')
+          .where('sol.id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .andWhere('(s.created_at BETWEEN :desde AND :hasta OR s.estado IN (:...abiertos))', {
+            desde,
+            hasta,
+            abiertos: ['pendiente', 'rechazado', 'borrador', 'finalizado'],
+          })
+          .getMany();
+
+      // Ampliar con SIAF que tuvieron decisión en el rango.
+      const autEnRango = filtrarSiaf
+        ? []
+        : await autRepo.createQueryBuilder('aut')
+          .innerJoinAndSelect('aut.siaf', 'siaf')
+          .innerJoin('siaf.usuarioSolicitante', 'sol')
+          .where('sol.id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .andWhere('aut.fecha_autorizacion BETWEEN :desde AND :hasta', { desde, hasta })
+          .getMany();
+
+      const ids = [...new Set([
+        ...siafsBase.map((s) => s.id),
+        ...autEnRango.map((a) => a.siaf?.id).filter(Boolean) as number[],
+      ])];
+      const siafs = ids.length
+        ? await siafRepo.find({ where: { id: In(ids) }, relations: ['usuarioSolicitante'] })
+        : [];
+
+      const autorizaciones = ids.length
+        ? await autRepo.createQueryBuilder('aut')
+          .innerJoinAndSelect('aut.siaf', 'siaf')
+          .leftJoinAndSelect('aut.usuarioAutorizador', 'operador')
+          .where('siaf.id IN (:...ids)', { ids })
+          .orderBy('aut.fecha_autorizacion', 'ASC')
+          .getMany()
+        : [];
+      const bitacora = ids.length
+        ? await bitacoraRepo.createQueryBuilder('b')
+          .innerJoinAndSelect('b.siaf', 'siaf')
+          .leftJoinAndSelect('b.usuario', 'usuario')
+          .where('siaf.id IN (:...ids)', { ids })
+          .orderBy('b.fecha', 'ASC')
+          .getMany()
+        : [];
+
+      const createdAtPorSiaf = new Map<number, Date>();
+      siafs.forEach((s) => createdAtPorSiaf.set(s.id, new Date(s.createdAt)));
+      const porSiaf = unificarEventosSiaf(autorizaciones, bitacora, createdAtPorSiaf);
+      const cierresMensuales = construirCierresMensualesSiaf(ids, porSiaf, desde, hasta);
+      const tiempos = promediarTiemposSiaf(porSiaf);
+
+      const motivos = new Map<string, number>();
+      const distribucionCiclos = [0, 0, 0, 0];
+      let pendientesCorreccionAhora = 0;
+      let pendientesRevisionDafAhora = 0;
+      let aprobadosAhora = 0;
+      let rechazadosAlCierreAhora = 0;
+
+      const listaPorSiaf = siafs.map((siaf) => {
+        const historial = porSiaf.get(siaf.id) ?? [];
+        const rechazos = historial.filter((e) => e.tipo === 'rechazo');
+        const aprobacion = historial.find((e) => e.tipo === 'aprobacion');
+        const correcciones = historial.filter((e) => e.tipo === 'correccion');
+        distribucionCiclos[Math.min(rechazos.length, 3)] += 1;
+        for (const rechazo of rechazos) {
+          for (const clave of rechazo.motivos ?? ['sin_clasificar']) {
+            const etiqueta = MOTIVOS_RECHAZO_ETIQUETAS[clave] ?? (clave === 'sin_clasificar' ? 'Sin clasificar' : 'Otro');
+            motivos.set(etiqueta, (motivos.get(etiqueta) ?? 0) + 1);
+          }
+        }
+        const clase = clasificarSiafAlCorte(historial, hasta);
+        if (clase.resultado === 'aprobado') aprobadosAhora += 1;
+        if (clase.resultado === 'pendiente_correccion') {
+          pendientesCorreccionAhora += 1;
+          rechazadosAlCierreAhora += 1;
+        }
+        if (clase.resultado === 'rechazado_al_cierre') rechazadosAlCierreAhora += 1;
+        if (clase.resultado === 'pendiente_revision_daf') pendientesRevisionDafAhora += 1;
+
+        return {
+          id: siaf.id,
+          correlativo: siaf.correlativo,
+          estado: siaf.estado,
+          resultadoAlCorte: clase.resultado,
+          devoluciones: rechazos.length,
+          correcciones: correcciones.length,
+          aprobado: !!aprobacion,
+          fechaAprobacion: aprobacion?.fecha ? new Date(aprobacion.fecha).toISOString() : null,
+          trazabilidad: construirTrazabilidadSiaf(historial),
+        };
+      });
+
+      res.json({
+        dias,
+        desde: desde.toISOString(),
+        hasta: hasta.toISOString(),
+        alcance: {
+          modo: scope.alcance,
+          unidad: scope.unidadFiltro,
+          usuarioId: scope.usuarioFiltroId,
+          canViewUnidad: scope.canViewUnidad,
+          canPickUnidad: scope.canPickUnidad,
+        },
+        siafSeleccionado: filtrarSiaf ? siafIdFiltro : null,
+        general: {
+          resumen: {
+            total: siafs.length,
+            aprobados: aprobadosAhora,
+            rechazadosAlCierre: rechazadosAlCierreAhora,
+            pendientesCorreccion: pendientesCorreccionAhora,
+            pendientesRevisionDaf: pendientesRevisionDafAhora,
+          },
+          cierreMensual: cierresMensuales,
+        },
+        porSiaf: {
+          tiempos,
+          ciclos: [
+            { etiqueta: 'Sin devolución', cantidad: distribucionCiclos[0] },
+            { etiqueta: '1 devolución', cantidad: distribucionCiclos[1] },
+            { etiqueta: '2 devoluciones', cantidad: distribucionCiclos[2] },
+            { etiqueta: '3 o más', cantidad: distribucionCiclos[3] },
+          ],
+          motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
+          casos: filtrarSiaf ? listaPorSiaf : listaPorSiaf.slice(0, 50),
+          trazabilidad: filtrarSiaf ? (listaPorSiaf[0]?.trazabilidad ?? []) : [],
+        },
+        cierreMensual: cierresMensuales,
+        motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
+        trazabilidad: filtrarSiaf ? (listaPorSiaf[0]?.trazabilidad ?? []) : [],
+      });
+    } catch (err: any) {
+      console.error('Error al obtener analítica SIAF:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener analítica SIAF.' });
+    }
+  });
+
   // Obtener solicitudes SIAF rechazadas (misma unidad que el usuario)
   app.get('/api/siaf/rechazadas', verifyToken, async (req: Request, res: Response) => {
     try {
@@ -3302,7 +4410,8 @@ runUserRolesMigration()
     return res.status(403).json({ message: 'El rechazo de SIAF lo realiza únicamente Dirección Departamental (rol revisar-siaf-direccion-departamental).' });
   });
 
-  // Autorizar (aprobar) SIAF por Dirección Departamental. Solo el rol revisar-siaf-direccion-departamental; SIAF debe estar pendiente y pertenecer al departamento del usuario.
+  // Dar visto bueno al SIAF por Dirección Departamental. La revisión lo deja finalizado,
+  // pero una edición posterior lo devolverá a borrador para que los cambios puedan revisarse de nuevo.
   app.post('/api/siaf/:id/aprobar-direccion-departamental', verifyToken, authorizeRoles(['super administrador', 'revisar-siaf-direccion-departamental']), async (req: Request, res: Response) => {
     try {
       const siafId = parseInt(req.params.id);
@@ -3319,22 +4428,22 @@ runUserRolesMigration()
       const siafRepo = AppDataSource.getRepository(SiafSolicitud);
       const siaf = await siafRepo.findOne({ where: { id: siafId }, relations: ['usuarioSolicitante'] });
       if (!siaf) return res.status(404).json({ message: 'Solicitud SIAF no encontrada.' });
-      if (siaf.estado !== 'pendiente') return res.status(400).json({ message: 'Solo se puede aprobar un SIAF en estado pendiente.' });
+      if (siaf.estado !== 'pendiente') return res.status(400).json({ message: 'Solo se puede revisar favorablemente un SIAF en estado pendiente.' });
       const perteneceAlDepto = nombresUnidad.includes(siaf.nombreUnidad) || (siaf.nombreUnidad && siaf.nombreUnidad.toLowerCase().includes(depto.toLowerCase()));
       if (!perteneceAlDepto) return res.status(403).json({ message: 'Este SIAF no corresponde a su departamento.' });
-      siaf.estado = 'autorizado';
+      siaf.estado = 'finalizado';
       siaf.aprobadoDireccionDepartamental = true;
       await siafRepo.save(siaf);
       const autRepo = AppDataSource.getRepository(SiafAutorizacion);
       const aut = autRepo.create({ siaf, usuarioAutorizador: user, accion: 'autorizado', comentario: undefined });
       await autRepo.save(aut);
       const bitacoraRepo = AppDataSource.getRepository(SiafBitacora);
-      const bitacora = bitacoraRepo.create({ siaf, tipo: 'aprobado_dd', usuario: user, comentario: 'Aprobado por Dirección Departamental para continuar con expediente.' });
+      const bitacora = bitacoraRepo.create({ siaf, tipo: 'aprobado_dd', usuario: user, comentario: 'Revisión favorable de Dirección Departamental. SIAF marcado como finalizado.' });
       await bitacoraRepo.save(bitacora);
       res.json(siaf);
     } catch (err: any) {
-      console.error('Error al aprobar SIAF por DD:', err);
-      res.status(500).json({ message: err?.message || 'Error al aprobar.' });
+      console.error('Error al revisar favorablemente SIAF por DD:', err);
+      res.status(500).json({ message: err?.message || 'Error al finalizar la revisión.' });
     }
   });
 
@@ -3364,19 +4473,38 @@ runUserRolesMigration()
           motivosRaw = undefined;
         }
       }
+      type MotivoConMarca = {
+        categoria: string;
+        descripcion: string;
+        pagina?: number | null;
+        xPercent?: number | null;
+        yPercent?: number | null;
+      };
+      let motivosConMarca: MotivoConMarca[] = [];
       if (Array.isArray(motivosRaw) && motivosRaw.length > 0) {
         const motivos = motivosRaw
           .filter((m: any) => m != null && (typeof m.descripcion === 'string' || typeof m.descripcion === 'number'))
-          .map((m: any) => ({
-            categoria: typeof m.categoria === 'string' && MOTIVOS_VALIDOS.includes(m.categoria.trim()) ? m.categoria.trim() : 'otro',
-            descripcion: String(m.descripcion ?? '').trim(),
-          }))
+          .map((m: any) => {
+            const pagina = m.pagina != null && !Number.isNaN(Number(m.pagina)) ? Number(m.pagina) : null;
+            const xPercent = m.xPercent != null && !Number.isNaN(Number(m.xPercent)) ? Number(m.xPercent) : null;
+            const yPercent = m.yPercent != null && !Number.isNaN(Number(m.yPercent)) ? Number(m.yPercent) : null;
+            return {
+              categoria: typeof m.categoria === 'string' && MOTIVOS_VALIDOS.includes(m.categoria.trim()) ? m.categoria.trim() : 'otro',
+              descripcion: String(m.descripcion ?? '').trim(),
+              pagina,
+              xPercent,
+              yPercent,
+            } as MotivoConMarca;
+          })
           .filter((m) => m.descripcion.length > 0);
         if (motivos.length === 0) return res.status(400).json({ message: 'Debe indicar al menos un motivo con descripción.' });
+        motivosConMarca = motivos;
         motivoRechazoPrimero = motivos[0].categoria;
         motivosRechazoJson = JSON.stringify(motivos.map((m) => m.categoria));
-        const lineas = motivos.map((m, i) => `${i + 1}) ${ETIQUETAS_MOTIVO[m.categoria] || m.categoria}: ${m.descripcion}`);
-        comentario = '[Dirección Departamental] Motivos de rechazo (esta revisión): ' + lineas.join(' | ');
+        const lineas = motivos.map((m, i) => {
+          return `${i + 1}) ${ETIQUETAS_MOTIVO[m.categoria] || m.categoria}: ${m.descripcion}`;
+        });
+        comentario = '[Dirección Departamental] Motivos de rechazo (esta revisión):\n' + lineas.join('\n');
       } else {
         const comentarioLegacy = typeof req.body?.comentario === 'string' ? req.body.comentario.trim() : '';
         if (!comentarioLegacy) return res.status(400).json({ message: 'Debe indicar al menos un motivo con descripción. Si envía varios, use el campo "motivos" (array con categoría y descripción).' });
@@ -3412,7 +4540,28 @@ runUserRolesMigration()
       });
       await autRepo.save(aut);
       const bitacoraRepo = AppDataSource.getRepository(SiafBitacora);
-      const bitacora = bitacoraRepo.create({ siaf, tipo: 'rechazo', usuario: user, comentario });
+      const conPosicion = motivosConMarca.filter(
+        (m) => m.pagina != null && m.xPercent != null && m.yPercent != null
+      );
+      const detalleMarcadores =
+        conPosicion.length > 0
+          ? JSON.stringify({
+              marcadores: conPosicion.map((m) => ({
+                categoria: m.categoria,
+                descripcion: m.descripcion,
+                pagina: m.pagina ?? null,
+                xPercent: m.xPercent ?? null,
+                yPercent: m.yPercent ?? null,
+              })),
+            })
+          : undefined;
+      const bitacora = bitacoraRepo.create({
+        siaf,
+        tipo: 'rechazo',
+        usuario: user,
+        comentario,
+        ...(detalleMarcadores ? { detalleAntes: detalleMarcadores } : {}),
+      });
       await bitacoraRepo.save(bitacora);
       res.json(siaf);
     } catch (err: any) {
@@ -3484,7 +4633,8 @@ runUserRolesMigration()
     return { detalleAntes, detalleDespues };
   }
 
-  // Actualizar una solicitud SIAF (corregir); si estaba rechazada, vuelve a pendiente y se registra en bitácora
+  // Actualizar una solicitud SIAF: cualquier edición la devuelve a borrador.
+  // Si existió rechazo, además registra el detalle de la corrección en bitácora.
   app.put('/api/siaf/:id', verifyToken, async (req: Request, res: Response) => {
     try {
       const siafId = parseInt(req.params.id);
@@ -3498,9 +4648,10 @@ runUserRolesMigration()
       });
       if (!solicitud) return res.status(404).json({ message: 'Solicitud SIAF no encontrada.' });
       if (solicitud.usuarioSolicitante?.id !== userId) return res.status(403).json({ message: 'Solo el solicitante puede editar esta solicitud.' });
+      const estadoAntesDeEditar = solicitud.estado;
       const tieneAlgunRechazo = (solicitud.autorizaciones || []).some((a: any) => a.accion === 'rechazado');
-      const estabaRechazada = solicitud.estado === 'rechazado' || tieneAlgunRechazo;
-      console.log('[SIAF] PUT corrección', { siafId, estado: solicitud.estado, tieneAlgunRechazo, estabaRechazada, numAutorizaciones: (solicitud.autorizaciones || []).length });
+      const registrarCorreccion = estadoAntesDeEditar !== 'borrador';
+      console.log('[SIAF] PUT corrección', { siafId, estado: solicitud.estado, tieneAlgunRechazo, registrarCorreccion, numAutorizaciones: (solicitud.autorizaciones || []).length });
       const body = req.body;
       if (Array.isArray(body.items)) {
         const itemsResueltos = await resolverItemsSiafDesdeCatalogo(body.items);
@@ -3510,9 +4661,9 @@ runUserRolesMigration()
         body.items = itemsResueltos.items;
       }
 
-      // Solo cuando el SIAF estaba rechazado se captura el estado anterior para el diff y se registra la corrección en bitácora.
-      // Si el usuario solo modifica un SIAF pendiente (sin rechazo previo), no se crea ninguna entrada en la bitácora.
-      const oldState = estabaRechazada ? {
+      // Si ya había salido de borrador, se registra el cambio para que una revisión
+      // posterior deje claro qué se modificó respecto de la versión anterior.
+      const oldState = registrarCorreccion ? {
         justificacion: solicitud.justificacion ?? '',
         direccion: solicitud.direccion ?? '',
         consistenteItem: (solicitud.consistenteItem ?? '').toString(),
@@ -3572,11 +4723,16 @@ runUserRolesMigration()
           return sub;
         });
       }
-      if (estabaRechazada) solicitud.estado = 'pendiente';
+      // Toda edición invalida el cierre o visto bueno anterior. El usuario decide si
+      // vuelve a finalizarlo directamente o si lo envía otra vez a revisión.
+      if (estadoAntesDeEditar !== 'borrador') {
+        solicitud.estado = 'borrador';
+        solicitud.aprobadoDireccionDepartamental = false;
+      }
       await siafRepo.save(solicitud);
 
       let bitacoraTrasCorreccion: any[] | null = null;
-      if (estabaRechazada) {
+      if (registrarCorreccion) {
         const newState = {
           justificacion: (body.justificacion ?? solicitud.justificacion ?? '').toString(),
           direccion: (body.direccion ?? solicitud.direccion ?? '').toString(),
@@ -3652,6 +4808,72 @@ runUserRolesMigration()
     } catch (error) {
       console.error('Error al actualizar SIAF:', error);
       res.status(500).json({ message: 'Error en el servidor.' });
+    }
+  });
+
+  // Enviar un SIAF en borrador a revisión de Dirección Departamental (acción opcional del solicitante)
+  app.post('/api/siaf/:id/enviar-revision', verifyToken, async (req: Request, res: Response) => {
+    try {
+      const siafId = parseInt(req.params.id);
+      if (isNaN(siafId)) return res.status(400).json({ message: 'ID de solicitud inválido.' });
+      const userId = (req as any).user.userId;
+      const siafRepo = AppDataSource.getRepository(SiafSolicitud);
+      const solicitud = await siafRepo.findOne({
+        where: { id: siafId },
+        relations: ['usuarioSolicitante'],
+      });
+      if (!solicitud) return res.status(404).json({ message: 'Solicitud SIAF no encontrada.' });
+      if (solicitud.usuarioSolicitante?.id !== userId) {
+        return res.status(403).json({ message: 'Solo el solicitante puede enviar esta solicitud a revisión.' });
+      }
+      if (solicitud.estado !== 'borrador') {
+        return res.status(400).json({ message: 'Solo un SIAF en borrador puede enviarse a revisión.' });
+      }
+
+      solicitud.estado = 'pendiente';
+      await siafRepo.save(solicitud);
+
+      res.json({
+        message: 'Solicitud SIAF enviada a revisión.',
+        id: solicitud.id,
+        estado: solicitud.estado,
+      });
+    } catch (error) {
+      console.error('Error al enviar SIAF a revisión:', error);
+      res.status(500).json({ message: 'Error en el servidor al enviar a revisión.' });
+    }
+  });
+
+  // Finalizar un SIAF en borrador sin pasar por Dirección Departamental
+  app.post('/api/siaf/:id/finalizar', verifyToken, async (req: Request, res: Response) => {
+    try {
+      const siafId = parseInt(req.params.id);
+      if (isNaN(siafId)) return res.status(400).json({ message: 'ID de solicitud inválido.' });
+      const userId = (req as any).user.userId;
+      const siafRepo = AppDataSource.getRepository(SiafSolicitud);
+      const solicitud = await siafRepo.findOne({
+        where: { id: siafId },
+        relations: ['usuarioSolicitante'],
+      });
+      if (!solicitud) return res.status(404).json({ message: 'Solicitud SIAF no encontrada.' });
+      if (solicitud.usuarioSolicitante?.id !== userId) {
+        return res.status(403).json({ message: 'Solo el solicitante puede finalizar esta solicitud.' });
+      }
+      if (solicitud.estado !== 'borrador') {
+        return res.status(400).json({ message: 'Solo un SIAF en borrador puede marcarse como finalizado.' });
+      }
+
+      solicitud.estado = 'finalizado';
+      await siafRepo.save(solicitud);
+
+      res.json({
+        message: 'Solicitud SIAF marcada como finalizada.',
+        id: solicitud.id,
+        estado: solicitud.estado,
+      });
+    } catch (error) {
+      console.error('Error al finalizar SIAF:', error);
+      res.status(500).json({ message: 'Error en el servidor al finalizar el SIAF.' });
     }
   });
 

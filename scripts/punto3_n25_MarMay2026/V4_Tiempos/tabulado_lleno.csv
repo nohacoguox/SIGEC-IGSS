@@ -1,0 +1,26 @@
+﻿ID_caso,Numero_SIAF,Numero_Orden_Compra_SIGES,Tipo_tramite,Fecha_inicio,Fecha_puesta_revision_DAF,Fecha_primera_resolucion_DAF,Fecha_aprobacion_DAF,Dias_habiles_ciclo_total,Dias_habiles_primera_respuesta_DAF,Fuente_datos,Observaciones_registro
+LB-01,SIAF-44-2026,224949,Servicio,06/05/2026,18/05/2026,21/05/2026,27/05/2026,16,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Palabras/descripcion SIAF
+LB-02,SIAF-64-2026,228457,Servicio,05/03/2026,17/03/2026,19/03/2026,25/03/2026,15,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Servicio: redaccion objetada
+LB-03,SIAF-60-2026,216400,Insumos,14/04/2026,21/04/2026,23/04/2026,28/04/2026,11,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Cotizacion; mismo mes
+LB-04,SIAF-76-2026,218719,Servicio,09/03/2026,20/03/2026,25/03/2026,23/04/2026,34,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Servicio; paso a abril
+LB-05,SIAF-17-2026,226478,Insumos,12/05/2026,20/05/2026,22/05/2026,27/05/2026,12,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Correccion menor; mismo mes
+LB-06,SIAF-43-2026,217790,Servicio,10/04/2026,20/04/2026,23/04/2026,25/05/2026,32,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Rechazo; reingreso en mayo
+LB-07,SIAF-89-2026,226006,Servicio,06/04/2026,17/04/2026,22/04/2026,28/04/2026,17,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Descripcion SIAF ajustada
+LB-08,SIAF-75-2026,211599,Servicio,12/05/2026,22/05/2026,27/05/2026,25/06/2026,33,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Mala produccion; pendiente junio
+LB-09,SIAF-14-2026,211240,Activo fijo,14/05/2026,21/05/2026,25/05/2026,25/05/2026,8,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Sin observaciones
+LB-10,SIAF-81-2026,213642,Servicio,08/05/2026,18/05/2026,21/05/2026,25/06/2026,35,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Varias vueltas; paso a junio
+LB-11,SIAF-86-2026,227073,Insumos,12/03/2026,21/03/2026,25/03/2026,30/03/2026,13,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Falta anexo; mismo mes
+LB-12,SIAF-83-2026,213258,Activo fijo,10/04/2026,20/04/2026,23/04/2026,23/04/2026,10,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Aprobado primer analisis
+LB-13,SIAF-16-2026,220789,Activo fijo,12/03/2026,19/03/2026,23/03/2026,23/03/2026,8,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Aprobado primer analisis
+LB-14,SIAF-59-2026,220082,Servicio,07/04/2026,16/04/2026,21/04/2026,27/04/2026,15,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Justificacion reelaborada
+LB-15,SIAF-28-2026,227374,Insumos,10/04/2026,22/04/2026,24/04/2026,29/04/2026,14,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Soporte incompleto
+LB-16,SIAF-65-2026,210874,Insumos,12/05/2026,18/05/2026,20/05/2026,20/05/2026,7,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Sin devoluciones
+LB-17,SIAF-23-2026,216669,Insumos,07/04/2026,16/04/2026,20/04/2026,20/04/2026,10,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Sin devoluciones
+LB-18,SIAF-61-2026,213001,Insumos,13/03/2026,22/03/2026,25/03/2026,25/03/2026,9,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Sin observaciones
+LB-19,SIAF-25-2026,220077,Servicio,08/05/2026,20/05/2026,25/05/2026,29/05/2026,16,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Servicio: ajuste justificacion
+LB-20,SIAF-52-2026,221606,Insumos,08/05/2026,18/05/2026,21/05/2026,26/05/2026,13,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Documento de soporte
+LB-21,SIAF-92-2026,223400,Insumos,14/04/2026,20/04/2026,22/04/2026,22/04/2026,7,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Sin observaciones
+LB-22,SIAF-68-2026,225406,Insumos,11/05/2026,19/05/2026,21/05/2026,26/05/2026,12,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Anexo; mismo mes
+LB-23,SIAF-50-2026,211053,Activo fijo,12/03/2026,18/03/2026,20/03/2026,25/03/2026,10,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Especificacion incompleta
+LB-24,SIAF-79-2026,220441,Servicio,06/03/2026,18/03/2026,23/03/2026,27/03/2026,16,3,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Servicio: justificacion SIAF
+LB-25,SIAF-29-2026,221554,Insumos,09/03/2026,17/03/2026,19/03/2026,24/03/2026,12,2,OC SIGES (envio fisico 16-22; muestra Mar-May 2026),Observacion menor; mismo mes

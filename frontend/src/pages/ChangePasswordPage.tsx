@@ -113,7 +113,7 @@ function ChangePasswordPage() {
           permissions.includes('revisar-expediente-direccion-departamental');
         if (isAdmin) navigate('/admin-dashboard');
         else if (isColaborador) navigate('/colaborador-dashboard');
-        else navigate('/');
+        else navigate('/inicio');
       }, 2000);
     } catch (error: any) {
       const msg = error.response?.data?.message;

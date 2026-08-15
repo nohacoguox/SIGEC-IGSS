@@ -61,7 +61,7 @@ export class SiafSolicitud {
   consistenteItem: string;
 
   @Column({ type: 'varchar', length: 20, default: 'pendiente' })
-  estado: string; // pendiente, autorizado, rechazado
+  estado: string; // borrador, pendiente, finalizado, autorizado, rechazado
 
   /** True cuando Dirección Departamental dio el OK final (para crear expediente). */
   @Column({ type: 'boolean', default: false, name: 'aprobado_direccion_departamental' })

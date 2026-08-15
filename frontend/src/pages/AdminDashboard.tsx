@@ -88,9 +88,10 @@ const AdminDashboard: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userRoles');
     localStorage.removeItem('userName');
     localStorage.removeItem('permissions');
-    navigate('/');
+    navigate('/login');
   };
 
   const menuItems = [

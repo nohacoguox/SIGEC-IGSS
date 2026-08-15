@@ -1,6 +1,6 @@
 /**
  * Visor PDF con PDF.js (Mozilla): detecta página y posición exacta del clic
- * para marcar rechazos y mostrar el pin en "Ver marca" en el mismo punto.
+ * para marcar correcciones/rechazos y mostrar pins en el mismo punto.
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Box, Typography } from '@mui/material';
@@ -18,6 +18,10 @@ export type PdfMarker = {
   pageNumber: number;
   xPercent: number;
   yPercent: number;
+  /** Número o texto visible en el pin (ej. 1, 2, 3) */
+  label?: string | number;
+  /** Resalta el pin seleccionado */
+  active?: boolean;
 };
 
 type PdfViewerWithClickProps = {
@@ -25,11 +29,15 @@ type PdfViewerWithClickProps = {
   fileUrl: string;
   /** Si true, habilita clic derecho para señalar (onContextMenuOnPage se llamará) */
   enableContextMenu?: boolean;
+  /** Si true, habilita clic izquierdo para colocar marca (onClickOnPage) */
+  enableClickMark?: boolean;
   /** Callback: (pageNumber, xPercent, yPercent, event) respecto a la página donde hizo clic */
   onContextMenuOnPage?: (pageNumber: number, xPercent: number, yPercent: number, event: React.MouseEvent) => void;
+  /** Callback de clic izquierdo en modo marcar */
+  onClickOnPage?: (pageNumber: number, xPercent: number, yPercent: number, event: React.MouseEvent) => void;
   /** Marca opcional: muestra un pin en esta página en esta posición (para "Ver marca") */
   marker?: PdfMarker | null;
-  /** Varias marcas: muestra un pin por cada una (para que el analista vea dónde señaló cada error) */
+  /** Varias marcas: muestra un pin por cada una */
   markers?: PdfMarker[] | null;
   /** Clase o estilos del contenedor */
   className?: string;
@@ -43,10 +51,26 @@ type PdfViewerWithClickProps = {
 
 const BASE_SCALE = 1.5;
 
+function buildPinHtml(m: PdfMarker): string {
+  const label = m.label != null && String(m.label).length > 0 ? String(m.label) : '';
+  const ring = m.active
+    ? 'box-shadow: 0 0 0 3px rgba(211,47,47,0.35), 0 2px 8px rgba(0,0,0,0.35);'
+    : 'box-shadow: 0 2px 6px rgba(0,0,0,0.35);';
+  if (label) {
+    return `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+      <div style="width:28px;height:28px;border-radius:50%;background:#c62828;color:#fff;font:700 13px/28px system-ui,sans-serif;text-align:center;border:2px solid #fff;${ring}">${label}</div>
+      <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #c62828;margin-top:-1px;"></div>
+    </div>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));"><path fill="${m.active ? '#b71c1c' : '#d32f2f'}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>`;
+}
+
 export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
   fileUrl,
   enableContextMenu = false,
+  enableClickMark = false,
   onContextMenuOnPage,
+  onClickOnPage,
   marker = null,
   markers = null,
   className,
@@ -60,6 +84,16 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const renderingRef = useRef(false);
 
+  const resolveClickOnPage = useCallback((e: React.MouseEvent) => {
+    const pageEl = (e.target as HTMLElement).closest('[data-page-number]') as HTMLElement | null;
+    if (!pageEl) return null;
+    const pageNumber = parseInt(pageEl.getAttribute('data-page-number') || '1', 10);
+    const rect = pageEl.getBoundingClientRect();
+    const xPercent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const yPercent = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    return { pageNumber, xPercent, yPercent };
+  }, []);
+
   const loadPdf = useCallback(async () => {
     if (!fileUrl) return;
     setLoading(true);
@@ -67,8 +101,7 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
     try {
       const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
       const pdf = await loadingTask.promise;
-      const n = pdf.numPages;
-      setNumPages(n);
+      setNumPages(pdf.numPages);
     } catch (e: any) {
       setError(e?.message || 'Error al cargar el PDF.');
       setNumPages(0);
@@ -86,15 +119,24 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
       if (!enableContextMenu || !onContextMenuOnPage) return;
       e.preventDefault();
       e.stopPropagation();
-      const pageEl = (e.target as HTMLElement).closest('[data-page-number]') as HTMLElement | null;
-      if (!pageEl) return;
-      const pageNumber = parseInt(pageEl.getAttribute('data-page-number') || '1', 10);
-      const rect = pageEl.getBoundingClientRect();
-      const xPercent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-      const yPercent = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      onContextMenuOnPage(pageNumber, xPercent, yPercent, e);
+      const pos = resolveClickOnPage(e);
+      if (!pos) return;
+      onContextMenuOnPage(pos.pageNumber, pos.xPercent, pos.yPercent, e);
     },
-    [enableContextMenu, onContextMenuOnPage]
+    [enableContextMenu, onContextMenuOnPage, resolveClickOnPage]
+  );
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!enableClickMark || !onClickOnPage) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = resolveClickOnPage(e);
+      if (!pos) return;
+      onClickOnPage(pos.pageNumber, pos.xPercent, pos.yPercent, e);
+    },
+    [enableClickMark, onClickOnPage, resolveClickOnPage]
   );
 
   const pagesToRender = (() => {
@@ -118,14 +160,14 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
     const run = async () => {
       try {
         const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
-        const pdf = await loadingTask.promise;
+        const pdfDoc = await loadingTask.promise;
         const container = containerRef.current;
         if (!container || cancelled) return;
 
         const outputScale = window.devicePixelRatio || 1;
 
         for (const pageNum of pagesToRender) {
-          const page = await pdf.getPage(pageNum);
+          const page = await pdfDoc.getPage(pageNum);
           if (cancelled) return;
           const viewport = page.getViewport({ scale: BASE_SCALE * zoom });
           const wrapper = document.createElement('div');
@@ -134,7 +176,8 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
           wrapper.style.marginBottom = '16px';
           wrapper.style.display = 'inline-block';
           wrapper.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
-          if (enableContextMenu) wrapper.style.cursor = 'context-menu';
+          if (enableClickMark) wrapper.style.cursor = 'crosshair';
+          else if (enableContextMenu) wrapper.style.cursor = 'context-menu';
 
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
@@ -162,14 +205,14 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
               : [];
           pinsOnThisPage.forEach((m) => {
             const pin = document.createElement('div');
-            pin.setAttribute('aria-label', 'Marca de rechazo');
+            pin.setAttribute('aria-label', m.label != null ? `Marca ${m.label}` : 'Marca de corrección');
             pin.style.position = 'absolute';
             pin.style.left = `${m.xPercent}%`;
             pin.style.top = `${m.yPercent}%`;
             pin.style.transform = 'translate(-50%, -100%)';
             pin.style.pointerEvents = 'none';
-            pin.style.zIndex = '10';
-            pin.innerHTML = `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));"><path fill="#d32f2f" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>`;
+            pin.style.zIndex = m.active ? '12' : '10';
+            pin.innerHTML = buildPinHtml(m);
             wrapper.appendChild(pin);
           });
 
@@ -190,16 +233,18 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
         while (container.firstChild) container.removeChild(container.firstChild);
       }
     };
-  }, [fileUrl, numPages, pagesToRender.join(','), marker?.pageNumber, marker?.xPercent, marker?.yPercent, (markers ?? []).map((m) => `${m.pageNumber}-${m.xPercent}-${m.yPercent}`).join(','), zoom]);
+  }, [fileUrl, numPages, pagesToRender.join(','), marker?.pageNumber, marker?.xPercent, marker?.yPercent, marker?.label, marker?.active, (markers ?? []).map((m) => `${m.pageNumber}-${m.xPercent}-${m.yPercent}-${m.label ?? ''}-${m.active ? 1 : 0}`).join(','), zoom]);
 
-  // Actualizar solo el cursor al activar/desactivar clic derecho, sin volver a renderizar el PDF
   useEffect(() => {
     if (!containerRef.current) return;
     const wrappers = containerRef.current.querySelectorAll('[data-page-number]');
     wrappers.forEach((el) => {
-      (el as HTMLElement).style.cursor = enableContextMenu ? 'context-menu' : 'default';
+      const node = el as HTMLElement;
+      if (enableClickMark) node.style.cursor = 'crosshair';
+      else if (enableContextMenu) node.style.cursor = 'context-menu';
+      else node.style.cursor = 'default';
     });
-  }, [enableContextMenu]);
+  }, [enableContextMenu, enableClickMark]);
 
   if (loading) {
     return (
@@ -230,15 +275,19 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
       ref={containerRef}
       className={className}
       sx={{
+        height: '100%',
         minHeight,
+        maxHeight: '100%',
         overflow: 'auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: 2,
         bgcolor: 'grey.100',
+        boxSizing: 'border-box',
       }}
       onContextMenu={enableContextMenu ? handleContextMenu : undefined}
+      onClick={enableClickMark ? handleClick : undefined}
     />
   );
 };

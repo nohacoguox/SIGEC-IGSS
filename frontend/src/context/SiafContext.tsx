@@ -39,8 +39,10 @@ export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         backendId: siaf.id,
         date: formatFechaDMA(siaf.fecha),
         unit: siaf.nombreUnidad,
-        status: siaf.estado === 'pendiente' ? 'En Revisión' :
-                siaf.estado === 'autorizado' ? 'Aprobado' : 'Rechazado',
+        status: siaf.estado === 'borrador' ? 'Borrador' :
+                siaf.estado === 'pendiente' ? 'En Revisión' :
+                siaf.estado === 'finalizado' ? 'Finalizado' :
+                siaf.estado === 'autorizado' ? 'Finalizado' : 'Rechazado',
         documentCount: (siaf.documentosAdjuntos || []).length,
         ultimoRechazo: siaf.ultimoRechazo || undefined,
         formData: {
@@ -82,7 +84,7 @@ export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       backendId: backendId ?? 0,
       date: formatFechaDMA(newSiafFormData.fecha),
       unit: newSiafFormData.nombreUnidad,
-      status: 'En Revisión',
+      status: 'Borrador',
       documentCount: 0,
       formData: newSiafFormData,
     };

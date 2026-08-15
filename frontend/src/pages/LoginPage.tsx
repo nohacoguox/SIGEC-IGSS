@@ -155,7 +155,7 @@ function LoginPage() {
         setSnackbarSeverity('error');
         setSnackbarOpen(true);
       } else {
-        navigate('/');
+        navigate('/inicio');
       }
     } catch (error: any) {
       if (error.response && error.response.status === 401) {

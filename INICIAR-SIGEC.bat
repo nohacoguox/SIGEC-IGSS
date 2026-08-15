@@ -1,14 +1,11 @@
 @echo off
-chcp 65001 >nul
-setlocal EnableDelayedExpansion
-
-:: SIGEC-IGSS — levantar backend + frontend (doble clic en Windows)
+setlocal EnableExtensions
 cd /d "%~dp0"
-title SIGEC-IGSS — Inicio
+title SIGEC-IGSS
 
 echo.
 echo  ============================================
-echo   SIGEC-IGSS — Sistema de Gestion IGSS
+echo   SIGEC-IGSS - Sistema de Gestion IGSS
 echo  ============================================
 echo.
 
@@ -27,7 +24,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
-:: PostgreSQL
+echo [OK] Node.js y npm encontrados
+
+:: PostgreSQL (opcional)
 where pg_isready >nul 2>&1
 if not errorlevel 1 (
   pg_isready -h localhost -p 5432 >nul 2>&1
@@ -35,15 +34,13 @@ if not errorlevel 1 (
     echo [AVISO] PostgreSQL no responde en localhost:5432.
     echo         Inicie el servicio PostgreSQL antes de continuar.
     echo.
-    pause
   ) else (
     echo [OK] PostgreSQL activo en localhost:5432
   )
 ) else (
-  echo [AVISO] pg_isready no encontrado; no se pudo verificar PostgreSQL.
+  echo [AVISO] pg_isready no encontrado; no se verifico PostgreSQL.
 )
 
-:: backend/.env
 if not exist "backend\.env" (
   echo.
   echo [ERROR] Falta backend\.env
@@ -53,7 +50,6 @@ if not exist "backend\.env" (
 )
 echo [OK] backend\.env encontrado
 
-:: Dependencias
 if not exist "backend\node_modules" (
   echo.
   echo Instalando dependencias del backend...
@@ -83,22 +79,38 @@ if not exist "frontend\node_modules" (
 )
 
 echo.
-echo Iniciando servicios...
+echo Liberando puertos 3001 y 3003 si estan ocupados...
+for %%P in (3001 3003) do (
+  for /f "tokens=5" %%A in ('netstat -ano ^| findstr ":%%P " ^| findstr "LISTENING"') do (
+    if not "%%A"=="" if not "%%A"=="0" (
+      echo   Puerto %%P ocupado por PID %%A - cerrando...
+      taskkill /F /PID %%A >nul 2>&1
+    )
+  )
+)
+timeout /t 2 /nobreak >nul
+
+echo.
+echo Iniciando servicios en segundo plano...
 echo   Backend  -^> http://localhost:3001
 echo   Frontend -^> http://localhost:3003
 echo.
-echo Se abriran dos ventanas (backend y frontend).
-echo Cierre esas ventanas para detener los servicios.
+echo Backend y frontend se abren minimizados.
+echo Puede restaurarlos desde la barra de tareas si necesita ver logs.
 echo.
 
-start "SIGEC-IGSS Backend" cmd /k "cd /d "%~dp0backend" & npm run dev"
+:: /D fija el directorio sin comillas anidadas (evita romper paths con guiones)
+start "SIGEC-Backend" /min /D "%~dp0backend" cmd /k "npm run dev"
 timeout /t 4 /nobreak >nul
-start "SIGEC-IGSS Frontend" cmd /k "cd /d "%~dp0frontend" & npm start"
+start "SIGEC-Frontend" /min /D "%~dp0frontend" cmd /k "npm start"
 timeout /t 8 /nobreak >nul
-start "" "http://localhost:3003"
+start "" "http://localhost:3003/login"
 
 echo.
-echo Listo. Si el navegador no abre, vaya a http://localhost:3003
-echo Login de prueba: codigo admin / contrasena segun su BD.
+echo Listo. Si el navegador no abre, vaya a:
+echo   http://localhost:3003/login
+echo.
+echo Para detener: cierre las ventanas minimizadas SIGEC-Backend y SIGEC-Frontend.
 echo.
 pause
+endlocal

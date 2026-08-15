@@ -28,6 +28,20 @@ export class FileStorageService {
   }
 
   /**
+   * Convierte un identificador en nombre de archivo seguro.
+   * El correlativo usa formato "número/año", y la barra se interpretaría como subdirectorio.
+   */
+  private sanitizeFileName(valor: string): string {
+    const limpio = String(valor ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+    return limpio || 'sin-correlativo';
+  }
+
+  /**
    * Guarda un archivo PDF de SIAF
    * @param pdfBuffer Buffer del PDF generado
    * @param correlativo Correlativo de la solicitud SIAF
@@ -45,8 +59,8 @@ export class FileStorageService {
     const siafDir = path.join(this.uploadDir, 'siaf', String(year), month);
     this.ensureDirectoryExists(siafDir);
 
-    // Nombre del archivo: SIAF-001-2024.pdf
-    const fileName = `${correlativo}.pdf`;
+    // Nombre del archivo: SIAF-1-2026.pdf (el correlativo viene como "1/2026")
+    const fileName = `SIAF-${this.sanitizeFileName(correlativo)}.pdf`;
     const fullPath = path.join(siafDir, fileName);
 
     // Guardar el archivo
@@ -125,7 +139,8 @@ export class FileStorageService {
     size: number;
   }> {
     // Crear estructura de directorios: uploads/expedientes/EXP-001/
-    const expedienteDir = path.join(this.uploadDir, 'expedientes', numeroExpediente);
+    const carpetaExpediente = this.sanitizeFileName(numeroExpediente);
+    const expedienteDir = path.join(this.uploadDir, 'expedientes', carpetaExpediente);
     this.ensureDirectoryExists(expedienteDir);
 
     // Generar nombre único para evitar colisiones
@@ -143,7 +158,7 @@ export class FileStorageService {
     const hash = this.generateHash(fileBuffer);
 
     // Ruta relativa
-    const relativePath = path.join('expedientes', numeroExpediente, uniqueFileName);
+    const relativePath = path.join('expedientes', carpetaExpediente, uniqueFileName);
 
     return {
       filePath: relativePath,
@@ -198,7 +213,7 @@ export class FileStorageService {
    * @returns Array de nombres de archivos
    */
   async listExpedienteFiles(numeroExpediente: string): Promise<string[]> {
-    const expedienteDir = path.join(this.uploadDir, 'expedientes', numeroExpediente);
+    const expedienteDir = path.join(this.uploadDir, 'expedientes', this.sanitizeFileName(numeroExpediente));
     
     if (!fs.existsSync(expedienteDir)) {
       return [];

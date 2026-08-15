@@ -23,12 +23,12 @@ export const APP_SCREENS: AppScreenDefinition[] = [
   { key: 'listado-siaf', permission: 'listado-siaf', label: 'Listado de SIAF', panel: 'colaborador', group: 'Libro SIAF', description: 'Consultar el listado de solicitudes SIAF' },
   { key: 'crear-siaf', permission: 'crear-siaf', label: 'Crear SIAF', panel: 'colaborador', group: 'Libro SIAF', description: 'Crear y corregir solicitudes SIAF' },
   { key: 'autorizar-siaf', permission: 'autorizar-siaf', label: 'Autorizar SIAF', panel: 'colaborador', description: 'Autorizar solicitudes SIAF pendientes' },
-  { key: 'revisar-siaf-direccion-departamental', permission: 'revisar-siaf-direccion-departamental', label: 'Revisión Dirección Departamental', panel: 'colaborador', description: 'Revisión y aprobación final SIAF por Dirección Departamental' },
+  { key: 'revisar-siaf-direccion-departamental', permission: 'revisar-siaf-direccion-departamental', label: 'Bandeja de Revisiones DAF — SIAF', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisión y aprobación de SIAF por el analista DAF' },
   { key: 'actualizar-codigos-productos', permission: 'actualizar-codigos-productos', label: 'Actualización de Códigos y Productos', panel: 'colaborador', description: 'Actualizar catálogo de códigos y productos (Excel)' },
-  { key: 'estadisticas-tiempos', permission: 'estadisticas-tiempos', label: 'Tiempos SIAF', panel: 'colaborador', group: 'Estadísticas', description: 'Estadísticas de tiempos de revisión, autorización y corrección' },
-  { key: 'estadisticas-motivos', permission: 'estadisticas-motivos', label: 'Motivos de rechazo', panel: 'colaborador', group: 'Estadísticas', description: 'Estadísticas de motivos de rechazo SIAF' },
-  { key: 'crear-expediente', permission: 'crear-expediente', label: 'Creación de Expediente', panel: 'colaborador', description: 'Crear y administrar expedientes de compras' },
-  { key: 'revisar-expediente-direccion-departamental', permission: 'revisar-expediente-direccion-departamental', label: 'Revisión Expedientes (DD)', panel: 'colaborador', description: 'Revisar, aprobar o rechazar expedientes en Dirección Departamental' },
+  { key: 'estadisticas-tiempos', permission: 'estadisticas-tiempos', label: 'Análisis SIAF', panel: 'colaborador', group: 'Estadísticas', description: 'Análisis SIAF: cierre mensual, trazabilidad y motivos de rechazo' },
+  { key: 'ver-estadisticas-unidad', permission: 'ver-estadisticas-unidad', label: 'Estadísticas de mi unidad', panel: 'colaborador', group: 'Estadísticas', description: 'Directores y jefes: actividad de toda la unidad y filtro por colaborador' },
+  { key: 'crear-expediente', permission: 'crear-expediente', label: 'Expedientes de Compras', panel: 'colaborador', description: 'Crear y administrar expedientes de compras' },
+  { key: 'revisar-expediente-direccion-departamental', permission: 'revisar-expediente-direccion-departamental', label: 'Bandeja de Revisiones DAF — Expedientes', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisar, aprobar o rechazar expedientes como analista DAF' },
 ];
 
 /** Permisos legacy que otorgan acceso equivalente */

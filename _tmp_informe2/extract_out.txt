@@ -1,0 +1,465 @@
+=== COMMENT -> ANCHOR TEXT ===
+ID=0
+ANCHOR: Código MINEDUC del establecimiento (JV):
+COMMENT: Solicitarlo a Instituto. 
+
+ID=1
+ANCHOR: Quiénes impulsaron la creación (fundadores / actores):
+COMMENT: Solicitar al Instituto.
+
+ID=2
+ANCHOR: Año exacto de fundación (si se confirma en entrevista):
+COMMENT: Solicitar al Instituto. 
+
+ID=3
+ANCHOR: ¿Ha cambiado de nombre o figura legal?
+COMMENT: Solicitar al Instituto.
+
+ID=4
+ANCHOR: Misión actual (texto oficial o declarado por la dirección):
+COMMENT: Solicitar al Instituto.
+
+ID=5
+ANCHOR: Visión actual (si existe por escrito):
+COMMENT: Solicitar al Instituto.
+
+ID=6
+ANCHOR: d) Crisis o reestructuración
+COMMENT: Solicitar al Instituto. Aca podría incluir lo que menciono la directora, que durante el temblor de julio de 2025, sufrieron daños en su infraestructura. 
+
+ID=7
+ANCHOR: Confirmación de dirección / cambios de liderazgo:
+COMMENT: Solicitar al Instituto.
+
+ID=8
+ANCHOR: 4.6 Organización y funcionamiento actual
+COMMENT: Solicitar al Instituto. Para reforzar esta información. 
+
+ID=9
+ANCHOR: Personal administrativo / COEDUCA / participación de padres:
+COMMENT: Solicitar al Instituto (Opcional).
+
+ID=10
+ANCHOR: Detalle actual de financiamiento (apoyos adicionales):
+COMMENT: Solicitar al Instituto. 
+
+ID=11
+ANCHOR: Canales de comunicación interna y con padres:
+COMMENT: Solicitar al Instituto.
+
+ID=12
+ANCHOR: ¿Cómo generan reportes de asistencia hoy?
+COMMENT: Solicitar al Instituto. 
+
+ID=13
+ANCHOR: Intentos previos de digitalización:
+COMMENT: Solicitar al Instituto si en algun momento intentaron manejar el proceso de asistencia de otra manera. 
+
+ID=14
+ANCHOR: Proceso exacto de toma de asistencia hoy (quién, cuándo, con qué):
+COMMENT: Solicitar el proceso al Instituto.
+
+ID=15
+ANCHOR: Preferencia de modalidad técnica (facial / huella / código / combinación):
+COMMENT: Solicitar al Instituto por medio de la propuesta que generaremos. 
+
+ID=16
+ANCHOR: Permisos / consentimiento de padres para datos biométricos de menores:
+COMMENT: Tomar en cuenta  esta parte, para que el proyecto sea operativamente viable. 
+
+ID=17
+ANCHOR: Persona enlace técnico/administrativo del proyecto:
+COMMENT: Solicitar al Instituto.
+
+=== FULL TEXT ===
+UNIVERSIDAD MARIANO GÁLVEZ DE GUATEMALA
+Facultad de Ingeniería en Sistemas y Ciencias de la Computación
+Seminario de Tecnología e Información
+MA. Ing. Edgar Civil
+INFORME No. II
+Información general de la entidad sin fines de lucroque el grupo egresando apoyará a automatizar
+Institución seleccionada:
+EORM Agua de la Mina — Jornada Vespertina (JV)
+Aldea Agua de la Mina, Amatitlán, Guatemala
+Integrantes del grupo:
+(Completar nombre completo y número de carné de cada integrante)
+1. _________________________________    Carné: ____________________
+2. _________________________________    Carné: ____________________
+3. _________________________________    Carné: ____________________
+4. _________________________________    Carné: ____________________
+5. _________________________________    Carné: ____________________
+6. _________________________________    Carné: ____________________
+Guatemala, agosto de 2026
+ÍNDICE
+I.  Introducción
+II.  Listado de las tres instituciones candidatas
+2.1  Asilo San José (Villa Nueva)
+2.2  Asociación de Amigos de los Animales — AMA
+2.3  EORM Agua de la Mina — Jornada Vespertina (elegida)
+III.  Identificación de la institución elegida
+IV.  Reseña histórica
+4.1  Origen y fundación
+4.2  Naturaleza jurídica y formalización
+4.3  Misión y evolución del propósito
+4.4  Etapas e hitos relevantes
+4.5  Alcance e impacto comunitario
+4.6  Organización y funcionamiento actual
+4.7  Relación actual con procesos y tecnología
+V.  Requerimientos de la institución
+VI.  Propuesta de solución / cómo se ayudará a los requerimientos
+VII.  Bitácora o minuta de la primera reunión
+VIII.  Evidencias de reuniones del grupo
+IX.  Conclusiones
+X.  Fuentes consultadas
+Anexos
+I. INTRODUCCIÓN
+El presente Informe No. II se elabora en el marco del curso Seminario de Tecnología e Información, impartido por el MA. Ing. Edgar Civil, con el propósito de documentar de manera formal el proceso de selección de la entidad sin fines de lucro que el grupo egresando acompañará mediante un aporte tecnológico de automatización.
+Durante la fase de prospección, el grupo identificó e investigó instituciones candidatas, priorizando entidades reales, de carácter no lucrativo o de servicio público, con necesidad verificable de mejora en procesos y con viabilidad de intervención en el tiempo académico del seminario. De dicho ejercicio se consolidaron tres opciones principales: el Asilo San José (Villa Nueva), la Asociación de Amigos de los Animales — AMA (Ciudad de Guatemala) y la Escuela Oficial Rural Mixta (EORM) Agua de la Mina — Jornada Vespertina (Amatitlán).
+Tras el análisis comparativo de impacto comunitario, complejidad de implementación, disponibilidad de información y alineación con las competencias del grupo, se acordó formalmente trabajar con la EORM Agua de la Mina — Jornada Vespertina. La necesidad central identificada es la digitalización del control de asistencia estudiantil, proceso que actualmente se realiza de forma manual en cuadernillos, lo cual genera pérdida de tiempo, dificultad para consultar datos actualizados y riesgos de información inconsistente respecto a la presencia real de los alumnos.
+Este documento presenta el listado de las tres instituciones candidatas, la identificación y reseña histórica de la institución elegida, sus requerimientos, la propuesta de solución tecnológica, la bitácora de acercamiento institucional y las evidencias de trabajo grupal, conforme a los lineamientos del Informe No. II.
+II. LISTADO DE LAS TRES INSTITUCIONES CANDIDATAS
+A continuación se presentan las tres instituciones consideradas por el grupo. Las dos primeras se mantienen como candidatas no seleccionadas; la tercera es la institución formalmente elegida para el proyecto de automatización.
+No.
+Institución
+Tipo / carácter
+Ubicación
+Estado
+1
+Asilo San José
+Asistencia social / hogar de adultos mayores (sin fines de lucro)
+Villa Nueva, Guatemala
+Candidata (no elegida)
+2
+Asociación de Amigos de los Animales (AMA)
+Organización sin fines de lucro
+Ciudad de Guatemala, zona 13
+Candidata (no elegida)
+3
+EORM Agua de la Mina — JV
+Escuela oficial pública (MINEDUC), sin fines de lucro
+Aldea Agua de la Mina, Amatitlán
+ELEGIDA
+2.1 Asilo San José
+Nombre oficial: Asilo San José
+Tipo de entidad: Institución de asistencia social / hogar de adultos mayores, sin fines de lucro.
+Ubicación: 3ra. calle 1-25, zona 4, Colonia Venecia 1, Villa Nueva, Guatemala.
+Contactos de referencia: 5690-1767 / 6631-0402 (a validar).
+Qué hace: Brinda albergue, atención básica y acompañamiento a adultos mayores en situación de vulnerabilidad. Atiende a más de 20 residentes y recibe apoyo de voluntarios, así como donaciones de higiene personal, alimentos y medicamentos. Opera con atención continua (residencia permanente).
+Por qué se consideró candidata:
+Atiende población vulnerable que requiere mayor control de visitas e ingresos.
+Posee áreas sensibles (alimentos, medicamentos, pertenencias) que se benefician de vigilancia.
+Al ser de menor escala, un aporte de CCTV y control de acceso resulta realista en costo y tiempo académico.
+Presenta menor complejidad burocrática frente a establecimientos oficiales del MINEDUC.
+Existe necesidad frecuente de apoyo externo, lo que facilita la apertura a una propuesta estudiantil.
+Propuesta tecnológica asociada (no implementada, por no ser la institución elegida): sistema básico de videovigilancia (CCTV) y control de acceso de bajo costo, con cámaras en ingreso principal, pasillos comunes y área de donaciones/bodega; DVR/NVR local; bitácora digital de visitantes (QR / formularios / base simple); y documentación técnica (plano, manual y protocolo de revisión).
+Por qué no se eligió:
+Aunque la propuesta es viable y de alto impacto en seguridad, el grupo priorizó una intervención centrada en automatización de procesos administrativos y de control escolar con software y dispositivos biométricos, alineada con el perfil de Ingeniería en Sistemas y con la información ya consolidada sobre la EORM Agua de la Mina JV. El Asilo San José se conserva como alternativa válida ante eventuales impedimentos con la institución seleccionada.
+2.2 Asociación de Amigos de los Animales — AMA
+Nombre oficial: Asociación de Amigos de los Animales (AMA)
+Tipo de entidad: Organización sin fines de lucro.
+Ubicación: Avenida Las Américas 21-12, zona 13, Ciudad de Guatemala, Guatemala.
+Qué hace: Se dedica al rescate, atención médica y adopción de animales abandonados, además de campañas de concientización dirigidas a la comunidad.
+Por qué se consideró candidata:
+Maneja gran volumen de información de adopciones, donaciones y casos de rescate.
+Dichos registros pueden llevarse de forma manual, lo que representa una oportunidad clara de mejora tecnológica.
+Permite un aporte de bajo costo con herramientas gratuitas o una aplicación web básica.
+Propuesta tecnológica asociada (no implementada): sistema de inventario y control de adopciones mediante Google Sheets o una aplicación web básica, incluyendo registro de animales, donaciones y alertas de recursos. Se valoró también una solución web, considerando que la presencia digital actual se concentra principalmente en redes sociales.
+Por qué no se eligió:
+La AMA constituye una opción realista y de impacto en gestión de datos; no obstante, el grupo seleccionó la EORM Agua de la Mina JV por contar con un diagnóstico más detallado (matrícula, personal, procesos actuales e hitos históricos), un problema operativo concreto (asistencia manual de ~320 alumnos) y una ruta de intervención claramente definida (biométricos + software de asistencia). AMA permanece como segunda candidata de respaldo en el ámbito de organizaciones de bienestar animal.
+2.3 EORM Agua de la Mina — Jornada Vespertina — ELEGIDA
+Nombre oficial: EORM Agua de la Mina — Jornada Vespertina (JV). También referida en fuentes locales como EORM Agua de las Minas JV / EORM AGUA DE LA MINA JV.
+Tipo de entidad: Escuela Oficial Rural Mixta (establecimiento educativo público del MINEDUC), sin fines de lucro.
+Ubicación: Aldea Agua de la Mina, calle principal, municipio de Amatitlán, Guatemala.
+Directora: Sabrina Nereida Trujillo Santos de Sánchez.
+Qué hace: Imparte educación preprimaria (Párvulos I, II y III) y primaria (1.º a 6.º) en jornada vespertina, atendiendo a la niñez de la comunidad rural de Agua de la Mina. Actualmente cuenta con aproximadamente 320 alumnos, 14 catedráticos y 53 computadoras.
+Decisión del grupo: Se elige formalmente esta institución por la claridad del requerimiento (asistencia manual en cuadernillos), el volumen de beneficiarios, la continuidad de servicio de ~25 años, la existencia de infraestructura informática básica y la pertinencia de donar dispositivos biométricos e implementar un software de control de asistencia. El detalle completo se desarrolla en las secciones siguientes.
+III. IDENTIFICACIÓN DE LA INSTITUCIÓN ELEGIDA
+La institución seleccionada para el apoyo y automatización del grupo es la Escuela Oficial Rural Mixta (EORM) Agua de la Mina — Jornada Vespertina, ubicada en la aldea Agua de la Mina, municipio de Amatitlán, departamento de Guatemala.
+Naturaleza: Es un establecimiento educativo oficial del sistema del Ministerio de Educación (MINEDUC). No es una asociación, fundación u ONG privada; opera como servicio público educativo sin fines de lucro, en el marco del sistema educativo nacional. Su registro formal corresponde al código de establecimiento MINEDUC.
+Rol en la comunidad: Cumple una función esencial de cobertura educativa en jornada vespertina para niños de preprimaria y primaria en un contexto rural. Complementa la oferta educativa local —en la misma aldea opera también la EORM Adolfo Mazariegos Méndez en jornada matutina— y ha recibido apoyos puntuales de la Municipalidad de Amatitlán e iglesias de la comunidad, lo que evidencia su inserción y reconocimiento social.
+Campo
+Detalle
+Nombre oficial
+EORM Agua de la Mina — Jornada Vespertina (JV)
+Tipo
+Escuela Oficial Rural Mixta / establecimiento público MINEDUC
+Carácter
+Sin fines de lucro (servicio público educativo)
+Ubicación
+Aldea Agua de la Mina, calle principal, Amatitlán, Guatemala
+Dirección actual
+Sabrina Nereida Trujillo Santos de Sánchez
+Proyecto del grupo
+Donación de biométricos + software de control de asistencia
+Código MINEDUC del establecimiento (JV):
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: 01-XX-XXXX-XX (según registro oficial del Ministerio de Educación; confirmar con la dirección).
+IV. RESEÑA HISTÓRICA
+4.1 Origen y fundación
+La jornada vespertina de la EORM Agua de la Mina inicia operaciones de manera aproximada hacia el año 1999 en la aldea Agua de la Mina / Agua de las Minas, municipio de Amatitlán. Esta datación se respalda con el reconocimiento que, en septiembre de 2024, otorgó la Municipalidad de Amatitlán a la EORM Agua de las Minas JV por 25 años de labor educativa.
+El problema social que motivó su creación fue la necesidad de cobertura educativa en jornada vespertina para niños de la aldea, garantizando acceso a preprimaria y primaria.
+Quiénes impulsaron la creación (fundadores / actores):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: La jornada fue impulsada por la comunidad educativa de Agua de la Mina, con apoyo del MINEDUC y vecinos organizados, ante la demanda de cupos en horario vespertino.
+Año exacto de fundación (si se confirma en entrevista):
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: 1999 (o el año que indique la dirección / documentos internos del establecimiento).
+4.2 Naturaleza jurídica y formalización
+La institución es una Escuela Oficial Rural Mixta (EORM): establecimiento educativo público/oficial del Ministerio de Educación. Opera bajo el marco del servicio público educativo, sin fines de lucro. Su formalización corresponde al registro y código de establecimiento MINEDUC.
+En fuentes documentales aparece como “EORM Agua de la(s) Mina(s) JV”; en documentos del grupo figura también como “EORM AGUA DE LA MINA JV”.
+¿Ha cambiado de nombre o figura legal?
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: No ha cambiado de figura legal; mantiene la denominación EORM Agua de la Mina JV desde su formalización como jornada vespertina.
+4.3 Misión y evolución del propósito
+Propósito inicial: brindar educación preprimaria y primaria en jornada vespertina a la comunidad rural de Agua de la Mina. El enfoque actual se mantiene en Párvulos I, II y III hasta 6.º primaria en jornada vespertina.
+La orientación sustancial del servicio se ha conservado, aunque ha crecido en matrícula y personal docente. Los cambios observados se asocian principalmente al crecimiento de la demanda y a nuevas necesidades de gestión (asistencia, control y eficiencia operativa), lo cual motiva el aporte tecnológico del seminario.
+Misión actual (texto oficial o declarado por la dirección):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: “Formar integralmente a niños y niñas de la comunidad de Agua de la Mina mediante una educación preprimaria y primaria de calidad en jornada vespertina…”
+Visión actual (si existe por escrito):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: “Ser un establecimiento de referencia en cobertura educativa rural vespertina del municipio de Amatitlán…”
+4.4 Etapas e hitos relevantes
+a) Fundación / primeros años
+Inicio aproximado de la jornada vespertina hacia ~1999.
+Operación en aldea Agua de la Mina, Amatitlán.
+b) Consolidación
+Oferta consolidada: preprimaria + primaria.
+Dato histórico (2019, fuentes locales): aproximadamente 291 alumnos y 12 maestros en la JV.
+c) Expansión, alianzas e hitos
+2013: 1.er lugar en Festival de Danzas Folklóricas del nivel preprimario (Danza de las Guacamayas), Escuela de Párvulos Agua de las Minas JV.
+2020: Donativo de 25 pupitres por la Iglesia Dios de Pactos; recibió el aporte la dirección de la JV.
+Septiembre 2024: Reconocimiento municipal por 25 años de labor educativa (EORM Agua de las Minas JV).
+d) Crisis o reestructuración
+Descripción (si aplica):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Durante la pandemia se adaptó la continuidad educativa con estrategias a distancia; posteriormente se retomó la presencialidad plena. (O indicar: No se reportan crisis ni reestructuraciones relevantes.)
+e) Situación actual (2026)
+Matrícula aproximada: 320 alumnos.
+Personal docente: 14 catedráticos.
+Equipo informático: 53 computadoras.
+Dirección: Sabrina Nereida Trujillo Santos de Sánchez.
+Asistencia: manual en cuadernillos (sin biométricos en operación).
+Proyecto de seminario en evaluación: donación de biométricos + software de asistencia.
+Confirmación de dirección / cambios de liderazgo:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: La dirección actual es Sabrina Nereida Trujillo Santos de Sánchez, con X años en el cargo. (En 2020 fuentes locales citaron a Priscila Trujillo de Sánchez; confirmar si es la misma persona o un cambio de dirección.)
+4.5 Alcance e impacto comunitario
+Pregunta
+Respuesta
+¿A quién atienden?
+Niños de preprimaria (Párvulos I, II, III) y primaria (1.º a 6.º).
+¿Donde?
+Comunidad de aldea Agua de la Mina, municipio de Amatitlán.
+¿Qué resultados han logrado?
+Continuidad educativa de ~25 años; matrícula actual ~320; 14 docentes; 53 computadoras; reconocimientos municipales y participación comunitaria.
+¿Qué rol cumplen frente a otras instituciones?
+Complementan la oferta educativa del sector (EORM Adolfo Mazariegos Méndez en jornada matutina). Han recibido apoyos de municipalidad e iglesias.
+4.6 Organización y funcionamiento actual
+Pregunta
+Respuesta
+¿Cómo se organiza hoy?
+Dirección a cargo de la directora y personal docente (14 catedráticos), bajo estructura típica MINEDUC.
+¿Cuántas personas participan?
+~14 docentes + dirección; ~320 alumnos.
+¿Cómo se financia?
+Presupuesto público del MINEDUC; apoyos eventuales (donaciones, municipalidad, actores comunitarios).
+¿Qué servicios opera?
+Educación preprimaria y primaria, jornada vespertina.
+Personal administrativo / COEDUCA / participación de padres:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Cuenta con X personal administrativo, COEDUCA activo y aproximadamente X padres organizados que apoyan actividades escolares.
+Detalle actual de financiamiento (apoyos adicionales):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Además del presupuesto MINEDUC, reciben donaciones eventuales de la municipalidad e iglesias locales (ejemplo: pupitres en 2020).
+4.7 Relación actual con procesos y tecnología
+El registro de asistencia se realiza actualmente en papel / cuadernillos grandes. El proceso es manual, lento y difícil de consultar o actualizar por el volumen de alumnos (~320). No cuentan con dispositivos biométricos en operación. Disponen de 53 computadoras; el estado real de uso, internet y red local debe validarse in situ.
+Canales de comunicación interna y con padres:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Interno: reuniones docentes y circulares. Con padres: WhatsApp por grado, reuniones presenciales mensuales y avisos en la puerta del establecimiento.
+¿Cómo generan reportes de asistencia hoy?
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Se consolidan semanalmente desde los cuadernillos por grado; la dirección elabora un resumen mensual para supervisión y para atender consultas de padres.
+Internet / red / uso real de las 53 computadoras:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Cuentan con internet Wi-Fi estable en dirección y laboratorio; las computadoras se usan en clases de informática y apoyo administrativo. (Ajustar según visita.)
+Intentos previos de digitalización:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Se intentó llevar asistencia en Excel durante un ciclo, pero se abandonó por falta de equipos biométricos y de un procedimiento uniforme. Actualmente no hay sistema digital.
+V. REQUERIMIENTOS DE LA INSTITUCIÓN
+A partir del diagnóstico preliminar consolidado por el grupo, se identifican los siguientes requerimientos institucionales, con énfasis en procesos y tecnología:
+5.1 Situación actual de procesos
+El registro de asistencia se realiza en papel / cuadernillos grandes.
+El proceso es manual, lento y difícil de consultar o actualizar por el volumen de alumnos (~320).
+Consume tiempo y recursos del personal docente y/o administrativo.
+Dificulta tener datos actualizados a la mano para toma de decisiones y reportes.
+Existen casos en que se reporta en hogares que el alumno asiste, pero no llega al establecimiento, evidenciando falta de control confiable.
+No cuentan con dispositivos biométricos en operación actualmente.
+5.2 Requerimientos funcionales del aporte tecnológico
+Automatizar la toma de asistencia mediante dispositivos biométricos y/o código del alumno.
+Contar con un software de control de asistencia que permita registro, consulta y generación de reportes.
+Reducir el tiempo dedicado al llenado y consolidación manual de cuadernillos.
+Mejorar la trazabilidad y confiabilidad de la información de asistencia frente a padres, dirección y supervisión.
+Aprovechar la infraestructura existente (53 computadoras) e identificar condiciones de internet, energía y espacio físico para instalación.
+5.3 Aspectos a completar tras la entrevista / visita
+Proceso exacto de toma de asistencia hoy (quién, cuándo, con qué):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Cada docente pasa lista al inicio de la jornada en un cuadernillo por grado; al final de la semana la dirección revisa faltas reiteradas.
+Preferencia de modalidad técnica (facial / huella / código / combinación):
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: La dirección prefiere reconocimiento facial + código del alumno como respaldo, para agilizar el ingreso sin depender solo de la huella.
+Permisos / consentimiento de padres para datos biométricos de menores:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Se solicitará autorización escrita a padres o encargados antes del enrolamiento; quienes no autoricen usarán únicamente código del alumno.
+Persona enlace técnico/administrativo del proyecto:
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Nombre completo, cargo y teléfono/correo del docente o administrativo designado por la dirección como enlace del seminario.
+VI. PROPUESTA DE SOLUCIÓN / CÓMO SE AYUDARÁ A LOS REQUERIMIENTOS
+El grupo de seminario propone donar dispositivos biométricos e implementar un software de control de asistencia estudiantil, como aporte tecnológico de bajo costo orientado a resolver el cuello de botella del registro manual.
+6.1 Objetivo general
+Digitalizar y automatizar el control de asistencia de la EORM Agua de la Mina — Jornada Vespertina, mejorando la confiabilidad, oportunidad y utilidad de la información para la dirección, el cuerpo docente y las familias.
+6.2 Alcance sugerido de la solución
+Dispositivos biométricos (reconocimiento facial y/o lector de huella), según factibilidad técnica, ética y de consentimiento.
+Modalidad alternativa o complementaria: código del alumno (para casos sin biométrico o como respaldo).
+Software de control de asistencia: registro diario, consultas por alumno/grado/fecha, consolidación y reportes.
+Capacitación básica al personal enlace (dirección / docentes designados).
+Documentación: manual de uso, protocolo de operación y recomendaciones de resguardo de datos.
+6.3 Cómo responde a los requerimientos
+Requerimiento
+Cómo ayuda la solución
+Asistencia manual lenta e inconsistente
+Registro automatizado en el momento del ingreso; reduce errores y omisiones.
+Dificultad para consultar datos actualizados
+Consultas y reportes digitales bajo demanda para dirección y docentes.
+Reportes poco confiables frente a hogares
+Trazabilidad del registro (fecha/hora) que fortalece el control institucional.
+Ausencia de biométricos
+Donación e instalación de dispositivos, más software de gestión asociado.
+6.4 Consideraciones éticas y de viabilidad
+Dado que se trata de menores de edad, el proyecto contemplará la gestión de consentimiento informado de padres o encargados cuando se utilicen datos biométricos, así como el uso de alternativas no biométricas (código del alumno) si la institución o la normativa aplicable así lo requieren. Asimismo, se validará in situ la disponibilidad eléctrica, de red y de espacio antes de fijar el alcance mínimo viable.
+6.5 Próximos pasos operativos
+Agendar y realizar entrevista formal con la directora Sabrina Nereida Trujillo Santos de Sánchez.
+Confirmar código MINEDUC, misión/visión, organigrama y estado real de infraestructura.
+Definir modalidad técnica preferida (facial / huella / código / combinación).
+Solicitar autorización formal (carta o constancia) para desarrollar el aporte académico.
+Elaborar diagnóstico breve in situ y propuesta técnica-presupuestaria de bajo costo.
+Implementar piloto, capacitar usuarios y entregar documentación.
+VII. BITÁCORA O MINUTA DE LA PRIMERA REUNIÓN CON LA INSTITUCIÓN
+Complete esta sección después de la primera reunión presencial o virtual con la institución. Se deja el formato listo, con espacios en blanco y un ejemplo orientativo.
+Campo
+Registro (completar)
+Fecha
+____ / ____ / ________
+Modalidad
+Presencial ☐    Virtual ☐
+Lugar / enlace
+_______________________________________________
+Institución
+EORM Agua de la Mina — Jornada Vespertina
+Representante institucional
+_______________________________________________
+Cargo
+_______________________________________________
+Participantes del grupo
+_______________________________________________
+Acuerdos
+_______________________________________________
+Próximos pasos / responsable
+_______________________________________________
+Ejemplo de lo que debe ir en la bitácora:
+Fecha: 12/08/2026 | Modalidad: Presencial | Lugar: Dirección de la EORM Agua de la Mina JV | Representante: Sabrina Nereida Trujillo Santos de Sánchez (Directora) | Participantes del grupo: [nombres] | Objetivo: presentar el proyecto de biométricos y software de asistencia | Acuerdos: la dirección acepta recibir la propuesta formal; se agenda visita técnica el 19/08/2026 | Próximos pasos: enviar carta de solicitud y checklist de infraestructura (responsable: coordinador del grupo).
+Objetivo de la reunión / puntos tratados:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Se presentó el grupo, se explicó el aporte tecnológico, se validó el proceso actual de asistencia y se solicitó autorización para el proyecto académico.
+Agenda de referencia para la primera reunión:
+Presentación del grupo y del curso de Seminario.
+Explicación del aporte: biométricos + software de asistencia.
+Validación de datos históricos y organizativos pendientes.
+Recorrido o descripción del proceso actual de asistencia.
+Definición de enlace institucional y calendario de trabajo.
+Solicitud de carta de aceptación / autorización académica.
+VIII. EVIDENCIAS DE REUNIONES DEL GRUPO
+Conforme a los lineamientos del Informe No. II, se incluyen capturas de pantalla de reuniones virtuales y/o fotografías de reuniones presenciales del grupo de trabajo. Pegue las imágenes debajo de cada título y complete el pie de foto.
+Figura 1. Reunión del grupo para análisis de instituciones candidatas
+[PEGAR AQUÍ LA FOTO / CAPTURA]
+Pie de foto — Figura 1:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Reunión virtual vía Google Meet, 28/07/2026. Participantes: [nombres del grupo]. Se revisaron las tres instituciones candidatas y se elaboró la matriz de comparación.
+Figura 2. Reunión del grupo donde se decidió la institución elegida
+[PEGAR AQUÍ LA FOTO / CAPTURA]
+Pie de foto — Figura 2:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Reunión presencial en [lugar], 02/08/2026. El grupo acordó formalmente trabajar con la EORM Agua de la Mina — Jornada Vespertina.
+Figura 3. Primera reunión con la institución (cuando se realice)
+[PEGAR AQUÍ LA FOTO / CAPTURA]
+Pie de foto — Figura 3:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Reunión presencial en la dirección de la EORM Agua de la Mina JV, 12/08/2026. Participaron la directora y [nombres del grupo].
+IX. CONCLUSIONES
+El grupo cumplió con la identificación de tres instituciones candidatas de carácter no lucrativo o de servicio público: el Asilo San José, la Asociación de Amigos de los Animales (AMA) y la EORM Agua de la Mina — Jornada Vespertina. Cada opción presenta una oportunidad real de aporte tecnológico; sin embargo, los criterios de viabilidad académica, claridad del problema y profundidad de la información disponible condujeron a seleccionar formalmente la EORM Agua de la Mina JV.
+La institución elegida desempeña un rol comunitario relevante al garantizar educación preprimaria y primaria en jornada vespertina en contexto rural, con una trayectoria aproximada de 25 años, matrícula cercana a 320 estudiantes y reconocimiento municipal. Su principal brecha tecnológica actual es el control manual de asistencia en cuadernillos, sin biométricos en operación.
+La solución propuesta —donación de dispositivos biométricos e implementación de software de control de asistencia— responde de forma directa a ese requerimiento, siempre bajo consideraciones éticas de protección de datos de menores y validación técnica in situ. Queda como acción inmediata agendar la primera reunión formal con la dirección, completar la bitácora correspondiente e incorporar las evidencias gráficas del trabajo grupal en la versión PDF definitiva.
+X. FUENTES CONSULTADAS
+Diagnóstico e información institucional consolidada por el grupo de seminario sobre la EORM Agua de la Mina — Jornada Vespertina.
+Investigación de instituciones candidatas: Asilo San José (Villa Nueva) y Asociación de Amigos de los Animales — AMA (Ciudad de Guatemala).
+Lineamientos del Informe No. II del curso Seminario de Tecnología e Información.
+Representante institucional de referencia: Directora Sabrina Nereida Trujillo Santos de Sánchez (entrevista formal: pendiente de registrar).
+Blog Lo Mejor de Amatitlán (Oscar Fajardo Gil): menciones sobre danzas folklóricas 2013; donativo de pupitres 2020; condecoración municipal por 25 años (septiembre 2024).
+Fuentes MINEDUC / contexto local de remozamientos en la aldea (referencia de sector educativo).
+Sitio web / redes oficiales de la institución:
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Facebook: EORM Agua de la Mina JV (enlace: https://…) — o indicar: No se localizó sitio web propio ni red oficial verificada a la fecha.
+Documentos internos solicitados / recibidos:
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: PEI, organigrama, matrícula oficial, código MINEDUC y/o folleto institucional (indicar fecha de recepción).
+Entrevista formal (cita bibliográfica / referencia):
+_______________________________________________________________________________________________
+_______________________________________________________________________________________________
+Ejemplo de lo que debe ir aquí: Trujillo Santos de Sánchez, S. N. (12 de agosto de 2026). Entrevista personal. Directora, EORM Agua de la Mina — Jornada Vespertina, Amatitlán, Guatemala.
+ANEXOS
+Anexo A. Evidencias fotográficas y capturas de reuniones del grupo
+(Las Figuras 1, 2 y 3 de la sección VIII pueden replicarse o ampliarse aquí si se requiere más espacio.)
+Anexo B. Comparación resumida de candidatas
+Criterio
+Asilo San José
+AMA
+EORM Agua de la Mina JV
+Tipo de aporte
+CCTV + control de acceso
+Inventario / adopciones (web o Sheets)
+Biométricos + software de asistencia
+Viabilidad académica
+Alta
+Alta
+Alta (priorizada)
+Decisión
+No elegida (alternativa)
+No elegida (alternativa)
+ELEGIDA
+Anexo C. Lista de verificación pendiente ante la institución
+Año exacto de fundación de la JV y relato oficial fundacional.
+Código MINEDUC del establecimiento (JV).
+Misión y visión actuales por escrito.
+Confirmación de dirección actual y relación con menciones previas de liderazgo (2020).
+Organigrama y detalle de financiamiento.
+Validación técnica: internet, energía, espacio, modalidad biométrica y consentimientos.
+Fin del Informe No. II

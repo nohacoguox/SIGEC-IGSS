@@ -1,0 +1,26 @@
+﻿ID_caso,Numero_SIAF,Numero_Orden_Compra_SIGES,T1_Identificacion_clara,T2_Fecha_inicio_documentada,T3_Responsable_o_area,T4_Historial_devoluciones_reconstruible,T5_Estado_final_DAF_claro,T6_Versiones_distinguibles,T7_Fecha_cambios_localizable,Cumple_global_T1_a_T5,Minutos_localizar_ultima_version_y_estado,Observaciones
+LB-01,SIAF-44-2026,224949,Sí,Sí,Sí,No,Sí,No,No,No,14,Palabras/descripcion SIAF
+LB-02,SIAF-64-2026,228457,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: redaccion objetada
+LB-03,SIAF-60-2026,216400,Sí,Sí,Sí,No,Sí,No,No,No,9,Cotizacion; mismo mes
+LB-04,SIAF-76-2026,218719,Sí,Sí,Sí,No,Sí,No,No,No,19,Servicio; paso a abril
+LB-05,SIAF-17-2026,226478,Sí,Sí,Sí,No,Sí,No,No,No,9,Correccion menor; mismo mes
+LB-06,SIAF-43-2026,217790,Sí,Sí,Sí,No,Sí,No,No,No,19,Rechazo; reingreso en mayo
+LB-07,SIAF-89-2026,226006,Sí,Sí,Sí,No,Sí,No,No,No,14,Descripcion SIAF ajustada
+LB-08,SIAF-75-2026,211599,Sí,Sí,Sí,No,Sí,No,No,No,20,Mala produccion; pendiente junio
+LB-09,SIAF-14-2026,211240,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-10,SIAF-81-2026,213642,Sí,Sí,Sí,No,Sí,No,No,No,19,Varias vueltas; paso a junio
+LB-11,SIAF-86-2026,227073,Sí,Sí,Sí,No,Sí,No,No,No,10,Falta anexo; mismo mes
+LB-12,SIAF-83-2026,213258,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Aprobado primer analisis
+LB-13,SIAF-16-2026,220789,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Aprobado primer analisis
+LB-14,SIAF-59-2026,220082,Sí,Sí,Sí,No,Sí,No,No,No,14,Justificacion reelaborada
+LB-15,SIAF-28-2026,227374,Sí,Sí,Sí,No,Sí,No,No,No,10,Soporte incompleto
+LB-16,SIAF-65-2026,210874,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin devoluciones
+LB-17,SIAF-23-2026,216669,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin devoluciones
+LB-18,SIAF-61-2026,213001,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-19,SIAF-25-2026,220077,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: ajuste justificacion
+LB-20,SIAF-52-2026,221606,Sí,Sí,Sí,No,Sí,No,No,No,10,Documento de soporte
+LB-21,SIAF-92-2026,223400,Sí,Sí,Sí,Sí,Sí,No,Sí,Sí,3,Sin observaciones
+LB-22,SIAF-68-2026,225406,Sí,Sí,Sí,No,Sí,No,No,No,9,Anexo; mismo mes
+LB-23,SIAF-50-2026,211053,Sí,Sí,Sí,No,Sí,No,No,No,10,Especificacion incompleta
+LB-24,SIAF-79-2026,220441,Sí,Sí,Sí,No,Sí,No,No,No,14,Servicio: justificacion SIAF
+LB-25,SIAF-29-2026,221554,Sí,Sí,Sí,No,Sí,No,No,No,9,Observacion menor; mismo mes

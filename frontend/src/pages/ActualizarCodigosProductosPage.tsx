@@ -1,4 +1,4 @@
-// Actualización independiente de catálogos MINFIN y SIBOFA (códigos / descripciones)
+// Actualización independiente de catálogos MINFIN, SIBOFA y Subproductos
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -34,7 +34,7 @@ import { useThemeMode } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
-type CatalogoOrigen = 'MINFIN' | 'SIBOFA';
+type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'SUBPRODUCTOS';
 
 type CatalogoStats = {
   total: number;
@@ -62,7 +62,19 @@ const CATALOGOS: { key: CatalogoOrigen; label: string; ayuda: string }[] = [
     label: 'SIBOFA',
     ayuda: 'Catálogo de códigos y productos SIBOFA.',
   },
+  {
+    key: 'SUBPRODUCTOS',
+    label: 'Subproductos',
+    ayuda:
+      'Catálogo de códigos de subproducto (código, descripción, PG, SP, PY, ACT, OB, unidad de medida). Se usará luego para elegirlos en el SIAF.',
+  },
 ];
+
+const emptyStats = (): Record<CatalogoOrigen, CatalogoStats> => ({
+  MINFIN: { total: 0, ultimaActualizacion: null },
+  SIBOFA: { total: 0, ultimaActualizacion: null },
+  SUBPRODUCTOS: { total: 0, ultimaActualizacion: null },
+});
 
 const excelColumnLabel = (index: number) => {
   let value = index + 1;
@@ -88,10 +100,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [tab, setTab] = useState<CatalogoOrigen>('MINFIN');
   const [uploading, setUploading] = useState(false);
-  const [statsByOrigen, setStatsByOrigen] = useState<Record<CatalogoOrigen, CatalogoStats>>({
-    MINFIN: { total: 0, ultimaActualizacion: null },
-    SIBOFA: { total: 0, ultimaActualizacion: null },
-  });
+  const [statsByOrigen, setStatsByOrigen] = useState<Record<CatalogoOrigen, CatalogoStats>>(emptyStats);
   const [loadingStats, setLoadingStats] = useState(true);
   const [items, setItems] = useState<CatalogoItem[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -147,12 +156,15 @@ const ActualizarCodigosProductosPage: React.FC = () => {
           columnaCodigo: res.data?.SIBOFA?.columnaCodigo ?? null,
           columnasDescripcion: res.data?.SIBOFA?.columnasDescripcion ?? [],
         },
+        SUBPRODUCTOS: {
+          total: res.data?.SUBPRODUCTOS?.total ?? 0,
+          ultimaActualizacion: res.data?.SUBPRODUCTOS?.ultimaActualizacion ?? null,
+          columnaCodigo: res.data?.SUBPRODUCTOS?.columnaCodigo ?? null,
+          columnasDescripcion: res.data?.SUBPRODUCTOS?.columnasDescripcion ?? [],
+        },
       });
     } catch {
-      setStatsByOrigen({
-        MINFIN: { total: 0, ultimaActualizacion: null },
-        SIBOFA: { total: 0, ultimaActualizacion: null },
-      });
+      setStatsByOrigen(emptyStats());
     } finally {
       setLoadingStats(false);
     }
@@ -300,9 +312,10 @@ const ActualizarCodigosProductosPage: React.FC = () => {
         Actualización de Códigos y Productos
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-        Gestione de forma independiente los catálogos <strong>MINFIN</strong> y <strong>SIBOFA</strong>. Cada carga
-        guarda todas las columnas del archivo y agrega únicamente códigos nuevos; los existentes se omiten. Después
-        podrá elegir o cambiar las columnas que aparecerán en la descripción del SIAF.
+        Gestione de forma independiente los catálogos <strong>MINFIN</strong>, <strong>SIBOFA</strong> y{' '}
+        <strong>Subproductos</strong>. Cada carga guarda todas las columnas del archivo y agrega únicamente códigos
+        nuevos; los existentes se omiten. Después podrá elegir o cambiar las columnas que aparecerán en la descripción
+        del SIAF.
       </Typography>
 
       <Tabs

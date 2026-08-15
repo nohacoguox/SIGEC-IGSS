@@ -16,6 +16,7 @@ import { ProductoCatalogo } from './entity/ProductoCatalogo';
 import { ProductoCatalogoConfig } from './entity/ProductoCatalogoConfig';
 import { SiafCorrelativoConfig } from './entity/SiafCorrelativoConfig';
 import { SiafCorrelativoReserva } from './entity/SiafCorrelativoReserva';
+import { ExpedienteCorrelativoConfig } from './entity/ExpedienteCorrelativoConfig';
 
 /** Esquema SIGEC-IGSS (nombre técnico en PostgreSQL: sigec_igss; sin guiones). */
 const dbSchema = process.env.DB_SCHEMA || 'sigec_igss';
@@ -55,6 +56,7 @@ export const AppDataSource = new DataSource({
     ProductoCatalogoConfig,
     SiafCorrelativoConfig,
     SiafCorrelativoReserva,
+    ExpedienteCorrelativoConfig,
   ],
   migrations: [],
   subscribers: [],
