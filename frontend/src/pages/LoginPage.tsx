@@ -15,12 +15,22 @@ import {
   Snackbar,
   Alert,
   IconButton,
+  Dialog,
+  DialogContent,
+  Divider,
+  Stack,
+  CircularProgress,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import DashboardChoicePanel from '../components/DashboardChoicePanel';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 import logoIgss from '../assets/images/logo-igss.png';
@@ -92,6 +102,10 @@ function LoginPage() {
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
   const [showDashboardChoice, setShowDashboardChoice] = useState(false);
   const [loggedInUserName, setLoggedInUserName] = useState('');
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryCodigoEmpleado, setRecoveryCodigoEmpleado] = useState('');
+  const [recoveryCorreo, setRecoveryCorreo] = useState('');
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
 
   const navigate = useNavigate();
 
@@ -174,6 +188,34 @@ function LoginPage() {
       console.error('Login failed:', error);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePasswordRecovery = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setRecoverySubmitting(true);
+    try {
+      const { data } = await api.post('/auth/forgot-password', {
+        codigoEmpleado: recoveryCodigoEmpleado,
+        correoInstitucional: recoveryCorreo,
+      });
+      setSnackbarMessage(
+        `${data.message} Revisa tu correo, cierra este mensaje e inicia sesión desde cero con la contraseña temporal.`,
+      );
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      setRecoveryOpen(false);
+      setRecoveryCodigoEmpleado('');
+      setRecoveryCorreo('');
+    } catch (error: any) {
+      setSnackbarMessage(
+        error.response?.data?.message ??
+          'No se pudo procesar la solicitud. Verifica los datos e inténtalo nuevamente.',
+      );
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setRecoverySubmitting(false);
     }
   };
 
@@ -380,6 +422,10 @@ function LoginPage() {
                   <Link
                     href="#"
                     variant="body2"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setRecoveryOpen(true);
+                    }}
                     sx={{
                       color: IGSS_COLORS.azul,
                       fontWeight: 500,
@@ -407,6 +453,244 @@ function LoginPage() {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={recoveryOpen}
+        onClose={() => !recoverySubmitting && setRecoveryOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            border: `1px solid ${IGSS_COLORS.gris}`,
+            boxShadow: '0 18px 48px rgba(50, 90, 114, 0.22)',
+          },
+        }}
+      >
+        <Box component="form" onSubmit={handlePasswordRecovery}>
+          <Box
+            sx={{
+              position: 'relative',
+              bgcolor: IGSS_COLORS.azul,
+              color: IGSS_COLORS.blanco,
+              px: 3,
+              pt: 3,
+              pb: 2.5,
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                bgcolor: IGSS_COLORS.verde,
+              }}
+            />
+            <IconButton
+              aria-label="Cerrar"
+              onClick={() => setRecoveryOpen(false)}
+              disabled={recoverySubmitting}
+              sx={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                color: IGSS_COLORS.blanco,
+                bgcolor: 'rgba(255,255,255,0.12)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.22)' },
+              }}
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ pr: 5 }}>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(255,255,255,0.14)',
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <MarkEmailReadOutlinedIcon sx={{ fontSize: 30 }} />
+              </Box>
+              <Box>
+                <Typography variant="overline" sx={{ letterSpacing: 1.2, opacity: 0.85, lineHeight: 1 }}>
+                  Acceso seguro
+                </Typography>
+                <Typography variant="h5" sx={{ color: IGSS_COLORS.blanco, mt: 0.4 }}>
+                  Recuperar contraseña
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.6, color: IGSS_COLORS.gris, maxWidth: 390 }}>
+                  Solicita aquí la temporal; luego inicia sesión desde la pantalla principal.
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+
+          <DialogContent sx={{ px: 3, pt: 3, pb: 1.5 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mb: 2.5 }}>
+              {[
+                { step: '1', label: 'Solicitar aquí' },
+                { step: '2', label: 'Revisar tu correo' },
+                { step: '3', label: 'Ingresar desde el login' },
+              ].map((item) => (
+                <Box
+                  key={item.step}
+                  sx={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.2,
+                    py: 1,
+                    borderRadius: 2,
+                    bgcolor: IGSS_COLORS.fondoClaro,
+                    border: `1px solid ${IGSS_COLORS.gris}`,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      bgcolor: IGSS_COLORS.azul,
+                      color: IGSS_COLORS.blanco,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {item.step}
+                  </Box>
+                  <Typography variant="caption" sx={{ color: IGSS_COLORS.textoOscuro, fontWeight: 600 }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              En esta ventana solo confirmas tu identidad. Después cierras, revisas tu correo institucional
+              y vuelves a iniciar sesión desde cero con la contraseña temporal. El sistema te pedirá
+              crear una nueva.
+            </Typography>
+
+            <TextField
+              autoFocus
+              required
+              fullWidth
+              margin="normal"
+              label="Código de empleado"
+              value={recoveryCodigoEmpleado}
+              onChange={(event) => setRecoveryCodigoEmpleado(event.target.value)}
+              autoComplete="username"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <BadgeOutlinedIcon sx={{ color: IGSS_COLORS.azul }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <TextField
+              required
+              fullWidth
+              margin="normal"
+              label="Correo institucional registrado"
+              type="email"
+              value={recoveryCorreo}
+              onChange={(event) => setRecoveryCorreo(event.target.value)}
+              autoComplete="email"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailOutlinedIcon sx={{ color: IGSS_COLORS.azul }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <Alert
+              severity="info"
+              icon={<ShieldOutlinedIcon fontSize="inherit" />}
+              sx={{
+                mt: 2,
+                mb: 1,
+                borderRadius: 2,
+                bgcolor: 'rgba(59, 107, 133, 0.08)',
+                color: IGSS_COLORS.textoOscuro,
+                border: `1px solid rgba(59, 107, 133, 0.18)`,
+                '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+              }}
+            >
+              No ingreses la contraseña temporal aquí. Úsala en la pantalla principal de inicio de sesión;
+              luego el sistema te solicitará cambiarla.
+            </Alert>
+          </DialogContent>
+
+          <Divider />
+
+          <Box
+            sx={{
+              px: 3,
+              py: 2.2,
+              display: 'flex',
+              gap: 1.5,
+              justifyContent: 'flex-end',
+              bgcolor: IGSS_COLORS.fondo,
+            }}
+          >
+            <Button
+              onClick={() => setRecoveryOpen(false)}
+              disabled={recoverySubmitting}
+              variant="outlined"
+              sx={{
+                borderColor: IGSS_COLORS.grisOscuro,
+                color: IGSS_COLORS.azul,
+                px: 2.2,
+                '&:hover': {
+                  borderColor: IGSS_COLORS.azul,
+                  bgcolor: 'rgba(59, 107, 133, 0.06)',
+                },
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={recoverySubmitting}
+              endIcon={
+                recoverySubmitting
+                  ? <CircularProgress size={16} color="inherit" />
+                  : <ArrowForwardRoundedIcon />
+              }
+              sx={{
+                px: 2.4,
+                bgcolor: IGSS_COLORS.azul,
+                boxShadow: '0 6px 16px rgba(59, 107, 133, 0.28)',
+                '&:hover': {
+                  bgcolor: IGSS_COLORS.azulOscuro,
+                  boxShadow: '0 8px 20px rgba(50, 90, 114, 0.32)',
+                },
+              }}
+            >
+              {recoverySubmitting ? 'Enviando…' : 'Enviar contraseña temporal'}
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
 
       <DashboardChoicePanel
         variant="dialog"

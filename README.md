@@ -13,7 +13,7 @@ Sistema de gestión (frontend React + backend Node/Express/TypeORM + PostgreSQL)
 
 ## Desarrollo local (resumen)
 
-**Inicio rápido en Windows:** doble clic en [`INICIAR-SIGEC.bat`](INICIAR-SIGEC.bat) (levanta backend + frontend y abre el navegador).
+**Inicio rápido en Windows:** doble clic en [`INICIAR-SIGEC.bat`](INICIAR-SIGEC.bat). Comprueba Node, `.env` y PostgreSQL, instala dependencias si faltan, espera a que API y frontend respondan y abre el login. Para detener: [`DETENER-SIGEC.bat`](DETENER-SIGEC.bat).
 
 ```bash
 # Backend

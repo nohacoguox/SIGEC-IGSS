@@ -20,12 +20,13 @@ import { Role } from './entity/Role';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { In, DeepPartial, Between } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { pdfGeneratorService } from './services/PdfGeneratorService';
 import { fileStorageService } from './services/FileStorageService';
 import { syncAppScreenPermissions } from './services/syncAppScreens';
 import { ensureCorrelativoTables } from './services/ensureCorrelativoTables';
 import { resolveAnalyticsScope } from './services/analyticsScope';
+import { sendPasswordRecoveryEmail } from './services/PasswordRecoveryMailService';
 import {
   clasificarAlCorte,
   construirCierresMensuales,
@@ -59,6 +60,45 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const PASSWORD_RECOVERY_WINDOW_MS = 15 * 60 * 1000;
+const PASSWORD_RECOVERY_MAX_REQUESTS = 3;
+const passwordRecoveryAttempts = new Map<string, number[]>();
+
+function createTemporaryPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%*-_';
+  const all = `${upper}${lower}${digits}${symbols}`;
+  const randomCharacter = (pool: string) => pool[randomBytes(1)[0] % pool.length];
+  const password = [
+    randomCharacter(upper),
+    randomCharacter(lower),
+    randomCharacter(digits),
+    randomCharacter(symbols),
+    ...Array.from({ length: 12 }, () => randomCharacter(all)),
+  ];
+
+  for (let index = password.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomBytes(1)[0] % (index + 1);
+    [password[index], password[swapIndex]] = [password[swapIndex], password[index]];
+  }
+  return password.join('');
+}
+
+function canRequestPasswordRecovery(key: string): boolean {
+  const now = Date.now();
+  const attempts = (passwordRecoveryAttempts.get(key) ?? []).filter(
+    (timestamp) => now - timestamp < PASSWORD_RECOVERY_WINDOW_MS,
+  );
+  if (attempts.length >= PASSWORD_RECOVERY_MAX_REQUESTS) {
+    passwordRecoveryAttempts.set(key, attempts);
+    return false;
+  }
+  attempts.push(now);
+  passwordRecoveryAttempts.set(key, attempts);
+  return true;
+}
 
 const multer = require('multer');
 const CATALOGO_MAX_MB = Math.max(50, Number(process.env.CATALOGO_MAX_UPLOAD_MB) || 200);
@@ -562,6 +602,67 @@ runUserRolesMigration()
       console.error('Error en login:', error);
       const message = error?.message || 'Error en el servidor';
       res.status(500).json({ message: 'Error en el servidor', detail: message });
+    }
+  });
+
+  app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
+    const genericResponse = {
+      message: 'Si los datos proporcionados coinciden con una cuenta activa, se enviará una contraseña temporal al correo institucional registrado.',
+    };
+    try {
+      const codigoEmpleado = String(req.body?.codigoEmpleado ?? '').trim();
+      const correoInstitucional = String(req.body?.correoInstitucional ?? '').trim().toLowerCase();
+      const rateKey = `${req.ip}:${codigoEmpleado.toLowerCase()}`;
+
+      if (!codigoEmpleado || !correoInstitucional || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoInstitucional)) {
+        return res.status(400).json({ message: 'Ingrese un código de empleado y un correo electrónico válidos.' });
+      }
+      if (!canRequestPasswordRecovery(rateKey)) {
+        return res.status(429).json({
+          message: 'Por seguridad, espere unos minutos antes de solicitar otra recuperación.',
+        });
+      }
+
+      const userRepository = AppDataSource.getRepository(User);
+      const credentialRepository = AppDataSource.getRepository(Credential);
+      const user = await userRepository
+        .createQueryBuilder('user')
+        .where('user.codigoEmpleado = :codigoEmpleado', { codigoEmpleado })
+        .andWhere('LOWER(user.correoInstitucional) = :correoInstitucional', { correoInstitucional })
+        .getOne();
+
+      // La respuesta no revela si el código o correo existe para proteger las cuentas registradas.
+      if (!user) {
+        return res.status(202).json(genericResponse);
+      }
+
+      const temporaryPassword = createTemporaryPassword();
+      await sendPasswordRecoveryEmail({
+        recipient: user.correoInstitucional,
+        recipientName: [user.nombres, user.apellidos].filter(Boolean).join(' ') || 'Usuario',
+        temporaryPassword,
+      });
+
+      let credential = await credentialRepository.findOne({ where: { userId: user.id } });
+      const password = await bcrypt.hash(temporaryPassword, 10);
+      if (credential) {
+        credential.password = password;
+        credential.isTempPassword = true;
+      } else {
+        credential = credentialRepository.create({
+          codigoEmpleado: user.codigoEmpleado,
+          password,
+          userId: user.id,
+          isTempPassword: true,
+        });
+      }
+      await credentialRepository.save(credential);
+
+      return res.status(202).json(genericResponse);
+    } catch (error: any) {
+      // No se expone información de infraestructura ni de cuentas en una ruta pública.
+      console.error('Error al procesar recuperación de contraseña:', error?.message || error);
+      return res.status(202).json(genericResponse);
     }
   });
 

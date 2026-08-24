@@ -16,15 +16,16 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token'); // Obtiene el token del almacenamiento local
-    const isLoginRequest = config.url?.includes('/auth/login');
+    const isPublicAuthRequest =
+      config.url?.includes('/auth/login') || config.url?.includes('/auth/forgot-password');
 
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     }
-    if (token && !isLoginRequest) {
+    if (token && !isPublicAuthRequest) {
       config.headers.Authorization = `Bearer ${token}`; // Añade el token al encabezado de autorización
       console.log(`[API] Token adjuntado a solicitud ${config.method?.toUpperCase()} ${config.url}`);
-    } else if (!token && !isLoginRequest) {
+    } else if (!token && !isPublicAuthRequest) {
       // Solo advertir si no es una solicitud de login y no hay token
       console.warn(`[API] No se encontró token para solicitud ${config.method?.toUpperCase()} ${config.url}`);
     }
