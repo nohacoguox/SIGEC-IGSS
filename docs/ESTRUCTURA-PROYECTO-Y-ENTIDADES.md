@@ -27,14 +27,20 @@ sigec-igss/                     # Repositorio SIGEC-IGSS (en Windows la carpeta 
 │       ├── context/            # SiafContext, ThemeContext, NotificationContext
 │       ├── api.ts
 │       └── App.tsx
-├── database/                   # Datos PostgreSQL (data/, config)
-├── docs/                       # Documentación
-├── package.json                # Raíz (dependencias mínimas)
-├── FASE-2-ENDPOINTS-BACKEND.md
-├── FASE-3-INTEGRACION-COMPLETA.md
-├── IMPLEMENTACION-ALMACENAMIENTO.md
-├── RESUMEN-COMPLETO-IMPLEMENTACION.md
-└── TODO.md
+├── database/                   # Migraciones SQL (el clúster local data/ no va en git)
+├── docs/                       # Documentación SIGEC
+│   ├── notas-desarrollo/       # Fases, TODO, resúmenes de implementación
+│   ├── herramientas/           # Scripts Python de diagramas/firmas
+│   ├── muestras/               # CSV de ejemplo SIAF
+│   ├── trabajo-grado/          # Borradores de informe (no son runtime)
+│   └── otros/                  # Documentos ajenos al núcleo SIGEC
+├── scripts/
+│   ├── iniciar-sigec.ps1 / detener-sigec.ps1
+│   ├── pruebas-api/            # Scripts de prueba de endpoints
+│   ├── recorrido_prototipo/    # Capturas del prototipo
+│   └── trabajo-grado/          # Instrumentos n=25 y scripts asociados
+├── INICIAR-SIGEC.bat / DETENER-SIGEC.bat
+└── package.json                # Raíz (dependencias mínimas)
 ```
 
 **Archivos clave**

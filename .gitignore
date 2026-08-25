@@ -1,19 +1,22 @@
 # Secretos y entorno local
-backend/.env
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
 
 # Dependencias
 node_modules/
 
 # Build / logs
 frontend/build/
+logs/
 *.log
 npm-debug.log*
 
-# Subidas locales
+# Subidas y datos locales (se conservan en disco, no en git)
 backend/uploads/
+database/data/
 
 # OS / IDE
 .DS_Store

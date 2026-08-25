@@ -10,6 +10,8 @@ Sistema de gestión (frontend React + backend Node/Express/TypeORM + PostgreSQL)
 | [docs/DESPLIEGUE-WINDOWS-A-DEBIAN12.md](docs/DESPLIEGUE-WINDOWS-A-DEBIAN12.md) | Índice corto que enlaza a la guía anterior |
 | [docs/BASE-DATOS-DESDE-CERO.md](docs/BASE-DATOS-DESDE-CERO.md) | Crear base y esquema desde cero |
 | [docs/MIGRACION-DATOS-Y-DESPLIEGUE-SERVIDOR.md](docs/MIGRACION-DATOS-Y-DESPLIEGUE-SERVIDOR.md) | Migración de datos con `pg_dump` / restauración |
+| [docs/notas-desarrollo/](docs/notas-desarrollo/) | Notas de fases, almacenamiento y TODO de desarrollo |
+| [docs/otros/](docs/otros/) | Material que no forma parte del núcleo SIGEC (p. ej. VLAN, ITIL) |
 
 ## Desarrollo local (resumen)
 
