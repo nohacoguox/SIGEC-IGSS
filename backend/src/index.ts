@@ -5,8 +5,6 @@ import dotenv from 'dotenv';
 import { runUserRolesMigration } from './migrations/migrate-user-roles';
 import { AppDataSource } from './data-source';
 import { User } from './entity/User';
-import { Credential } from './entity/Credential';
-import { Puesto } from './entity/Puesto';
 import { UnidadMedica } from './entity/UnidadMedica';
 import { Departamento } from './entity/Departamento';
 import { SiafSolicitud, SiafAutorizacion, SiafBitacora } from './entity/SiafSolicitud';
@@ -14,14 +12,15 @@ import { Expediente, ExpedienteDocumento, ExpedienteBitacora, ExpedienteBitacora
 import { ProductoCatalogo } from './entity/ProductoCatalogo';
 import { ProductoCatalogoConfig } from './entity/ProductoCatalogoConfig';
 import { Role } from './entity/Role';
-import bcrypt from 'bcryptjs';
-import { In, DeepPartial, Between } from 'typeorm';
+import { In, DeepPartial } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { verifyToken, authorizeRoles, authorizeRolesOrPermissions } from './middleware/auth';
 import { authRouter } from './modules/auth/routes';
 import { rbacRouter } from './modules/rbac/routes';
 import { catalogosRouter } from './modules/catalogos/routes';
 import { siafRouter } from './modules/siaf/routes';
+import { correlativosRouter } from './modules/correlativos/routes';
+import { usuariosRouter } from './modules/usuarios/routes';
 import { uploadMemory, CATALOGO_MAX_MB } from './middleware/upload';
 import { parseOrigen, CatalogoOrigenApi } from './services/catalogoOrigen';
 import { resolveDepartamentoDireccion } from './services/departamentoDireccion';
@@ -42,18 +41,7 @@ import {
   promediarTiemposSiaf,
   unificarEventosSiaf,
 } from './services/siafAnalytics';
-import {
-  reservarCorrelativo,
-  liberarCorrelativo,
-  getEstadoCorrelativos,
-  actualizarConfigCorrelativo,
-  liberarReservaAdmin,
-} from './services/CorrelativoService';
-import {
-  asignarCorrelativoExpediente,
-  actualizarConfigCorrelativoExpediente,
-  getEstadoCorrelativosExpediente,
-} from './services/ExpedienteCorrelativoService';
+import { asignarCorrelativoExpediente } from './services/ExpedienteCorrelativoService';
 
 dotenv.config();
 
@@ -469,146 +457,8 @@ runUserRolesMigration()
   // Roles, permisos y catálogo de pantallas → src/modules/rbac
   app.use('/api', rbacRouter);
 
-  // ——— Correlativos SIAF (secuencia automática + reservas) ———
-  app.get(
-    '/api/correlativos/estado',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
-    async (_req: Request, res: Response) => {
-      try {
-        const estado = await getEstadoCorrelativos();
-        res.json(estado);
-      } catch (err: any) {
-        console.error(err);
-        res.status(500).json({ message: err?.message || 'Error al obtener estado de correlativos' });
-      }
-    }
-  );
-
-  app.put(
-    '/api/correlativos/config',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
-    async (req: Request, res: Response) => {
-      try {
-        const { numeroInicio, siguienteNumero, digitos, minutosReserva } = req.body;
-        const config = await actualizarConfigCorrelativo({
-          numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
-          siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
-          digitos: digitos != null ? Number(digitos) : undefined,
-          minutosReserva: minutosReserva != null ? Number(minutosReserva) : undefined,
-        });
-        const estado = await getEstadoCorrelativos();
-        res.json({ config, estado });
-      } catch (err: any) {
-        res.status(400).json({ message: err?.message || 'Error al actualizar configuración' });
-      }
-    }
-  );
-
-  app.post(
-    '/api/correlativos/reservar',
-    verifyToken,
-    authorizeRolesOrPermissions(
-      ['super administrador', 'crear-siaf', 'listado-siaf'],
-      ['crear-siaf', 'listado-siaf']
-    ),
-    async (req: Request, res: Response) => {
-      try {
-        const userId = (req as any).user.userId;
-        const reserva = await reservarCorrelativo(userId);
-        res.status(201).json(reserva);
-      } catch (err: any) {
-        console.error('[correlativos/reservar]', err);
-        const msg = err?.message || 'Error al reservar correlativo';
-        const hint = /does not exist|relation|tabla/i.test(msg)
-          ? ' Reinicie el backend para crear las tablas de correlativos.'
-          : '';
-        res.status(500).json({ message: `${msg}${hint}` });
-      }
-    }
-  );
-
-  app.post(
-    '/api/correlativos/liberar',
-    verifyToken,
-    async (req: Request, res: Response) => {
-      try {
-        const userId = (req as any).user.userId;
-        const reservaId = Number(req.body?.reservaId);
-        if (!reservaId) return res.status(400).json({ message: 'reservaId es obligatorio' });
-        const ok = await liberarCorrelativo(reservaId, userId, false);
-        if (!ok) return res.status(404).json({ message: 'Reserva no encontrada o no autorizada' });
-        res.json({ ok: true });
-      } catch (err: any) {
-        res.status(500).json({ message: err?.message || 'Error al liberar correlativo' });
-      }
-    }
-  );
-
-  app.post(
-    '/api/correlativos/liberar-admin/:id',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
-    async (req: Request, res: Response) => {
-      try {
-        const ok = await liberarReservaAdmin(parseInt(req.params.id, 10));
-        if (!ok) return res.status(404).json({ message: 'Reserva no encontrada' });
-        const estado = await getEstadoCorrelativos();
-        res.json({ ok: true, estado });
-      } catch (err: any) {
-        res.status(500).json({ message: err?.message || 'Error al liberar reserva' });
-      }
-    }
-  );
-
-  // ——— Correlativos de expedientes (asignación automática al guardar) ———
-  // Vista previa para quien crea expedientes (no requiere gestionar-correlativos)
-  app.get(
-    '/api/correlativos/expedientes/siguiente',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador'], ['crear-expediente']),
-    async (_req: Request, res: Response) => {
-      try {
-        const estado = await getEstadoCorrelativosExpediente();
-        res.json({ correlativo: estado.correlativoSiguientePreview });
-      } catch (err: any) {
-        res.status(500).json({ message: err?.message || 'Error al obtener el siguiente correlativo de expediente' });
-      }
-    }
-  );
-
-  app.get(
-    '/api/correlativos/expedientes/estado',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
-    async (_req: Request, res: Response) => {
-      try {
-        res.json(await getEstadoCorrelativosExpediente());
-      } catch (err: any) {
-        res.status(500).json({ message: err?.message || 'Error al obtener correlativos de expedientes' });
-      }
-    }
-  );
-
-  app.put(
-    '/api/correlativos/expedientes/config',
-    verifyToken,
-    authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
-    async (req: Request, res: Response) => {
-      try {
-        const { numeroInicio, siguienteNumero, digitos } = req.body || {};
-        const config = await actualizarConfigCorrelativoExpediente({
-          numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
-          siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
-          digitos: digitos != null ? Number(digitos) : undefined,
-        });
-        res.json({ config, estado: await getEstadoCorrelativosExpediente() });
-      } catch (err: any) {
-        res.status(400).json({ message: err?.message || 'Error al actualizar correlativos de expedientes' });
-      }
-    }
-  );
+  // Correlativos SIAF y de expedientes (secuencia, reservas y configuración) → src/modules/correlativos
+  app.use('/api/correlativos', correlativosRouter);
 
   // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
@@ -1429,244 +1279,8 @@ runUserRolesMigration()
     }
   });
 
-  // User endpoints (solo super administrador o gestionar-usuarios)
-  app.get('/api/users', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const userRepository = AppDataSource.getRepository(User);
-      const users = await userRepository.find({
-        relations: ['puesto', 'roles', 'roles.permissions'],
-        order: { nombres: 'ASC' }
-      });
-      res.json(users);
-    } catch (error) {
-      console.error('Error al obtener usuarios:', error);
-      res.status(500).json({ message: 'Error al obtener usuarios' });
-    }
-  });
-
-  // Restablecer contraseña de un usuario (debe ir antes de GET /api/users/:id)
-  app.post('/api/users/:id/reset-password', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: 'ID de usuario inválido.' });
-      const userRepository = AppDataSource.getRepository(User);
-      const credentialRepository = AppDataSource.getRepository(Credential);
-      const user = await userRepository.findOne({ where: { id } });
-      if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
-      let credential = await credentialRepository.findOne({ where: { userId: id } });
-      const newPassword = '123';
-      const hashed = await bcrypt.hash(newPassword, 10);
-      if (credential) {
-        credential.password = hashed;
-        credential.isTempPassword = true;
-        await credentialRepository.save(credential);
-      } else {
-        credential = credentialRepository.create({
-          codigoEmpleado: user.codigoEmpleado || `user-${id}`,
-          password: hashed,
-          userId: id,
-          isTempPassword: true,
-        });
-        await credentialRepository.save(credential);
-      }
-      res.json({ message: 'Contraseña restablecida correctamente. La nueva contraseña es: 123' });
-    } catch (err: any) {
-      console.error('Error al restablecer contraseña:', err);
-      res.status(500).json({ message: err?.message || 'Error al restablecer la contraseña.' });
-    }
-  });
-
-  app.get('/api/users/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const userRepository = AppDataSource.getRepository(User);
-      const user = await userRepository.findOne({
-        where: { id: parseInt(req.params.id) },
-        relations: ['puesto', 'roles', 'roles.permissions']
-      });
-
-      if (!user) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-      }
-
-      res.json(user);
-    } catch (error) {
-      console.error('Error al obtener usuario:', error);
-      res.status(500).json({ message: 'Error al obtener usuario' });
-    }
-  });
-
-  // Roles de un usuario (para Gestión de Roles: asignar varios roles a un colaborador)
-  app.get('/api/users/:id/roles', verifyToken, authorizeRoles(['super administrador', 'gestionar-roles']), async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const userRepository = AppDataSource.getRepository(User);
-      const user = await userRepository.findOne({
-        where: { id: userId },
-        relations: ['roles', 'roles.permissions'],
-      });
-      if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-      res.json({ roles: user.roles ?? [] });
-    } catch (error) {
-      console.error('Error al obtener roles del usuario:', error);
-      res.status(500).json({ message: 'Error al obtener roles del usuario' });
-    }
-  });
-
-  app.put('/api/users/:id/roles', verifyToken, authorizeRoles(['super administrador', 'gestionar-roles', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const { roleIds } = req.body as { roleIds: number[] };
-      const userRepository = AppDataSource.getRepository(User);
-      const roleRepository = AppDataSource.getRepository(Role);
-      const user = await userRepository.findOne({
-        where: { id: userId },
-        relations: ['roles'],
-      });
-      if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-      const roles = Array.isArray(roleIds) && roleIds.length > 0
-        ? await roleRepository.find({ where: { id: In(roleIds) } })
-        : [];
-      user.roles = roles;
-      await userRepository.save(user);
-      res.json({ roles: user.roles });
-    } catch (error) {
-      console.error('Error al actualizar roles del usuario:', error);
-      res.status(500).json({ message: 'Error al actualizar roles del usuario' });
-    }
-  });
-
-  app.post('/api/users', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const { nombres, apellidos, dpi, nit, telefono, correoInstitucional, codigoEmpleado, renglon, puestoId, unidadMedica, departamentoDireccion } = req.body;
-      const userRepository = AppDataSource.getRepository(User);
-      const credentialRepository = AppDataSource.getRepository(Credential);
-      const puestoRepository = AppDataSource.getRepository(Puesto);
-      if (!puestoId) return res.status(400).json({ message: 'Puesto es requerido' });
-      const puesto = await puestoRepository.findOneBy({ id: puestoId });
-      if (!puesto) return res.status(400).json({ message: 'Puesto no encontrado' });
-      const hashed = await bcrypt.hash('TempPass123!', 10);
-      const user = userRepository.create({
-        nombres,
-        apellidos,
-        dpi,
-        nit,
-        telefono,
-        correoInstitucional,
-        codigoEmpleado,
-        renglon,
-        puesto,
-        unidadMedica,
-        departamentoDireccion: departamentoDireccion === '' || departamentoDireccion == null ? null : String(departamentoDireccion),
-        roles: [],
-      });
-      const savedUser = await userRepository.save(user);
-      const cred = credentialRepository.create({
-        codigoEmpleado,
-        password: hashed,
-        userId: savedUser.id,
-        isTempPassword: true,
-      });
-      await credentialRepository.save(cred);
-      res.status(201).json(savedUser);
-    } catch (error: any) {
-      console.error('Error al crear usuario:', error);
-      res.status(500).json({ message: error?.message || 'Error al crear usuario' });
-    }
-  });
-
-  app.put('/api/users/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { nombres, apellidos, dpi, nit, telefono, correoInstitucional, codigoEmpleado, renglon, puestoId, unidadMedica, departamentoDireccion } = req.body;
-      const userRepository = AppDataSource.getRepository(User);
-      const puestoRepository = AppDataSource.getRepository(Puesto);
-      const user = await userRepository.findOne({ where: { id }, relations: ['puesto', 'roles'] });
-      if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-      if (nombres != null) user.nombres = nombres;
-      if (apellidos != null) user.apellidos = apellidos;
-      if (dpi != null) user.dpi = dpi;
-      if (nit != null) user.nit = nit;
-      if (telefono != null) user.telefono = telefono;
-      if (correoInstitucional != null) user.correoInstitucional = correoInstitucional;
-      if (codigoEmpleado != null) user.codigoEmpleado = codigoEmpleado;
-      if (renglon != null) user.renglon = renglon;
-      if (unidadMedica != null) user.unidadMedica = unidadMedica;
-      if (departamentoDireccion !== undefined) user.departamentoDireccion = departamentoDireccion === '' || departamentoDireccion === null ? null : String(departamentoDireccion);
-      if (puestoId != null) {
-        const puesto = await puestoRepository.findOneBy({ id: puestoId });
-        if (puesto) user.puesto = puesto;
-      }
-      await userRepository.save(user);
-      res.json(user);
-    } catch (error: any) {
-      console.error('Error al actualizar usuario:', error);
-      res.status(500).json({ message: error?.message || 'Error al actualizar usuario' });
-    }
-  });
-
-  app.delete('/api/users/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userRepository = AppDataSource.getRepository(User);
-      const user = await userRepository.findOne({ where: { id } });
-      if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-      await userRepository.remove(user);
-      res.status(204).send();
-    } catch (error) {
-      console.error('Error al eliminar usuario:', error);
-      res.status(500).json({ message: 'Error al eliminar usuario' });
-    }
-  });
-
-  app.get('/api/users/director/:unidadMedica', verifyToken, async (req: Request, res: Response) => {
-    try {
-      const { unidadMedica } = req.params;
-      const userRepository = AppDataSource.getRepository(User);
-
-      const director = await userRepository
-        .createQueryBuilder('user')
-        .leftJoinAndSelect('user.puesto', 'puesto')
-        .where('user.unidadMedica = :unidadMedica', { unidadMedica })
-        .andWhere('puesto.nombre ILIKE :puestoNombre', { puestoNombre: '%DIRECTOR%' })
-        .getOne();
-
-      if (!director) {
-        return res.status(404).json({ message: `No se encontró un director para la unidad: ${unidadMedica}` });
-      }
-
-      res.json(director);
-    } catch (error) {
-      console.error('Error al buscar director:', error);
-      res.status(500).json({ message: 'Error en el servidor al buscar director' });
-    }
-  });
-
-  /** Personal de la misma unidad con puesto de médico/doctor (para Encargado del Despacho). */
-  app.get('/api/users/medicos-por-unidad/:unidadMedica', verifyToken, async (req: Request, res: Response) => {
-    try {
-      const unidadMedica = decodeURIComponent(req.params.unidadMedica || '').trim();
-      if (!unidadMedica) {
-        return res.status(400).json({ message: 'La unidad médica es requerida.' });
-      }
-      const userRepository = AppDataSource.getRepository(User);
-      // lower() en PG a veces no convierte É→é; se normalizan mayúsculas/tildes aparte.
-      const medicos = await userRepository
-        .createQueryBuilder('user')
-        .leftJoinAndSelect('user.puesto', 'puesto')
-        .where('TRIM(user.unidadMedica) = :unidadMedica', { unidadMedica })
-        .andWhere(
-          `lower(translate(coalesce(puesto.nombre, ''), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')) ~ :patron`,
-          { patron: '(^|[^a-z])(medicos?|doctores?|doctora)([^a-z]|$)' }
-        )
-        .orderBy('user.apellidos', 'ASC')
-        .addOrderBy('user.nombres', 'ASC')
-        .getMany();
-      res.json(medicos);
-    } catch (error) {
-      console.error('Error al listar médicos por unidad:', error);
-      res.status(500).json({ message: 'Error en el servidor al listar personal médico.' });
-    }
-  });
+  // Usuarios: alta, edición, roles asignados, director y personal médico → src/modules/usuarios
+  app.use('/api/users', usuariosRouter);
 
   // Puestos, departamentos, municipios, unidades médicas y áreas → src/modules/catalogos
   app.use('/api', catalogosRouter);
