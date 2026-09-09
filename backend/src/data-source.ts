@@ -29,7 +29,9 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD || 'admin98',
   database: process.env.DB_NAME || 'igss',
   schema: dbSchema,
-  synchronize: process.env.DB_SYNCHRONIZE !== 'false',
+  // Opt-in: solo con DB_SYNCHRONIZE=true (BD vacía / desarrollo). En producción
+  // y BD existentes dejar false y confiar en ensureSchema + migraciones futuras.
+  synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',
   entities: [
     User, 

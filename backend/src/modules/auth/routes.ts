@@ -30,7 +30,7 @@ export const authRouter = Router();
 
 authRouter.post('/login', async (req: Request, res: Response) => {
   try {
-    const { codigoEmpleado, password } = req.body;
+    const { codigoEmpleado, password } = req.body || {};
     if (!codigoEmpleado || !password) {
       return res.status(400).json({ message: 'Código de empleado y contraseña son requeridos' });
     }

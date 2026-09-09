@@ -1,12 +1,13 @@
 # Plan: modularizar y (opcional) separar repos
 
-Orden recomendado: **primero módulos dentro del backend**, luego decidir el split FE/BE. Separar repos no arregla por sí solo la deuda de `backend/src/index.ts`.
+Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro, luego decidir el split FE/BE.
 
-| Fase | Qué |
-|------|-----|
-| 1 | Modularizar backend |
-| 2 | Contrato API (rutas, permisos, pantallas) |
-| 3 | Split de repos **solo si aporta** |
+| Fase | Qué | Estado |
+|------|-----|--------|
+| 1 | Modularizar backend | **Hecha** (`index.ts` ~342 líneas; 10 módulos en `src/modules/`) |
+| 1.5 | Esquema sin `synchronize` por defecto | **En curso** (`ensureSchema` + opt-in) |
+| 2 | Contrato API (rutas, permisos, pantallas) | Pendiente |
+| 3 | Split de repos **solo si aporta** | Pendiente |
 
 ---
 
@@ -42,30 +43,45 @@ Contexto actual:
 
 ---
 
-## Fase 1 — Modularizar el backend (hacer primero)
+## Fase 1 — Modularizar el backend ✅
 
-Extraer **sin cambiar comportamiento**. `index.ts` queda como bootstrap (arranque).
+Extraído **sin cambiar comportamiento**. `index.ts` queda como bootstrap (arranque + montaje de routers).
 
-| Orden | Módulo | Qué sacar de `index.ts` |
-|------:|--------|-------------------------|
-| 1 | auth / users | login, JWT, `verifyToken`, usuarios, password recovery |
-| 2 | catalogos | áreas, puestos, unidades, departamentos/municipios, roles |
-| 3 | siaf | solicitudes, autorización, DAF, PDF, adjuntos, bitácora |
-| 4 | expedientes | CRUD, documentos, versiones, revisiones |
-| 5 | analytics + correlativos | dashboards, configs de correlativo, catálogo productos |
+| Módulo | Carpeta |
+|--------|---------|
+| auth | `modules/auth/` |
+| rbac | `modules/rbac/` |
+| catalogos (puestos, UM, etc.) | `modules/catalogos/` |
+| correlativos | `modules/correlativos/` |
+| usuarios | `modules/usuarios/` |
+| expedientes | `modules/expedientes/` |
+| siaf | `modules/siaf/` |
+| catalogoProductos | `modules/catalogoProductos/` |
+| estadisticas | `modules/estadisticas/` |
+| ortografia | `modules/ortografia/` |
 
-### Estructura objetivo (dentro de `backend/`)
+Helpers compartidos: `middleware/auth`, `middleware/upload`, `services/catalogoOrigen`, `services/departamentoDireccion`, `services/ensureSchema`.
 
-```
-backend/src/
-  app.ts                 # crea Express, middlewares
-  index.ts               # arranque + DataSource
-  middleware/            # auth, errores
-  modules/<dominio>/
-    routes.ts
-    service.ts
-  entity/                # se mantiene (o se mueve por módulo después)
-```
+---
+
+## Fase 1.5 — Esquema de base de datos (prioridad actual)
+
+**Problema:** `synchronize` estaba **activo por defecto** (`!== 'false'`). En una BD con datos eso puede alterar tablas sin control.
+
+**Puente actual (ya aplicado en código):**
+
+1. `synchronize` solo si `DB_SYNCHRONIZE=true` (opt-in).
+2. Parches idempotentes en `services/ensureSchema.ts` (antes vivían sueltos en `index.ts`).
+3. Correlativos siguen en `ensureCorrelativoTables`.
+
+**Uso:**
+
+| Escenario | `DB_SYNCHRONIZE` |
+|-----------|------------------|
+| BD existente / producción / tu local actual | `false` (o omitido → false) |
+| BD vacía, primer arranque | `true` una vez → luego `false` |
+
+**Siguiente paso formal (aún no hecho):** generar migraciones TypeORM versionadas (`migration:generate` / `migration:run`) y retirar gradualmente los `ADD COLUMN IF NOT EXISTS` cuando el historial de migraciones cubra el esquema.
 
 ---
 
@@ -107,7 +123,7 @@ En el servidor pasarías de un solo `/var/www/sigec-igss` a dos clones (p. ej. `
 **Un repo, dos apps independientes** — lo que ya tienes:
 
 - Mantén `frontend/` y `backend/` en el mismo Git
-- Modulariza el backend
+- Modulariza el backend ✅
 - Trata cada carpeta como deployable aparte (ya lo son)
 - Si más adelante la institución pide dos remotes, el split es una copia limpia / `git filter-repo`, no un rediseño
 
@@ -117,9 +133,6 @@ Beneficio: un PR puede tocar FE+BE; un clone despliega todo; docs y scripts sigu
 
 ## Siguiente paso práctico
 
-Empezar por extraer **auth + middleware** de `index.ts` a:
-
-- `src/middleware/`
-- `src/modules/auth/`
-
-Sin tocar el frontend ni el remoto. Cuando eso esté estable, reevaluar el split.
+1. Confirmar en el log de arranque: `TypeORM synchronize=OFF`.
+2. En servidor Debian: asegurar `DB_SYNCHRONIZE=false` en `backend/.env`.
+3. Cuando toque evolucionar el esquema: o bien ampliar `ensureSchema`, o generar la primera migración TypeORM formal.
