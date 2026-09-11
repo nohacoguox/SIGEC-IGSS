@@ -14,7 +14,13 @@
     "remove-colaborador-role": "ts-node src/seeders/RemoveColaboradorRole.ts",
     "seed-roles": "ts-node src/seeders/SeedRolesFromPermissions.ts",
     "seed-departamentos-municipios": "ts-node src/seeders/SeedDepartamentosMunicipios.ts",
-    "seed-bootstrap-admin": "ts-node src/seeders/SeedBootstrapAdmin.ts"
+    "seed-bootstrap-admin": "ts-node src/seeders/SeedBootstrapAdmin.ts",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:show": "typeorm-ts-node-commonjs migration:show -d src/data-source.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+    "migration:create": "typeorm-ts-node-commonjs migration:create",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts"
   },
   "keywords": [],
   "author": "",

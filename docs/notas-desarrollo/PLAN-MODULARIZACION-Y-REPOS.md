@@ -4,8 +4,8 @@ Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro
 
 | Fase | Qué | Estado |
 |------|-----|--------|
-| 1 | Modularizar backend | **Hecha** (`index.ts` ~342 líneas; 10 módulos en `src/modules/`) |
-| 1.5 | Esquema sin `synchronize` por defecto | **En curso** (`ensureSchema` + opt-in) |
+| 1 | Modularizar backend | **Hecha** (`index.ts` bootstrap; 10 módulos en `src/modules/`) |
+| 1.5 | Esquema sin `synchronize` por defecto + migraciones TypeORM | **Hecha (puente)** — ver `MIGRACIONES-TYPEORM.md` |
 | 2 | Contrato API (rutas, permisos, pantallas) | Pendiente |
 | 3 | Split de repos **solo si aporta** | Pendiente |
 
@@ -64,15 +64,16 @@ Helpers compartidos: `middleware/auth`, `middleware/upload`, `services/catalogoO
 
 ---
 
-## Fase 1.5 — Esquema de base de datos (prioridad actual)
+## Fase 1.5 — Esquema de base de datos ✅ (puente)
 
-**Problema:** `synchronize` estaba **activo por defecto** (`!== 'false'`). En una BD con datos eso puede alterar tablas sin control.
+**Problema:** `synchronize` estaba **activo por defecto**. En una BD con datos eso puede alterar tablas sin control.
 
-**Puente actual (ya aplicado en código):**
+**Aplicado:**
 
 1. `synchronize` solo si `DB_SYNCHRONIZE=true` (opt-in).
-2. Parches idempotentes en `services/ensureSchema.ts` (antes vivían sueltos en `index.ts`).
-3. Correlativos siguen en `ensureCorrelativoTables`.
+2. Migraciones TypeORM en `backend/src/db/migrations/` (primera: `HistoricalSchemaPatches`).
+3. Al arrancar: `runMigrations()` y luego `ensureSchema` (correlativos + backfills de datos).
+4. Guía: `docs/notas-desarrollo/MIGRACIONES-TYPEORM.md`.
 
 **Uso:**
 
@@ -81,7 +82,7 @@ Helpers compartidos: `middleware/auth`, `middleware/upload`, `services/catalogoO
 | BD existente / producción / tu local actual | `false` (o omitido → false) |
 | BD vacía, primer arranque | `true` una vez → luego `false` |
 
-**Siguiente paso formal (aún no hecho):** generar migraciones TypeORM versionadas (`migration:generate` / `migration:run`) y retirar gradualmente los `ADD COLUMN IF NOT EXISTS` cuando el historial de migraciones cubra el esquema.
+**Pendiente opcional:** generar `CreateInitialTables` para omitir el synchronize en servidores nuevos; migrar `ensureCorrelativoTables` a migraciones versionadas.
 
 ---
 
@@ -133,6 +134,7 @@ Beneficio: un PR puede tocar FE+BE; un clone despliega todo; docs y scripts sigu
 
 ## Siguiente paso práctico
 
-1. Confirmar en el log de arranque: `TypeORM synchronize=OFF`.
-2. En servidor Debian: asegurar `DB_SYNCHRONIZE=false` en `backend/.env`.
-3. Cuando toque evolucionar el esquema: o bien ampliar `ensureSchema`, o generar la primera migración TypeORM formal.
+1. Confirmar en el log: `Migraciones aplicadas` o `sin pendientes`, y `synchronize=OFF`.
+2. En servidor Debian: `DB_SYNCHRONIZE=false`; al desplegar, reiniciar API para correr migraciones.
+3. Cambios nuevos de esquema: entity + `npm run migration:generate` (ver `MIGRACIONES-TYPEORM.md`).
+4. Fase 2 cuando toque: unificar `appScreens` / contrato API.

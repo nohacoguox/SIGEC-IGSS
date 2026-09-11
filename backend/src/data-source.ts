@@ -30,7 +30,8 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'igss',
   schema: dbSchema,
   // Opt-in: solo con DB_SYNCHRONIZE=true (BD vacía / desarrollo). En producción
-  // y BD existentes dejar false y confiar en ensureSchema + migraciones futuras.
+  // y BD existentes dejar false; el esquema evoluciona con migraciones TypeORM
+  // (src/db/migrations) + reparaciones de datos en ensureSchema.
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',
   entities: [
@@ -60,6 +61,9 @@ export const AppDataSource = new DataSource({
     SiafCorrelativoReserva,
     ExpedienteCorrelativoConfig,
   ],
-  migrations: [],
+  migrations: [__dirname + '/db/migrations/*{.ts,.js}'],
+  migrationsTableName: 'typeorm_migrations',
+  // 'each' permite que una migración declare transaction=false (parches tolerantes a permisos).
+  migrationsTransactionMode: 'each',
   subscribers: [],
 });

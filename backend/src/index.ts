@@ -40,8 +40,15 @@ runUserRolesMigration()
   console.log(
     synchronizeEnabled
       ? '⚠️  TypeORM synchronize=ON (DB_SYNCHRONIZE=true). Solo para BD vacía / desarrollo.'
-      : '🔒 TypeORM synchronize=OFF. Esquema asegurado por ensureSchema (producción / BD existente).'
+      : '🔒 TypeORM synchronize=OFF. Esquema vía migraciones (src/db/migrations) + ensureSchema.'
   );
+
+  const executed = await AppDataSource.runMigrations();
+  if (executed.length > 0) {
+    console.log(`📦 Migraciones aplicadas: ${executed.map((m) => m.name).join(', ')}`);
+  } else {
+    console.log('📦 Migraciones: sin pendientes');
+  }
 
   await ensureSchema();
 
@@ -126,7 +133,7 @@ runUserRolesMigration()
   });
 
 }).catch(error => {
-  console.error('❌ Error al conectar con la base de datos:', error);
+  console.error('❌ Error al iniciar el backend (conexión o migraciones):', error);
   process.exit(1);
 });
 
