@@ -3,7 +3,7 @@ import { In } from 'typeorm';
 import { AppDataSource } from '../../data-source';
 import { Role } from '../../entity/Role';
 import { Permission } from '../../entity/Permission';
-import { APP_SCREENS } from '../../config/appScreens';
+import { APP_SCREENS, PERMISSION_ALIASES } from '../../config/appScreens';
 import { verifyToken, authorizeRoles } from '../../middleware/auth';
 
 export const rbacRouter = Router();
@@ -83,7 +83,21 @@ rbacRouter.get('/permissions', verifyToken, authorizeRoles(['super administrador
   }
 });
 
-// Catálogo de pantallas disponibles para vincular roles
+// Catálogo canónico de pantallas + alias (cualquier usuario autenticado).
+// El frontend lo usa como fuente de verdad; el listado local solo es fallback.
+rbacRouter.get('/app-screens/catalog', verifyToken, async (_req: Request, res: Response) => {
+  try {
+    res.json({
+      total: APP_SCREENS.length,
+      screens: APP_SCREENS,
+      aliases: PERMISSION_ALIASES,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener catálogo de pantallas' });
+  }
+});
+
+// Catálogo de pantallas con IDs de permiso (para vincular roles)
 rbacRouter.get('/app-screens', verifyToken, authorizeRoles(['super administrador', 'gestionar-roles']), async (req: Request, res: Response) => {
   try {
     const permissionRepository = AppDataSource.getRepository(Permission);
@@ -101,6 +115,7 @@ rbacRouter.get('/app-screens', verifyToken, authorizeRoles(['super administrador
       admin: screens.filter((s) => s.panel === 'admin'),
       colaborador: screens.filter((s) => s.panel === 'colaborador'),
       screens,
+      aliases: PERMISSION_ALIASES,
     });
   } catch (err) {
     res.status(500).json({ message: 'Error al obtener catálogo de pantallas' });

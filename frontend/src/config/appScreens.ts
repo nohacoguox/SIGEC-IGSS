@@ -1,6 +1,11 @@
 /**
- * Catálogo de pantallas SIGEC-IGSS (espejo del backend).
- * Cada pestaña del menú corresponde a una pantalla = un permiso.
+ * Tipos y helpers de pantallas SIGEC-IGSS.
+ *
+ * FUENTE DE VERDAD: backend/src/config/appScreens.ts
+ * El frontend carga el catálogo desde GET /api/app-screens/catalog.
+ * FALLBACK_* solo se usa si no hay sesión o falla la API (arranque / offline).
+ * No agregue pantallas nuevas aquí primero: hágalo en el backend y vuelva a
+ * sincronizar el fallback si hace falta.
  */
 export type AppPanel = 'admin' | 'colaborador';
 
@@ -13,7 +18,8 @@ export interface AppScreenDefinition {
   description: string;
 }
 
-export const APP_SCREENS: AppScreenDefinition[] = [
+/** Espejo de emergencia del backend; preferir siempre el catálogo de la API. */
+export const FALLBACK_APP_SCREENS: AppScreenDefinition[] = [
   { key: 'gestionar-usuarios', permission: 'gestionar-usuarios', label: 'Usuarios', panel: 'admin', group: 'Gestiones', description: 'Gestión de usuarios del sistema' },
   { key: 'gestionar-roles', permission: 'gestionar-roles', label: 'Roles', panel: 'admin', group: 'Gestiones', description: 'Gestión de roles y permisos' },
   { key: 'gestionar-areas', permission: 'gestionar-areas', label: 'Áreas', panel: 'admin', group: 'Gestiones', description: 'Gestión de áreas institucionales' },
@@ -31,22 +37,42 @@ export const APP_SCREENS: AppScreenDefinition[] = [
   { key: 'revisar-expediente-direccion-departamental', permission: 'revisar-expediente-direccion-departamental', label: 'Bandeja de Revisiones DAF — Expedientes', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisar, aprobar o rechazar expedientes como analista DAF' },
 ];
 
-/** Permisos legacy que otorgan acceso equivalente */
-export const PERMISSION_ALIASES: Record<string, string[]> = {
+/** @deprecated Usar FALLBACK_APP_SCREENS o useAppScreens().screens */
+export const APP_SCREENS = FALLBACK_APP_SCREENS;
+
+export const FALLBACK_PERMISSION_ALIASES: Record<string, string[]> = {
   'listado-siaf': ['crear-siaf'],
   'estadisticas-tiempos': ['ver-estadisticas'],
   'estadisticas-motivos': ['ver-estadisticas'],
   'gestionar-unidades-medicas': ['gestionar-areas'],
 };
 
+/** @deprecated Usar FALLBACK_PERMISSION_ALIASES o aliases del catálogo API */
+export const PERMISSION_ALIASES = FALLBACK_PERMISSION_ALIASES;
+
+let runtimeScreens: AppScreenDefinition[] = FALLBACK_APP_SCREENS;
+let runtimeAliases: Record<string, string[]> = { ...FALLBACK_PERMISSION_ALIASES };
+
+export function setAppScreensCatalog(
+  screens: AppScreenDefinition[],
+  aliases?: Record<string, string[]>
+): void {
+  runtimeScreens = screens?.length ? screens : FALLBACK_APP_SCREENS;
+  if (aliases) runtimeAliases = aliases;
+}
+
+export function getAppScreensCatalog(): AppScreenDefinition[] {
+  return runtimeScreens;
+}
+
 export function hasScreenAccess(userPermissions: string[], permission: string): boolean {
   if (userPermissions.includes(permission)) return true;
-  const aliases = PERMISSION_ALIASES[permission];
+  const aliases = runtimeAliases[permission];
   return aliases?.some((a) => userPermissions.includes(a)) ?? false;
 }
 
 export function getScreensByPanel(panel: AppPanel): AppScreenDefinition[] {
-  return APP_SCREENS.filter((s) => s.panel === panel);
+  return runtimeScreens.filter((s) => s.panel === panel);
 }
 
 export function groupScreensByGroup(screens: AppScreenDefinition[]): Record<string, AppScreenDefinition[]> {
@@ -59,6 +85,6 @@ export function groupScreensByGroup(screens: AppScreenDefinition[]): Record<stri
 }
 
 export function getScreenLabelForPermission(permissionName: string): string {
-  const screen = APP_SCREENS.find((s) => s.permission === permissionName);
+  const screen = runtimeScreens.find((s) => s.permission === permissionName);
   return screen?.label ?? permissionName;
 }

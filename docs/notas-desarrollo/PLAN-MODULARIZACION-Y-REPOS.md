@@ -6,7 +6,7 @@ Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro
 |------|-----|--------|
 | 1 | Modularizar backend | **Hecha** (`index.ts` bootstrap; 10 módulos en `src/modules/`) |
 | 1.5 | Esquema sin `synchronize` por defecto + migraciones TypeORM | **Hecha (puente)** — ver `MIGRACIONES-TYPEORM.md` |
-| 2 | Contrato API (rutas, permisos, pantallas) | Pendiente |
+| 2 | Contrato API (rutas, permisos, pantallas) | **En curso** — catálogo canónico en backend + `/app-screens/catalog` |
 | 3 | Split de repos **solo si aporta** | Pendiente |
 
 ---
@@ -88,20 +88,17 @@ Helpers compartidos: `middleware/auth`, `middleware/upload`, `services/catalogoO
 
 ## Fase 2 — Contrato entre front y back
 
+### Pantallas / permisos (`appScreens`) — avance
+
+- **Fuente de verdad:** `backend/src/config/appScreens.ts`
+- **API:** `GET /api/app-screens/catalog` (cualquier autenticado) y `GET /api/app-screens` (gestión de roles, con `permissionId`)
+- **Frontend:** `AppScreensProvider` carga el catálogo tras login; el listado local es solo `FALLBACK_*`
+
 ### Antes de partir repos
 
 - Congelar rutas `/api/...` y permisos
 - Documentar `REACT_APP_API_URL` y CORS
 - Decidir versión de API (aunque sea informal: “v1 estable”)
-
-### `appScreens`
-
-Una sola fuente de verdad:
-
-- se genera desde el backend (endpoint de pantallas), **o**
-- un JSON/paquete compartido
-
-No dejar dos copias manuales en repos distintos.
 
 ---
 

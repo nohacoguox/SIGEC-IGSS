@@ -11,6 +11,7 @@ import ExpedientesPage from './pages/ExpedientesPage';
 import { SiafProvider } from './context/SiafContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { AppScreensProvider } from './context/AppScreensContext';
 import SiafBook from './components/SiafBook';
 import PrivateRoute from './components/PrivateRoute';
 import HomeRedirect from './components/HomeRedirect';
@@ -21,6 +22,7 @@ function App() {
       <CssBaseline />
       <NotificationProvider>
       <Router>
+        <AppScreensProvider>
         <SiafProvider>
           <Routes>
             {/* Rutas Públicas */}
@@ -49,6 +51,7 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </SiafProvider>
+        </AppScreensProvider>
       </Router>
       </NotificationProvider>
     </ThemeProvider>

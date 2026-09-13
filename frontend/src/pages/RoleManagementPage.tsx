@@ -36,11 +36,11 @@ import AddIcon from '@mui/icons-material/Add';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
 import api from '../api';
 import {
-  APP_SCREENS,
   AppScreenDefinition,
   getScreenLabelForPermission,
   groupScreensByGroup,
 } from '../config/appScreens';
+import { useAppScreens } from '../context/AppScreensContext';
 
 interface Permission {
   id: number;
@@ -72,6 +72,7 @@ interface AppScreenApi extends AppScreenDefinition {
 type Order = 'asc' | 'desc';
 
 const RoleManagementPage: React.FC = () => {
+  const { screens: catalogScreens } = useAppScreens();
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [appScreens, setAppScreens] = useState<AppScreenApi[]>([]);
@@ -115,7 +116,8 @@ const RoleManagementPage: React.FC = () => {
       const res = await api.get('/app-screens');
       setAppScreens(res.data.screens ?? []);
     } catch {
-      setAppScreens(APP_SCREENS.map((s) => ({ ...s, permissionId: null, registered: false })));
+      // Fallback: catálogo en memoria (API canónica o espejo local)
+      setAppScreens(catalogScreens.map((s) => ({ ...s, permissionId: null, registered: false })));
     }
   };
 

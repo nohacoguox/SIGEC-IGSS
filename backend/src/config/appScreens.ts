@@ -1,7 +1,9 @@
 /**
  * Catálogo de pantallas del sistema SIGEC-IGSS.
- * Cada pantalla = un permiso (y típicamente un rol dedicado).
- * Al agregar una pantalla nueva, añádala aquí y ejecute npm run seed-roles.
+ * FUENTE DE VERDAD del contrato de pantallas/permisos.
+ * El frontend consume GET /api/app-screens/catalog (y /app-screens para IDs).
+ * Al agregar una pantalla nueva, añádala aquí y ejecute npm run seed-roles;
+ * luego alinee el FALLBACK del frontend si hace falta.
  */
 export type AppPanel = 'admin' | 'colaborador';
 

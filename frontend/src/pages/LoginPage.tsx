@@ -35,6 +35,7 @@ import DashboardChoicePanel from '../components/DashboardChoicePanel';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 import logoIgss from '../assets/images/logo-igss.png';
 import { hasScreenAccess } from '../config/appScreens';
+import { useAppScreens } from '../context/AppScreensContext';
 import api from '../api';
 
 const loginTheme = createTheme({
@@ -108,6 +109,7 @@ function LoginPage() {
   const [recoverySubmitting, setRecoverySubmitting] = useState(false);
 
   const navigate = useNavigate();
+  const { refreshAppScreens } = useAppScreens();
 
   const handleCloseSnackbar = (_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') return;
@@ -130,6 +132,9 @@ function LoginPage() {
       localStorage.setItem('userRoles', JSON.stringify(rolesList ?? (role ? [role] : [])));
       localStorage.setItem('userName', [nombres, apellidos].filter(Boolean).join(' ') || 'Usuario');
       localStorage.setItem('permissions', JSON.stringify(permissions ?? []));
+
+      // Catálogo canónico desde backend (pantallas + alias de permisos)
+      await refreshAppScreens();
 
       setSnackbarMessage('Inicio de sesión exitoso.');
       setSnackbarSeverity('success');
