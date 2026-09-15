@@ -7,7 +7,7 @@ Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro
 | 1 | Modularizar backend | **Hecha** (`index.ts` bootstrap; 10 módulos en `src/modules/`) |
 | 1.5 | Esquema sin `synchronize` por defecto + migraciones TypeORM | **Hecha (puente)** — ver `MIGRACIONES-TYPEORM.md` |
 | 2 | Contrato API (rutas, permisos, pantallas) | **En curso** — catálogo canónico en backend + `/app-screens/catalog` |
-| 2.5 | Modularizar frontend por `features/` | **En curso** — Expedientes, SiafBook y revisión DD hechos; gestión/analítica pendiente |
+| 2.5 | Modularizar frontend por `features/` | **Hecha (núcleo)** — Expedientes, SiafBook, revisión DD, gestión SIAF y analítica |
 | 3 | Split de repos **solo si aporta** | Pendiente |
 
 ---
@@ -140,7 +140,7 @@ Misma regla que el backend: **extraer sin cambiar comportamiento**. Rutas/`App.t
 | Expedientes (lista, detalle, docs, bitácora) | `frontend/src/features/expedientes/` | **Hecha** (`pages/ExpedientesPage.tsx` re-export) |
 | SIAF libro / crear-corregir | `frontend/src/features/siaf/book/` | **Hecha (primer corte)** — types/utils + diálogos + bitácora; `components/SiafBook.tsx` re-export |
 | Revisión DD (SIAF / expedientes) | `features/siaf/revisar/`, `features/expedientes/revisar/` | **Hecha (primer corte)** — types/utils + tablas/diálogos; re-exports en `components/` |
-| Gestión / analítica | `SiafManagement`, `EstadisticasSiaf`, `Analitica*` | Pendiente |
+| Gestión / analítica | `features/siaf/management/`, `features/analitica/` | **Hecha** — SiafManagement + AnaliticaDaf/Expedientes + shared; EstadisticasSiaf en `legacy/` |
 
 **Expedientes — estructura:**
 
@@ -161,6 +161,21 @@ Misma regla que el backend: **extraer sin cambiar comportamiento**. Rutas/`App.t
 - `features/expedientes/revisar/`: types, constants, utils, orquestador + lista + diálogo rechazar/marcar + bitácora local
 - Re-exports: `components/RevisarDireccionDepartamental.tsx`, `components/RevisarExpedientesDD.tsx`
 
+**Gestión SIAF — estructura:**
+
+- `features/siaf/management/`: types, utils, constants (estado), orquestador + diálogos (finalizar, enviar revisión, PDF, adjuntos, bitácora, marcas, viewer)
+- Re-export: `pages/SiafManagement.tsx`
+
+**Analítica — estructura:**
+
+- `features/analitica/shared/`: `AnalyticsFilterPanel`, charts helpers, `KpiCard`
+- `features/analitica/siaf/AnaliticaDaf.tsx` + types
+- `features/analitica/expedientes/AnaliticaExpedientes.tsx` + types
+- `features/analitica/legacy/EstadisticasSiaf.tsx` (huérfano, conservado)
+- Re-exports en `components/`
+
+Refinamientos opcionales: secciones del formulario SiafBook; pantallas auth/dashboard si crecen.
+
 ---
 
 ## Siguiente paso práctico
@@ -168,4 +183,4 @@ Misma regla que el backend: **extraer sin cambiar comportamiento**. Rutas/`App.t
 1. Confirmar en el log: `Migraciones aplicadas` o `sin pendientes`, y `synchronize=OFF`.
 2. En servidor Debian: `DB_SYNCHRONIZE=false`; al desplegar, reiniciar API para correr migraciones.
 3. Cambios nuevos de esquema: entity + `npm run migration:generate` (ver `MIGRACIONES-TYPEORM.md`).
-4. Completar Fase 2.5: gestión/analítica (`SiafManagement`, `EstadisticasSiaf`, `Analitica*`).
+4. Fase 2.5 núcleo hecha; opcionales: partir formulario SiafBook en secciones, auth/dashboards si crecen.
