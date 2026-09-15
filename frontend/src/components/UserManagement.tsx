@@ -239,7 +239,7 @@ const UserManagement: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           Lista de Usuarios
         </Typography>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

@@ -1,27 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tab,
-  TextField,
-  Tabs,
-  Typography,
-  Grid,
+  Alert, Box, Button, Chip, CircularProgress, Grid, Paper, Tab, Table,
+  TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SaveIcon from '@mui/icons-material/Save';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import NumbersIcon from '@mui/icons-material/Numbers';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import SaveIcon from '@mui/icons-material/Save';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
@@ -47,6 +35,19 @@ interface EstadoCorrelativos {
   totalReservasActivas: number;
 }
 
+function SectionTitle({ step, title, description }: { step: string; title: string; description: string }) {
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+        {step}. {title}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, maxWidth: 720 }}>
+        {description}
+      </Typography>
+    </Box>
+  );
+}
+
 const CorrelativoManagementPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [tipoCorrelativo, setTipoCorrelativo] = useState<'siaf' | 'expedientes'>('siaf');
@@ -58,11 +59,46 @@ const CorrelativoManagementPage: React.FC = () => {
   const [digitos, setDigitos] = useState('0');
   const [minutosReserva, setMinutosReserva] = useState('120');
   const [loadError, setLoadError] = useState('');
+  const [baseline, setBaseline] = useState({ numeroInicio: '1', siguienteNumero: '1', digitos: '0', minutosReserva: '120' });
+
+  const esSiaf = tipoCorrelativo === 'siaf';
+  const anio = new Date().getFullYear();
+
   const ultimoCorrelativo = estado?.ultimoUsado
     ? typeof estado.ultimoUsado === 'string'
       ? estado.ultimoUsado
       : estado.ultimoUsado.correlativo
     : '—';
+
+  const dirty = useMemo(() => {
+    if (!estado) return false;
+    if (numeroInicio !== baseline.numeroInicio) return true;
+    if (siguienteNumero !== baseline.siguienteNumero) return true;
+    if (digitos !== baseline.digitos) return true;
+    if (esSiaf && minutosReserva !== baseline.minutosReserva) return true;
+    return false;
+  }, [estado, numeroInicio, siguienteNumero, digitos, minutosReserva, baseline, esSiaf]);
+
+  const previewLocal = useMemo(() => {
+    const n = Math.max(1, Number(siguienteNumero) || 1);
+    const d = Math.max(0, Math.min(12, Number(digitos) || 0));
+    const padded = d > 0 ? String(n).padStart(d, '0') : String(n);
+    return esSiaf ? `${padded}/${anio}` : `EXP-${padded}/${anio}`;
+  }, [siguienteNumero, digitos, esSiaf, anio]);
+
+  const applyEstadoToForm = (data: EstadoCorrelativos) => {
+    const next = {
+      numeroInicio: String(data.numeroInicio),
+      siguienteNumero: String(data.siguienteNumero),
+      digitos: String(data.digitos),
+      minutosReserva: String(data.minutosReserva ?? 120),
+    };
+    setNumeroInicio(next.numeroInicio);
+    setSiguienteNumero(next.siguienteNumero);
+    setDigitos(next.digitos);
+    setMinutosReserva(next.minutosReserva);
+    setBaseline(next);
+  };
 
   const loadEstado = useCallback(async () => {
     setLoading(true);
@@ -73,10 +109,7 @@ const CorrelativoManagementPage: React.FC = () => {
       const res = await api.get(endpoint);
       const data: EstadoCorrelativos = res.data;
       setEstado(data);
-      setNumeroInicio(String(data.numeroInicio));
-      setSiguienteNumero(String(data.siguienteNumero));
-      setDigitos(String(data.digitos));
-      setMinutosReserva(String(data.minutosReserva ?? 120));
+      applyEstadoToForm(data);
       setLoadError('');
     } catch (err: any) {
       const status = err?.response?.status;
@@ -116,7 +149,8 @@ const CorrelativoManagementPage: React.FC = () => {
       if (tipoCorrelativo === 'siaf') payload.minutosReserva = Number(minutosReserva);
       const res = await api.put(endpoint, payload);
       setEstado(res.data.estado);
-      showSuccess(`Configuración de correlativos de ${tipoCorrelativo === 'siaf' ? 'SIAF' : 'expedientes'} actualizada`);
+      applyEstadoToForm(res.data.estado);
+      showSuccess(`Configuración de ${tipoCorrelativo === 'siaf' ? 'SIAF' : 'expedientes'} guardada`);
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al guardar');
     } finally {
@@ -134,7 +168,7 @@ const CorrelativoManagementPage: React.FC = () => {
         numeroInicio: Number(numeroInicio),
       });
       setEstado(res.data.estado);
-      setSiguienteNumero(String(res.data.estado.siguienteNumero));
+      applyEstadoToForm(res.data.estado);
       showSuccess(`La secuencia ahora inicia desde ${numeroInicio}`);
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al aplicar inicio');
@@ -147,11 +181,18 @@ const CorrelativoManagementPage: React.FC = () => {
     try {
       const res = await api.post(`/correlativos/liberar-admin/${reservaId}`);
       setEstado(res.data.estado);
-      setSiguienteNumero(String(res.data.estado.siguienteNumero));
-      showSuccess('Correlativo liberado y disponible para el siguiente SIAF');
+      applyEstadoToForm(res.data.estado);
+      showSuccess('Número liberado: ya puede usarlo el siguiente formulario SIAF');
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al liberar');
     }
+  };
+
+  const descartarCambios = () => {
+    setNumeroInicio(baseline.numeroInicio);
+    setSiguienteNumero(baseline.siguienteNumero);
+    setDigitos(baseline.digitos);
+    setMinutosReserva(baseline.minutosReserva);
   };
 
   if (loading && !estado) {
@@ -163,212 +204,363 @@ const CorrelativoManagementPage: React.FC = () => {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight="bold">
-            Gestión de Correlativos
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Configure de forma independiente la numeración automática de SIAF y expedientes de compras.
-          </Typography>
-        </Box>
-        <Button startIcon={<RefreshIcon />} variant="outlined" onClick={loadEstado} disabled={loading}>
-          Actualizar
-        </Button>
-      </Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
+      <Alert
+        severity="info"
+        icon={<InfoOutlinedIcon />}
+        sx={{
+          borderRadius: 2,
+          bgcolor: 'rgba(0,91,145,0.06)',
+          color: IGSS_COLORS.textoOscuro,
+          '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+        }}
+      >
+        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
+          Qué controla esta pantalla
+        </Typography>
+        <Typography variant="body2">
+          El <strong>correlativo</strong> es el número automático que recibe cada SIAF o expediente
+          (ej. <strong>1/{anio}</strong> o <strong>EXP-0001/{anio}</strong>).
+          Elija el tipo abajo, revise el estado y ajuste la secuencia solo si necesita reiniciar o adelantar la numeración.
+        </Typography>
+      </Alert>
 
-      <Paper elevation={0} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
-        <Tabs
-          value={tipoCorrelativo}
-          onChange={(_, value: 'siaf' | 'expedientes') => setTipoCorrelativo(value)}
-          sx={{ px: 1, '& .MuiTab-root': { textTransform: 'none', fontWeight: 700 } }}
+      <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+        <Box
+          sx={{
+            px: { xs: 1.5, sm: 2 },
+            pt: 0.5,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1.5,
+            flexWrap: 'wrap',
+            bgcolor: 'rgba(0,91,145,0.03)',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
         >
-          <Tab value="siaf" label="SIAF" />
-          <Tab value="expedientes" label="Expedientes de Compras" />
-        </Tabs>
-      </Paper>
-
-      {loadError && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setLoadError('')}>
-          {loadError}
-        </Alert>
-      )}
-
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%', borderTop: `4px solid ${IGSS_COLORS.azul}` }} elevation={2}>
-            <Typography variant="overline" color="text.secondary">Próximo a asignar</Typography>
-            <Typography variant="h3" fontWeight={800} color="primary" sx={{ my: 1 }}>
-              {estado?.correlativoSiguientePreview ?? '—'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Número interno: {estado?.siguienteNumero ?? '—'}
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%', borderTop: `4px solid ${IGSS_COLORS.verde}` }} elevation={2}>
-            <Typography variant="overline" color="text.secondary">
-              Último usado ({tipoCorrelativo === 'siaf' ? 'SIAF guardado' : 'expediente creado'})
-            </Typography>
-            <Typography variant="h3" fontWeight={800} sx={{ my: 1, color: IGSS_COLORS.verdeOscuro }}>
-              {ultimoCorrelativo}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {estado?.ultimoUsado
-                ? tipoCorrelativo === 'siaf' ? 'Registrado en solicitudes' : 'Registrado en expedientes'
-                : tipoCorrelativo === 'siaf' ? 'Aún no hay SIAF guardados' : 'Aún no hay expedientes creados'}
-            </Typography>
-          </Paper>
-        </Grid>
-        {tipoCorrelativo === 'siaf' && (
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%', borderTop: `4px solid ${IGSS_COLORS.azulClaro}` }} elevation={2}>
-            <Typography variant="overline" color="text.secondary">En uso ahora (reservados)</Typography>
-            <Typography variant="h3" fontWeight={800} sx={{ my: 1, color: IGSS_COLORS.azulClaro }}>
-              {estado?.totalReservasActivas ?? 0}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Formularios abiertos que aún no guardaron
-            </Typography>
-          </Paper>
-        </Grid>
-        )}
-      </Grid>
-
-      <Paper sx={{ p: 3, mb: 3 }} elevation={2}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <NumbersIcon color="primary" />
-          <Typography variant="h6" fontWeight={700}>Configurar secuencia</Typography>
-        </Box>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {tipoCorrelativo === 'siaf' ? (
-            <>Formato: <strong>número/año</strong> (ej. <strong>1/{new Date().getFullYear()}</strong>). Si alguien cancela el formulario, el correlativo se libera para el próximo usuario.</>
-          ) : (
-            <>Formato: <strong>EXP-número/año</strong> (ej. <strong>EXP-0001/{new Date().getFullYear()}</strong>). El sistema lo asigna automáticamente al guardar el expediente.</>
-          )}
-        </Alert>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
-            <TextField
-              label="Iniciar desde"
-              type="number"
-              fullWidth
-              value={numeroInicio}
-              onChange={(e) => setNumeroInicio(e.target.value)}
-              helperText="Piso mínimo de la secuencia"
-              inputProps={{ min: 1 }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
-            <TextField
-              label="Siguiente número"
-              type="number"
-              fullWidth
-              value={siguienteNumero}
-              onChange={(e) => setSiguienteNumero(e.target.value)}
-              helperText="Candidato actual a asignar"
-              inputProps={{ min: 1 }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={tipoCorrelativo === 'siaf' ? 3 : 4}>
-            <TextField
-              label="Dígitos (ceros a la izq.)"
-              type="number"
-              fullWidth
-              value={digitos}
-              onChange={(e) => setDigitos(e.target.value)}
-              helperText={`Ej. con 0 → 1/${new Date().getFullYear()}. Con 4 → 0001/${new Date().getFullYear()}`}
-              inputProps={{ min: 0, max: 12 }}
-            />
-          </Grid>
-          {tipoCorrelativo === 'siaf' && (
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              label="Minutos de reserva"
-              type="number"
-              fullWidth
-              value={minutosReserva}
-              onChange={(e) => setMinutosReserva(e.target.value)}
-              helperText="Si no guarda, se libera solo"
-              inputProps={{ min: 5, max: 1440 }}
-            />
-          </Grid>
-          )}
-        </Grid>
-        <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            startIcon={<SaveIcon />}
-            onClick={handleGuardar}
-            disabled={saving}
+          <Tabs
+            value={tipoCorrelativo}
+            onChange={(_, value: 'siaf' | 'expedientes') => setTipoCorrelativo(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              minHeight: 52,
+              '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, minHeight: 52 },
+              '& .Mui-selected': { color: `${IGSS_COLORS.azulOscuro} !important` },
+              '& .MuiTabs-indicator': { height: 3, bgcolor: IGSS_COLORS.azul },
+            }}
           >
-            Guardar configuración
-          </Button>
+            <Tab
+              value="siaf"
+              icon={<FactCheckOutlinedIcon fontSize="small" />}
+              iconPosition="start"
+              label="SIAF"
+            />
+            <Tab
+              value="expedientes"
+              icon={<DescriptionOutlinedIcon fontSize="small" />}
+              iconPosition="start"
+              label="Expedientes de compras"
+            />
+          </Tabs>
           <Button
+            startIcon={<RefreshIcon />}
             variant="outlined"
-            color="secondary"
-            onClick={handleAplicarInicio}
-            disabled={saving}
+            size="small"
+            onClick={loadEstado}
+            disabled={loading}
+            sx={{ mb: 1, mr: 1 }}
           >
-            Aplicar solo «Iniciar desde»
+            Actualizar
           </Button>
         </Box>
-      </Paper>
 
-      {tipoCorrelativo === 'siaf' && (
-      <Paper sx={{ p: 3 }} elevation={2}>
-        <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
-          Correlativos en uso (reservas activas)
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Mientras un usuario tiene abierto «Crear SIAF», el correlativo queda bloqueado. Puede liberarlo manualmente si el proceso se abandonó.
-        </Typography>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Correlativo</TableCell>
-                <TableCell>Usuario</TableCell>
-                <TableCell>Reservado</TableCell>
-                <TableCell>Expira</TableCell>
-                <TableCell align="right">Acción</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(estado?.enUso?.length ?? 0) === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                    <Typography color="text.secondary">Ningún correlativo está reservado en este momento.</Typography>
-                  </TableCell>
-                </TableRow>
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: IGSS_COLORS.blanco }}>
+          <Typography variant="body2" color="text.secondary">
+            {esSiaf
+              ? 'Numeración de solicitudes SIAF. Al abrir «Crear SIAF» se reserva un número hasta guardar o cancelar.'
+              : 'Numeración interna de expedientes de compras. Se asigna automáticamente al crear el expediente.'}
+          </Typography>
+        </Box>
+
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
+          {loadError && (
+            <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }} onClose={() => setLoadError('')}>
+              {loadError}
+            </Alert>
+          )}
+
+          <SectionTitle
+            step="1"
+            title="Estado actual"
+            description="Lectura rápida: qué número sigue, cuál fue el último y cuántos están bloqueados en formularios abiertos."
+          />
+
+          <Grid container spacing={2} sx={{ mb: 3.25 }}>
+            <Grid item xs={12} sm={esSiaf ? 4 : 6}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.25,
+                  height: '100%',
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderTop: `4px solid ${IGSS_COLORS.azul}`,
+                }}
+              >
+                <Typography variant="caption" fontWeight={700} color="text.secondary">
+                  Próximo a asignar
+                </Typography>
+                <Typography variant="h4" fontWeight={800} color="primary" sx={{ my: 0.75, lineHeight: 1.15 }}>
+                  {estado?.correlativoSiguientePreview ?? '—'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Será el siguiente {esSiaf ? 'SIAF' : 'expediente'} nuevo
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={esSiaf ? 4 : 6}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.25,
+                  height: '100%',
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderTop: `4px solid ${IGSS_COLORS.verde}`,
+                }}
+              >
+                <Typography variant="caption" fontWeight={700} color="text.secondary">
+                  Último guardado
+                </Typography>
+                <Typography variant="h4" fontWeight={800} sx={{ my: 0.75, lineHeight: 1.15, color: IGSS_COLORS.verdeOscuro }}>
+                  {ultimoCorrelativo}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {estado?.ultimoUsado
+                    ? esSiaf ? 'Ya existe en solicitudes SIAF' : 'Ya existe en expedientes'
+                    : esSiaf ? 'Aún no hay SIAF guardados' : 'Aún no hay expedientes creados'}
+                </Typography>
+              </Paper>
+            </Grid>
+            {esSiaf && (
+              <Grid item xs={12} sm={4}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2.25,
+                    height: '100%',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderTop: `4px solid ${IGSS_COLORS.azulClaro}`,
+                  }}
+                >
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">
+                    Reservados ahora
+                  </Typography>
+                  <Typography variant="h4" fontWeight={800} sx={{ my: 0.75, lineHeight: 1.15, color: IGSS_COLORS.azulClaro }}>
+                    {estado?.totalReservasActivas ?? 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Formularios abiertos sin guardar (sección 3)
+                  </Typography>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+
+          <SectionTitle
+            step="2"
+            title="Ajustar la secuencia"
+            description="Use esto solo si necesita reiniciar, saltar números o cambiar el formato. La vista previa se actualiza al editar."
+          />
+
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2, sm: 2.5 },
+              mb: esSiaf ? 3.25 : 0,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: dirty ? IGSS_COLORS.azul : 'divider',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap', mb: 1.75 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <NumbersIcon sx={{ color: IGSS_COLORS.azul }} />
+                <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                  Parámetros
+                </Typography>
+                {dirty && <Chip size="small" color="warning" label="Cambios sin guardar" sx={{ fontWeight: 700 }} />}
+              </Box>
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(0,91,145,0.06)',
+                  border: '1px dashed',
+                  borderColor: 'rgba(0,91,145,0.25)',
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                  Vista previa del próximo
+                </Typography>
+                <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, fontSize: '1.1rem' }}>
+                  {previewLocal}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              {esSiaf ? (
+                <>
+                  Formato SIAF: <strong>número/año</strong>. Si alguien cancela el formulario, el número se libera para otro usuario.
+                </>
               ) : (
-                estado!.enUso.map((r) => (
-                  <TableRow key={r.reservaId} hover>
-                    <TableCell>
-                      <Chip label={r.correlativo} color="primary" size="small" sx={{ fontWeight: 700 }} />
-                    </TableCell>
-                    <TableCell>{r.usuarioNombre}</TableCell>
-                    <TableCell>{new Date(r.reservadoEn).toLocaleString('es-GT')}</TableCell>
-                    <TableCell>{new Date(r.expiraEn).toLocaleString('es-GT')}</TableCell>
-                    <TableCell align="right">
-                      <Button
-                        size="small"
-                        startIcon={<LockOpenIcon />}
-                        onClick={() => handleLiberar(r.reservaId)}
-                      >
-                        Liberar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <>
+                  Formato expediente: <strong>EXP-número/año</strong>. El sistema lo asigna al guardar el expediente (sin reserva temporal).
+                </>
               )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </Alert>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={esSiaf ? 3 : 4}>
+                <TextField
+                  label="Empezar desde"
+                  type="number"
+                  fullWidth
+                  value={numeroInicio}
+                  onChange={(e) => setNumeroInicio(e.target.value)}
+                  helperText="Piso mínimo permitido (ej. 1 o 100)"
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={esSiaf ? 3 : 4}>
+                <TextField
+                  label="Siguiente número"
+                  type="number"
+                  fullWidth
+                  value={siguienteNumero}
+                  onChange={(e) => setSiguienteNumero(e.target.value)}
+                  helperText="El que se asignará ahora"
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={esSiaf ? 3 : 4}>
+                <TextField
+                  label="Ceros a la izquierda"
+                  type="number"
+                  fullWidth
+                  value={digitos}
+                  onChange={(e) => setDigitos(e.target.value)}
+                  helperText={digitos === '0' || digitos === '' ? `Sin padding → 1/${anio}` : `Con ${digitos} dígitos → ${String(1).padStart(Number(digitos) || 0, '0')}/${anio}`}
+                  inputProps={{ min: 0, max: 12 }}
+                />
+              </Grid>
+              {esSiaf && (
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    label="Minutos de reserva"
+                    type="number"
+                    fullWidth
+                    value={minutosReserva}
+                    onChange={(e) => setMinutosReserva(e.target.value)}
+                    helperText="Si no guardan, se libera solo"
+                    inputProps={{ min: 5, max: 1440 }}
+                  />
+                </Grid>
+              )}
+            </Grid>
+
+            <Box sx={{ display: 'flex', gap: 1.5, mt: 2.5, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                startIcon={<SaveIcon />}
+                onClick={handleGuardar}
+                disabled={saving || !dirty}
+              >
+                Guardar configuración
+              </Button>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={handleAplicarInicio}
+                disabled={saving || numeroInicio === baseline.numeroInicio}
+              >
+                Solo aplicar «Empezar desde»
+              </Button>
+              <Button variant="text" color="inherit" onClick={descartarCambios} disabled={!dirty || saving}>
+                Descartar cambios
+              </Button>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
+              «Solo aplicar empezar desde» reinicia la secuencia al piso indicado sin tocar dígitos ni minutos de reserva.
+            </Typography>
+          </Paper>
+
+          {esSiaf && (
+            <>
+              <SectionTitle
+                step="3"
+                title="Números bloqueados (reservas)"
+                description="Si un colaborador abrió «Crear SIAF» y abandonó el formulario, puede liberar el número aquí para que otro lo use."
+              />
+
+              <Paper
+                elevation={0}
+                sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+              >
+                {(estado?.enUso?.length ?? 0) === 0 ? (
+                  <Alert severity="success" sx={{ borderRadius: 2 }}>
+                    Ningún correlativo está reservado ahora. Puede seguir creando SIAF con normalidad.
+                  </Alert>
+                ) : (
+                  <TableContainer sx={{ overflowX: 'auto' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: IGSS_COLORS.azulOscuro, '& th': { color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' } }}>
+                          <TableCell>Correlativo</TableCell>
+                          <TableCell>Usuario</TableCell>
+                          <TableCell>Reservado</TableCell>
+                          <TableCell>Expira</TableCell>
+                          <TableCell align="right">Acción</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {estado!.enUso.map((r) => (
+                          <TableRow key={r.reservaId} hover>
+                            <TableCell>
+                              <Chip label={r.correlativo} color="primary" size="small" sx={{ fontWeight: 700 }} />
+                            </TableCell>
+                            <TableCell>{r.usuarioNombre}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(r.reservadoEn).toLocaleString('es-GT')}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(r.expiraEn).toLocaleString('es-GT')}</TableCell>
+                            <TableCell align="right">
+                              <Button
+                                size="small"
+                                startIcon={<LockOpenIcon />}
+                                onClick={() => handleLiberar(r.reservaId)}
+                              >
+                                Liberar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Paper>
+            </>
+          )}
+        </Box>
       </Paper>
-      )}
     </Box>
   );
 };

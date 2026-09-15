@@ -1,11 +1,15 @@
 import {
-  Alert, Box, SelectChangeEvent, Snackbar, Tab, Tabs, Paper,
+  Alert, Box, Button, SelectChangeEvent, Snackbar, Tab, Tabs, Typography, Paper,
 } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import UserForm from './UserForm';
 import UserList from './UserList';
+import { IGSS_COLORS } from '../theme/institutionalColors';
 
 const API_URL = 'users';
 const UNIDADES_MEDICAS_API_URL = 'unidades-medicas';
@@ -38,60 +42,29 @@ interface UnidadMedica {
   departamento: string;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-function a11yProps(index: number) {
-  return {
-    id: `simple-tab-${index}`,
-    'aria-controls': `simple-tabpanel-${index}`,
-  };
-}
+const emptyForm = {
+  nombres: '',
+  apellidos: '',
+  dpi: '',
+  nit: '',
+  telefono: '',
+  correoInstitucional: '',
+  codigoEmpleado: '',
+  renglon: '',
+  puestoId: 0,
+  unidadMedica: '',
+  roleIds: [] as number[],
+  departamentoDireccion: '' as string,
+};
 
 const UserManagementContainer: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [unidadesMedicas, setUnidadesMedicas] = useState<UnidadMedica[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
-  const [formState, setFormState] = useState({
-    nombres: '',
-    apellidos: '',
-    dpi: '',
-    nit: '',
-    telefono: '',
-    correoInstitucional: '',
-    codigoEmpleado: '',
-    renglon: '',
-    puestoId: 0,
-    unidadMedica: '',
-    roleIds: [] as number[],
-    departamentoDireccion: '' as string,
-  });
+  const [formState, setFormState] = useState(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [value, setValue] = useState(0);
+  const [tab, setTab] = useState(0);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -102,7 +75,6 @@ const UserManagementContainer: React.FC = () => {
       const response = await api.get(API_URL);
       setUsers(response.data);
     } catch (err: any) {
-      console.error("Error fetching users:", err);
       setSnackbarMessage(`Error al cargar los usuarios: ${err.message || ''}`);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -114,7 +86,6 @@ const UserManagementContainer: React.FC = () => {
       const response = await api.get(UNIDADES_MEDICAS_API_URL);
       setUnidadesMedicas(response.data);
     } catch (err: any) {
-      console.error("Error fetching unidades medicas:", err);
       setSnackbarMessage(`Error al cargar las unidades médicas: ${err.message || ''}`);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -126,7 +97,6 @@ const UserManagementContainer: React.FC = () => {
       const response = await api.get(PUESTOS_API_URL);
       setPuestos(response.data);
     } catch (err: any) {
-      console.error("Error fetching puestos:", err);
       setSnackbarMessage(`Error al cargar los puestos: ${err.message || ''}`);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -138,7 +108,6 @@ const UserManagementContainer: React.FC = () => {
       const response = await api.get(ROLES_API_URL);
       setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (err: any) {
-      console.error("Error fetching roles:", err);
       setSnackbarMessage(`Error al cargar los roles: ${err.message || ''}`);
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -152,15 +121,9 @@ const UserManagementContainer: React.FC = () => {
     fetchRoles();
   }, []);
 
-  const handleCloseSnackbar = (event?: React.SyntheticEvent | Event, reason?: string) => {
-    if (reason === 'clickaway') {
-      return;
-    }
+  const handleCloseSnackbar = (_event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') return;
     setSnackbarOpen(false);
-  };
-
-  const handleChangeTab = (event: React.SyntheticEvent, newValue: number) => {
-    setValue(newValue);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>) => {
@@ -184,6 +147,11 @@ const UserManagementContainer: React.FC = () => {
     setFormState({ ...formState, [name]: value });
   };
 
+  const handleClearForm = () => {
+    setFormState(emptyForm);
+    setEditingId(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -191,22 +159,21 @@ const UserManagementContainer: React.FC = () => {
       if (editingId !== null) {
         await api.put(`${API_URL}/${editingId}`, userPayload);
         await api.put(`${API_URL}/${editingId}/roles`, { roleIds: roleIds || [] });
-        setSnackbarMessage('Usuario modificado exitosamente.');
+        setSnackbarMessage('Usuario actualizado correctamente.');
         setSnackbarSeverity('success');
       } else {
         const { data: newUser } = await api.post(API_URL, userPayload);
         if (newUser?.id && (roleIds?.length ?? 0) > 0) {
           await api.put(`${API_URL}/${newUser.id}/roles`, { roleIds });
         }
-        setSnackbarMessage('Usuario creado exitosamente.');
+        setSnackbarMessage('Usuario creado. Ya puede iniciar sesión con su código de empleado.');
         setSnackbarSeverity('success');
       }
       fetchUsers();
       handleClearForm();
       setSnackbarOpen(true);
-      setValue(1);
+      setTab(0);
     } catch (error: any) {
-      console.error("Error submitting form:", error);
       setSnackbarMessage(error.response?.data?.message || 'Error al guardar el usuario.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -224,50 +191,35 @@ const UserManagementContainer: React.FC = () => {
         departamentoDireccion: formData.departamentoDireccion ?? '',
       });
       setEditingId(userId);
-      setValue(0);
+      setTab(1);
     }
+  };
+
+  const handleNewUser = () => {
+    handleClearForm();
+    setTab(1);
   };
 
   const handleDelete = async (id: number) => {
     try {
       await api.delete(`${API_URL}/${id}`);
-      setSnackbarMessage('Usuario eliminado exitosamente.');
+      setSnackbarMessage('Usuario eliminado.');
       setSnackbarSeverity('success');
       fetchUsers();
     } catch (err: any) {
-      console.error("Error deleting user:", err);
       setSnackbarMessage(`Error al eliminar el usuario: ${err.message || ''}`);
       setSnackbarSeverity('error');
     }
     setSnackbarOpen(true);
   };
 
-  const handleClearForm = () => {
-    setFormState({
-      nombres: '',
-      apellidos: '',
-      dpi: '',
-      nit: '',
-      telefono: '',
-      correoInstitucional: '',
-      codigoEmpleado: '',
-      renglon: '',
-      puestoId: 0,
-      unidadMedica: '',
-      roleIds: [],
-      departamentoDireccion: '',
-    });
-    setEditingId(null);
-  };
-
   const handleResetPassword = async (id: number) => {
     try {
       await api.post(`users/${id}/reset-password`);
-      setSnackbarMessage('Contraseña restablecida exitosamente. La nueva contraseña es: 123');
+      setSnackbarMessage('Contraseña restablecida. La temporal es: 123 (el usuario deberá cambiarla).');
       setSnackbarSeverity('success');
       fetchUsers();
     } catch (err: any) {
-      console.error('Error resetting password:', err);
       const msg = err.response?.data?.message || err.message || 'Error al restablecer la contraseña';
       setSnackbarMessage(msg);
       setSnackbarSeverity('error');
@@ -276,67 +228,145 @@ const UserManagementContainer: React.FC = () => {
   };
 
   return (
-    <Paper elevation={3} sx={{ p: 2, width: '100%' }}>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs
-          value={value}
-          onChange={handleChangeTab}
-          aria-label="user management tabs"
-          variant="fullWidth"
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+      <Alert
+        severity="info"
+        icon={<InfoOutlinedIcon />}
+        sx={{
+          borderRadius: 2,
+          bgcolor: 'rgba(0,91,145,0.06)',
+          color: IGSS_COLORS.textoOscuro,
+          '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+        }}
+      >
+        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
+          Cómo administrar usuarios
+        </Typography>
+        <Typography variant="body2">
+          En el <strong>listado</strong> busque, edite o restablezca contraseñas.
+          En <strong>crear / editar</strong> complete los datos y asigne roles (las pantallas del menú dependen de esos roles).
+        </Typography>
+      </Alert>
+
+      <Paper
+        elevation={2}
+        sx={{
+          borderRadius: 3,
+          overflow: 'hidden',
+          border: '1px solid',
+          borderColor: 'divider',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            flexWrap: 'wrap',
+            px: { xs: 1, sm: 2 },
+            bgcolor: 'rgba(0,91,145,0.03)',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
         >
-          <Tab label="Creación/Edición de Usuario" {...a11yProps(0)} />
-          <Tab label="Listado de Usuarios" {...a11yProps(1)} />
-        </Tabs>
-      </Box>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={value}
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -10, opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <TabPanel value={value} index={0}>
-            <UserForm
-              formState={formState}
-              handleChange={handleChange}
-              handleAutocompleteChange={handleAutocompleteChange}
-              handleSubmit={handleSubmit}
-              handleClearForm={handleClearForm}
-              editingId={editingId}
-              unidadesMedicas={unidadesMedicas}
-              puestos={puestos}
-              roles={roles}
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{
+              minHeight: 52,
+              minWidth: 0,
+              maxWidth: '100%',
+              '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, minHeight: 52 },
+              '& .Mui-selected': { color: `${IGSS_COLORS.azulOscuro} !important` },
+              '& .MuiTabs-indicator': { height: 3, bgcolor: IGSS_COLORS.azul },
+            }}
+          >
+            <Tab icon={<PeopleOutlineIcon fontSize="small" />} iconPosition="start" label="1. Listado" />
+            <Tab
+              icon={<PersonAddAltIcon fontSize="small" />}
+              iconPosition="start"
+              label={editingId != null ? '2. Editando usuario' : '2. Crear usuario'}
             />
-          </TabPanel>
-          <TabPanel value={value} index={1}>
-            <UserList
-              users={users}
-              handleEdit={handleEdit}
-              handleDelete={handleDelete}
-              handleResetPassword={handleResetPassword}
-            />
-          </TabPanel>
-        </motion.div>
-      </AnimatePresence>
+          </Tabs>
+          {tab === 0 && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PersonAddAltIcon />}
+              onClick={handleNewUser}
+              sx={{ mb: 1, mr: { xs: 0.5, sm: 1 }, whiteSpace: 'nowrap' }}
+            >
+              Nuevo
+            </Button>
+          )}
+        </Box>
+
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="body2" color="text.secondary">
+            {tab === 0
+              ? `${users.length} usuario(s) registrados. Use la búsqueda o las acciones de cada fila.`
+              : editingId != null
+                ? 'Modifique los datos y guarde. Los roles definen qué pantallas verá al iniciar sesión.'
+                : 'Complete los datos obligatorios. Tras crear, el colaborador inicia con su código de empleado.'}
+          </Typography>
+        </Box>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            initial={{ y: 8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -8, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <Box sx={{ p: { xs: 1.5, sm: 2.5 }, minWidth: 0 }}>
+              {tab === 0 && (
+                <UserList
+                  users={users}
+                  handleEdit={handleEdit}
+                  handleDelete={handleDelete}
+                  handleResetPassword={handleResetPassword}
+                  onCreateNew={handleNewUser}
+                />
+              )}
+              {tab === 1 && (
+                <UserForm
+                  formState={formState}
+                  handleChange={handleChange}
+                  handleAutocompleteChange={handleAutocompleteChange}
+                  handleSubmit={handleSubmit}
+                  handleClearForm={handleClearForm}
+                  editingId={editingId}
+                  unidadesMedicas={unidadesMedicas}
+                  puestos={puestos}
+                  roles={roles}
+                  onCancelToList={() => { handleClearForm(); setTab(0); }}
+                />
+              )}
+            </Box>
+          </motion.div>
+        </AnimatePresence>
+      </Paper>
+
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        sx={{ width: { xs: '90%', sm: 'auto' } }}
+        sx={{ width: { xs: '92%', sm: 'auto' } }}
       >
-        <motion.div
-          initial={{ opacity: 0, y: 50, scale: 0.3 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.5 }}
-        >
-          <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity} sx={{ width: '100%' }} elevation={6}>
-            {snackbarMessage}
-          </Alert>
-        </motion.div>
+        <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity} sx={{ width: '100%' }} elevation={6}>
+          {snackbarMessage}
+        </Alert>
       </Snackbar>
-    </Paper>
+    </Box>
   );
 };
 

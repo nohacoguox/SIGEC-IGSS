@@ -45,7 +45,7 @@ const RevisionListaTable: React.FC<RevisionListaTableProps> = ({
   onRevisar,
   onBitacora,
 }) => (
-  <TableContainer component={Box} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+  <TableContainer component={Box} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
     <Table size="small">
       <TableHead>
         <TableRow style={headerRowStyle}>
@@ -100,14 +100,14 @@ const RevisionListaTable: React.FC<RevisionListaTableProps> = ({
               )}
               <TableCell align="center">
                 {!esRevisados ? (
-                  <>
-                    <Button size="small" variant="outlined" startIcon={<VisibilityIcon />} onClick={() => onRevisar(e.id)} disabled={enviando} sx={{ mr: 1, textTransform: 'none' }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                    <Button size="small" variant="outlined" startIcon={<VisibilityIcon />} onClick={() => onRevisar(e.id)} disabled={enviando} sx={{ textTransform: 'none' }}>
                       Revisar Expediente
                     </Button>
                     <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={() => onBitacora(e.id, `Bitácora — Expediente ${e.numeroExpediente}`)} sx={{ textTransform: 'none' }}>
                       Revisar Bitácora
                     </Button>
-                  </>
+                  </Box>
                 ) : (
                   <Tooltip title="Ver bitácora">
                     <IconButton size="small" onClick={() => onBitacora(e.id, `Bitácora — Expediente ${e.numeroExpediente}`)}>

@@ -37,13 +37,14 @@ const SiafMarcasViewerDialog: React.FC<SiafMarcasViewerDialogProps> = ({
       <PlaceIcon color="error" />
       Marcas de corrección — SIAF {correlativo || ''}
     </DialogTitle>
-    <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 480 }}>
+    <DialogContent sx={{ p: 0, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, overflow: 'hidden', minHeight: 480 }}>
       <Box
         sx={{
-          flex: '1 1 62%',
+          flex: { xs: '1 1 auto', md: '1 1 62%' },
           minWidth: 0,
-          height: '70vh',
-          borderRight: 1,
+          height: { xs: '45vh', md: '70vh' },
+          borderRight: { md: 1 },
+          borderBottom: { xs: 1, md: 0 },
           borderColor: 'divider',
           overflow: 'auto',
           bgcolor: 'grey.100',
@@ -59,7 +60,7 @@ const SiafMarcasViewerDialog: React.FC<SiafMarcasViewerDialogProps> = ({
           <PdfViewerWithClick fileUrl={fileUrl} markers={markers} minHeight={400} zoom={1} />
         )}
       </Box>
-      <Box sx={{ flex: '0 0 38%', p: 2, overflow: 'auto', maxHeight: '70vh', bgcolor: '#f4f7fa' }}>
+      <Box sx={{ flex: { xs: '1 1 auto', md: '0 0 38%' }, minWidth: 0, p: 2, overflow: 'auto', maxHeight: { xs: '40vh', md: '70vh' }, bgcolor: '#f4f7fa' }}>
         <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
           Correcciones señaladas ({marcas.length})
         </Typography>

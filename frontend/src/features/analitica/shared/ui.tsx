@@ -37,11 +37,27 @@ export const KpiCard = ({
     >
       <CardContent sx={{ py: 2.25, px: 2.25, '&:last-child': { pb: 2.25 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
-          <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 0.2 }}>
               {label}
             </Typography>
-            <Typography variant="h4" fontWeight={800} sx={{ color, mt: 0.75, lineHeight: 1.1 }}>
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              title={typeof value === 'string' || typeof value === 'number' ? String(value) : undefined}
+              sx={{
+                color,
+                mt: 0.75,
+                lineHeight: 1.15,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word',
+                fontSize: typeof value === 'string' && String(value).length > 28 ? '1.15rem' : undefined,
+              }}
+            >
               {value}
             </Typography>
             {note && (
@@ -67,3 +83,57 @@ export const KpiCard = ({
     </Card>
   </motion.div>
 );
+
+/** Encabezado de bloque: agrupa KPIs / gráficos / tablas para leer por secciones. */
+export function SectionBlock({
+  title,
+  description,
+  action,
+  children,
+  sx,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  sx?: object;
+}) {
+  return (
+    <Box sx={{ mb: 3.25, ...sx }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 2,
+          flexWrap: 'wrap',
+          mb: 1.75,
+          pb: 1.25,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ minWidth: 0, maxWidth: 720 }}>
+          <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.3 }}>
+            {title}
+          </Typography>
+          {description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+              {description}
+            </Typography>
+          )}
+        </Box>
+        {action}
+      </Box>
+      {children}
+    </Box>
+  );
+}
+
+/** Guía corta bajo las pestañas principales. */
+export const TAB_GUIDES = [
+  'Volumen y cierre del período: cuántos casos hay y cómo terminaron cada mes.',
+  'Tiempos promedio, devoluciones y detalle de un caso concreto.',
+  'Por qué se rechazan: motivos más frecuentes en el período.',
+  'Quién tramitó más casos, aprobaciones y devoluciones en su unidad.',
+] as const;

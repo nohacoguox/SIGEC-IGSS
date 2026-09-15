@@ -551,6 +551,7 @@ const CollaboratorDashboard: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            sx={{ minWidth: 0, maxWidth: '100%' }}
           >
           {selectedView === 'dashboard' && (
             <Grid container spacing={3}>

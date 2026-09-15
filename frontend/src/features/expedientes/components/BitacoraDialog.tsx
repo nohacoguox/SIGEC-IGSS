@@ -87,7 +87,7 @@ const BitacoraDialog: React.FC<BitacoraDialogProps> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Historial de <strong>rechazos</strong> (motivo y observaciones por documento), <strong>aprobaciones</strong> y <strong>correcciones</strong> (documento reemplazado). Use esta información para saber qué corregir en cada archivo.
           </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflowX: 'auto' }}>
             <Table size="medium">
               <TableHead>
                 <TableRow sx={{ backgroundColor: 'grey.100' }}>

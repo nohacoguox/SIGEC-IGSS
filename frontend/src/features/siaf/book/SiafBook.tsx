@@ -1052,8 +1052,8 @@ const SiafBook: React.FC = () => {
               }}
               elevation={0}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: '1 1 auto' }}>
                   <Box
                     sx={{
                       width: 60,
@@ -1424,7 +1424,7 @@ const SiafBook: React.FC = () => {
                             />
                           )}
                         </TableCell>
-                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top', minWidth: 420 }}>
+                        <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top', minWidth: { xs: 0, sm: 220 } }}>
                           {item.tipo === 'servicio' ? (
                             <TextField
                               variant="outlined"
@@ -1503,11 +1503,11 @@ const SiafBook: React.FC = () => {
                   Disponible: <strong>{Math.max(0, totalItemCantidad - totalSubproductoCantidad)}</strong>
                 </Alert>
 
-                <TableContainer component={Paper} variant="outlined">
+                <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', minWidth: 320 }}>
+                        <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', minWidth: 220 }}>
                           Código de Subproducto
                         </TableCell>
                         <TableCell sx={{ backgroundColor: 'white', fontWeight: 'bold', width: 120 }} align="right">
@@ -1888,7 +1888,7 @@ const SiafBook: React.FC = () => {
                       Adjunte especificaciones técnicas, cotizaciones u otros soportes de esta solicitud (PDF, Word, Excel, imágenes).
                     </Typography>
                     {(pendingFiles.length > 0 || adjuntos.length > 0) && (
-                      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, overflowX: 'auto' }}>
                         <Table size="small">
                           <TableHead>
                             <TableRow sx={{ backgroundColor: 'action.hover' }}>

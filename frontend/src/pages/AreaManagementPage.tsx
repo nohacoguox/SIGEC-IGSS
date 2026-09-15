@@ -153,7 +153,7 @@ const AreaManagementPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <TableContainer component={Paper} elevation={3}>
+        <TableContainer component={Paper} elevation={3} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

@@ -268,7 +268,7 @@ const UnidadMedicaManagementPage: React.FC = () => {
       )}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <TableContainer component={Paper} elevation={3}>
+        <TableContainer component={Paper} elevation={3} sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

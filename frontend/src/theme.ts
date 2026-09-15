@@ -44,10 +44,49 @@ const theme = createTheme({
     },
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        html: {
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'hidden',
+        },
+        body: {
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'hidden',
+        },
+        '#root': {
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          overflowX: 'hidden',
+        },
+      },
+    },
+    MuiContainer: {
+      styleOverrides: {
+        root: {
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+        },
+      },
+    },
+    MuiGrid: {
+      styleOverrides: {
+        item: {
+          minWidth: 0,
+          maxWidth: '100%',
+        },
+      },
+    },
     MuiPaper: {
       styleOverrides: {
         root: {
           borderRadius: 8,
+          maxWidth: '100%',
+          boxSizing: 'border-box',
         },
       },
       defaultProps: {
@@ -61,12 +100,34 @@ const theme = createTheme({
         },
       },
     },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: {
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        },
+      },
+    },
     MuiTable: {
       styleOverrides: {
         root: {
           borderRadius: 8,
-          overflow: 'hidden',
         },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+        },
+      },
+    },
+    MuiStack: {
+      defaultProps: {
+        useFlexGap: true,
       },
     },
     MuiTableHead: {

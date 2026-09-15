@@ -559,16 +559,23 @@ const RevisarDireccionDepartamental: React.FC = () => {
         <DialogContent sx={{ p: 0, overflow: 'hidden', minHeight: 480 }}>
           <Box
             ref={splitContainerRef}
-            sx={{ display: 'flex', flexDirection: 'row', overflow: 'hidden', height: '70vh', minHeight: 420 }}
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              overflow: 'hidden',
+              height: { xs: 'auto', md: '70vh' },
+              minHeight: 420,
+              maxHeight: { xs: '85vh', md: '70vh' },
+            }}
           >
           {selectedSiaf && (
             <>
               <Box
                 sx={{
-                  width: `${leftPanePct}%`,
+                  width: { xs: '100%', md: `${leftPanePct}%` },
                   flexShrink: 0,
                   minWidth: 0,
-                  height: '100%',
+                  height: { xs: '45vh', md: '100%' },
                   display: 'flex',
                   flexDirection: 'column',
                 }}
@@ -665,7 +672,7 @@ const RevisarDireccionDepartamental: React.FC = () => {
                   flexShrink: 0,
                   cursor: 'col-resize',
                   bgcolor: 'divider',
-                  display: 'flex',
+                  display: { xs: 'none', md: 'flex' },
                   alignItems: 'center',
                   justifyContent: 'center',
                   '&:hover': { bgcolor: 'primary.light' },
@@ -682,7 +689,7 @@ const RevisarDireccionDepartamental: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   bgcolor: '#f4f7fa',
-                  height: '100%',
+                  height: { xs: '40vh', md: '100%' },
                 }}
               >
                 <Tabs

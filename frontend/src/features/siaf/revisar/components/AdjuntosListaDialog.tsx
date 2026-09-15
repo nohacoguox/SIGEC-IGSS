@@ -7,6 +7,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Tooltip,
@@ -34,41 +35,43 @@ const AdjuntosListaDialog: React.FC<AdjuntosListaDialogProps> = ({
     <DialogTitle>Documentos adjuntos del SIAF</DialogTitle>
     <DialogContent>
       {adjuntos?.length ? (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }} align="right">Tamaño</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }} align="right">Acción</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {adjuntos.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell>{a.nombreOriginal}</TableCell>
-                <TableCell align="right">{((a.tamanioBytes || 0) / 1024).toFixed(1)} KB</TableCell>
-                <TableCell align="right">
-                  <Tooltip title="Comparar junto al SIAF">
-                    <IconButton
-                      size="small"
-                      onClick={() => onComparar(a)}
-                    >
-                      <Visibility />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Descargar">
-                    <IconButton
-                      size="small"
-                      onClick={() => onDescargar(a)}
-                    >
-                      <AttachFile />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }} align="right">Tamaño</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }} align="right">Acción</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {adjuntos.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell>{a.nombreOriginal}</TableCell>
+                  <TableCell align="right">{((a.tamanioBytes || 0) / 1024).toFixed(1)} KB</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Comparar junto al SIAF">
+                      <IconButton
+                        size="small"
+                        onClick={() => onComparar(a)}
+                      >
+                        <Visibility />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Descargar">
+                      <IconButton
+                        size="small"
+                        onClick={() => onDescargar(a)}
+                      >
+                        <AttachFile />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
         <Typography color="text.secondary">Sin documentos adjuntos.</Typography>
       )}

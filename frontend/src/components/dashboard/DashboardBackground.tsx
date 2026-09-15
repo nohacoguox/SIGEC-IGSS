@@ -10,13 +10,17 @@ const DashboardBackground: React.FC<{ children: React.ReactNode }> = ({ children
       sx={{
         position: 'relative',
         flexGrow: 1,
+        minWidth: 0,
+        maxWidth: '100%',
         p: { xs: 2, sm: 3, md: 4 },
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
         minHeight: '100vh',
         bgcolor: theme.palette.background.default,
+        boxSizing: 'border-box',
       }}
     >
-      <Box sx={{ position: 'relative', zIndex: 1 }}>{children}</Box>
+      <Box sx={{ position: 'relative', zIndex: 1, minWidth: 0, maxWidth: '100%' }}>{children}</Box>
     </Box>
   );
 };

@@ -65,6 +65,9 @@ const PendientesTable: React.FC<PendientesTableProps> = ({
             borderColor: 'divider',
             bgcolor: 'background.paper',
             overflow: 'hidden',
+            width: { xs: '100%', sm: 'auto' },
+            maxWidth: '100%',
+            minWidth: 0,
             '&:hover': { borderColor: 'primary.main' },
             '&:focus-within': { borderColor: 'primary.main', borderWidth: 2 },
           }}
@@ -75,7 +78,9 @@ const PendientesTable: React.FC<PendientesTableProps> = ({
           <FormControl
             size="small"
             sx={{
-              minWidth: 260,
+              width: { xs: '100%', sm: 'auto' },
+              maxWidth: '100%',
+              minWidth: { xs: 0, sm: 220 },
               '& .MuiOutlinedInput-root': {
                 '& fieldset': { border: 'none' },
                 '&:hover fieldset': { border: 'none' },
@@ -116,7 +121,7 @@ const PendientesTable: React.FC<PendientesTableProps> = ({
           borderRadius: 2,
           border: '1px solid',
           borderColor: 'divider',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
         <Table size="medium">

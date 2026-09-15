@@ -19,6 +19,25 @@ export const tableHeaderCellSx: SxProps<Theme> = {
   color: IGSS_COLORS.blanco,
 };
 
+/** Contenedor de tablas: scroll horizontal dentro del card, sin romper el layout. */
+export const tableScrollSx: SxProps<Theme> = {
+  width: '100%',
+  maxWidth: '100%',
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
+};
+
+/** Fila de filtros/acciones que debe adaptarse a pantallas angostas. */
+export const responsiveToolbarSx: SxProps<Theme> = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 1.5,
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+};
+
 /** Título principal de página (sin degradados) */
 export const pageTitleSx: SxProps<Theme> = {
   color: IGSS_COLORS.azul,

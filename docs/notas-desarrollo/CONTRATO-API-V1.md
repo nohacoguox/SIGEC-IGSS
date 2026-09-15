@@ -34,7 +34,7 @@ Detalle de migraciones: [`MIGRACIONES-TYPEORM.md`](./MIGRACIONES-TYPEORM.md).
 | `/api` | catalogos (puestos, UM, áreas, depto/municipio…) |
 | `/api/catalogo-productos` | catálogo MINFIN/SIBOFA |
 | `/api/siaf` | SIAF |
-| `/api/estadisticas` | analítica |
+| `/api/estadisticas` | analítica (+ `ranking-colaboradores`) |
 | `/api/ortografia` | LanguageTool proxy |
 
 Inventario histórico detallado de SIAF (payloads): [`FASE-2-ENDPOINTS-BACKEND.md`](./FASE-2-ENDPOINTS-BACKEND.md). Ante duda, manda el código en `backend/src/modules/*/routes.ts`.

@@ -249,6 +249,7 @@ function LoginPage() {
             overflow: 'hidden',
             width: '100%',
             maxWidth: 1100,
+            minWidth: 0,
             minHeight: { xs: 'auto', sm: 560 },
             border: `1px solid ${IGSS_COLORS.gris}`,
           }}
@@ -313,6 +314,7 @@ function LoginPage() {
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
+              minWidth: 0,
             }}
           >
             <Box
@@ -321,6 +323,7 @@ function LoginPage() {
                 px: { xs: 3, sm: 5 },
                 width: '100%',
                 maxWidth: 400,
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch',
@@ -651,6 +654,7 @@ function LoginPage() {
               px: 3,
               py: 2.2,
               display: 'flex',
+              flexWrap: 'wrap',
               gap: 1.5,
               justifyContent: 'flex-end',
               bgcolor: IGSS_COLORS.fondo,

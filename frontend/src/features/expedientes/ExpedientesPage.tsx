@@ -734,7 +734,7 @@ const ExpedientesPage: React.FC = () => {
             </Typography>
           </Box>
           <CardContent sx={{ p: 0 }}>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto' }}>
               <Table>
                 <TableHead>
                   <TableRow style={headerRowStyle}>

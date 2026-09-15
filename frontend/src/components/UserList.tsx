@@ -1,36 +1,18 @@
-// frontend/src/components/UserList.tsx
-import { motion } from 'framer-motion';
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Button,
-  Grid,
-  TablePagination,
-  Tooltip,
-  TableSortLabel,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControl, Grid, IconButton, InputLabel, MenuItem, Paper, Select, Table,
+  TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow,
+  TableSortLabel, TextField, Tooltip, Typography, useMediaQuery,
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
+import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info';
 import LockResetIcon from '@mui/icons-material/LockReset';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
+import { IGSS_COLORS } from '../theme/institutionalColors';
+import { tableScrollSx } from '../theme/institutionalStyles';
 
 interface Role {
   id: number;
@@ -67,20 +49,41 @@ interface UserListProps {
   handleEdit: (id: number) => void;
   handleDelete: (id: number) => void;
   handleResetPassword: (id: number) => void;
+  onCreateNew?: () => void;
 }
 
 type Order = 'asc' | 'desc';
 type UserKey = keyof User;
 
-const MotionTableRow = motion(TableRow);
+const FIELD_LABELS: Record<string, string> = {
+  nombres: 'Nombres',
+  apellidos: 'Apellidos',
+  dpi: 'DPI',
+  nit: 'NIT',
+  telefono: 'Teléfono',
+  correoInstitucional: 'Correo institucional',
+  codigoEmpleado: 'Código empleado',
+  renglon: 'Renglón',
+  puesto: 'Puesto',
+  unidadMedica: 'Unidad médica',
+  roles: 'Roles',
+  id: 'ID',
+};
 
-const UserList: React.FC<UserListProps> = ({ users, handleEdit, handleDelete, handleResetPassword }) => {
+const UserList: React.FC<UserListProps> = ({
+  users, handleEdit, handleDelete, handleResetPassword, onCreateNew,
+}) => {
+  const theme = useTheme();
+  const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
+
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToReset, setUserToReset] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('nombres');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(8);
   const [order, setOrder] = useState<Order>('asc');
   const [orderBy, setOrderBy] = useState<UserKey>('nombres');
 
@@ -103,7 +106,9 @@ const UserList: React.FC<UserListProps> = ({ users, handleEdit, handleDelete, ha
   const sortedAndFilteredUsers = useMemo(() => {
     const filtered = users.filter((user) => {
       if (!searchTerm) return true;
-      const value = searchField === 'roles' ? rolesDisplay(user.roles).toLowerCase() : String(user[searchField as keyof User] ?? '').toLowerCase();
+      const value = searchField === 'roles'
+        ? rolesDisplay(user.roles).toLowerCase()
+        : String(user[searchField as keyof User] ?? '').toLowerCase();
       return value.includes(searchTerm.toLowerCase());
     });
 
@@ -119,167 +124,238 @@ const UserList: React.FC<UserListProps> = ({ users, handleEdit, handleDelete, ha
     });
   }, [users, searchTerm, searchField, order, orderBy]);
 
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
   const paginatedUsers = sortedAndFilteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
-  const headCells: { id: UserKey; label: string; numeric: boolean }[] = [
-    { id: 'nombres', numeric: false, label: 'Nombres' },
-    { id: 'apellidos', numeric: false, label: 'Apellidos' },
-    { id: 'dpi', numeric: false, label: 'DPI' },
-    { id: 'codigoEmpleado', numeric: false, label: 'Código Empleado' },
-    { id: 'correoInstitucional', numeric: false, label: 'Correo Institucional' },
-    { id: 'roles', numeric: false, label: 'Roles' },
+  const headCells: { id: UserKey; label: string }[] = [
+    { id: 'nombres', label: 'Nombre' },
+    { id: 'codigoEmpleado', label: 'Código' },
+    { id: 'correoInstitucional', label: 'Correo' },
+    { id: 'roles', label: 'Roles' },
   ];
 
-  return (
-    <Paper sx={{ p: { xs: 2, sm: 3 } }} elevation={3}>
-      <Typography variant="h6" gutterBottom>
-        Lista de Usuarios
-      </Typography>
+  const ActionButtons = ({ user, compact = false }: { user: User; compact?: boolean }) => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, justifyContent: compact ? 'flex-start' : 'flex-end' }}>
+      <Tooltip title="Ver detalles">
+        <IconButton size="small" color="info" onClick={() => handleOpenDialog(user)} aria-label="Ver detalles">
+          <InfoIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Editar">
+        <IconButton size="small" color="primary" onClick={() => handleEdit(user.id)} aria-label="Editar">
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Restablecer contraseña">
+        <IconButton size="small" color="warning" onClick={() => setUserToReset(user)} aria-label="Restablecer contraseña">
+          <LockResetIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Eliminar">
+        <IconButton size="small" color="error" onClick={() => setUserToDelete(user)} aria-label="Eliminar">
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexDirection: { xs: 'column', sm: 'row' } }}>
+  const RolesChips = ({ roles }: { roles?: Role[] }) => {
+    if (!roles?.length) {
+      return <Chip size="small" label="Sin roles" variant="outlined" />;
+    }
+    const shown = roles.slice(0, 2);
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+        {shown.map((r) => (
+          <Chip key={r.id} size="small" label={r.name} variant="outlined" />
+        ))}
+        {roles.length > 2 && (
+          <Chip size="small" label={`+${roles.length - 2}`} color="primary" variant="outlined" />
+        )}
+      </Box>
+    );
+  };
+
+  return (
+    <Box sx={{ minWidth: 0, width: '100%' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1.5,
+          mb: 2,
+          alignItems: { sm: 'center' },
+        }}
+      >
         <TextField
+          size="small"
           label="Buscar"
-          variant="outlined"
+          placeholder="Escriba para filtrar…"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          fullWidth
+          onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
+          sx={{ flex: 1, minWidth: 0, width: '100%' }}
         />
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>Campo</InputLabel>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 }, width: { xs: '100%', sm: 'auto' } }}>
+          <InputLabel>Buscar en</InputLabel>
           <Select
             value={searchField}
-            label="Campo"
-            onChange={(e) => setSearchField(e.target.value as string)}
+            label="Buscar en"
+            onChange={(e) => { setSearchField(e.target.value as string); setPage(0); }}
           >
             <MenuItem value="nombres">Nombres</MenuItem>
             <MenuItem value="apellidos">Apellidos</MenuItem>
-            <MenuItem value="codigoEmpleado">Código Empleado</MenuItem>
+            <MenuItem value="codigoEmpleado">Código empleado</MenuItem>
             <MenuItem value="dpi">DPI</MenuItem>
+            <MenuItem value="correoInstitucional">Correo</MenuItem>
             <MenuItem value="roles">Roles</MenuItem>
           </Select>
         </FormControl>
       </Box>
 
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              {headCells.map((headCell) => (
-                <TableCell
-                  key={headCell.id}
-                  sortDirection={orderBy === headCell.id ? order : false}
-                >
-                  <TableSortLabel
-                    active={orderBy === headCell.id}
-                    direction={orderBy === headCell.id ? order : 'asc'}
-                    onClick={() => handleRequestSort(headCell.id)}
-                  >
-                    {headCell.label}
-                  </TableSortLabel>
-                </TableCell>
-              ))}
-              <TableCell>Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedUsers.map((user) => (
-              <MotionTableRow
-                key={user.id}
-                whileHover={{ backgroundColor: "rgba(0, 0, 0, 0.04)" }}
-                transition={{ duration: 0.2 }}
+      {users.length === 0 ? (
+        <Alert
+          severity="info"
+          sx={{ borderRadius: 2 }}
+          action={
+            onCreateNew ? (
+              <Button color="inherit" size="small" startIcon={<PersonAddAltIcon />} onClick={onCreateNew}>
+                Crear primero
+              </Button>
+            ) : undefined
+          }
+        >
+          Aún no hay usuarios registrados.
+        </Alert>
+      ) : sortedAndFilteredUsers.length === 0 ? (
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
+          Ningún usuario coincide con la búsqueda.
+        </Alert>
+      ) : isNarrow ? (
+        <Grid container spacing={1.5}>
+          {paginatedUsers.map((user) => (
+            <Grid item xs={12} key={user.id}>
+              <Paper
+                variant="outlined"
+                sx={{ p: 1.75, borderRadius: 2, minWidth: 0 }}
               >
-                <TableCell>{user.nombres}</TableCell>
-                <TableCell>{user.apellidos}</TableCell>
-                <TableCell>{user.dpi}</TableCell>
-                <TableCell>{user.codigoEmpleado}</TableCell>
-                <TableCell>{user.correoInstitucional}</TableCell>
-                <TableCell>{rolesDisplay(user.roles)}</TableCell>
-                <TableCell>
-                  <Tooltip title="Ver Detalles">
-                    <IconButton color="info" onClick={() => handleOpenDialog(user)}>
-                      <InfoIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Editar">
-                    <IconButton color="primary" onClick={() => handleEdit(user.id)}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Eliminar">
-                    <IconButton color="secondary" onClick={() => handleDelete(user.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Restablecer Contraseña">
-                    <IconButton color="warning" onClick={() => handleResetPassword(user.id)}>
-                      <LockResetIcon />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
-              </MotionTableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'flex-start' }}>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, wordBreak: 'break-word' }}>
+                      {user.nombres} {user.apellidos}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Código {user.codigoEmpleado}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, wordBreak: 'break-all' }}>
+                      {user.correoInstitucional}
+                    </Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <RolesChips roles={user.roles} />
+                    </Box>
+                  </Box>
+                  <ActionButtons user={user} compact />
+                </Box>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <TableContainer sx={tableScrollSx}>
+          <Table size="small" sx={{ minWidth: 720 }}>
+            <TableHead>
+              <TableRow sx={{ bgcolor: IGSS_COLORS.azulOscuro, '& th': { color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' } }}>
+                {headCells.map((headCell) => (
+                  <TableCell key={headCell.id} sortDirection={orderBy === headCell.id ? order : false}>
+                    <TableSortLabel
+                      active={orderBy === headCell.id}
+                      direction={orderBy === headCell.id ? order : 'asc'}
+                      onClick={() => handleRequestSort(headCell.id)}
+                      sx={{ color: '#fff !important', '& .MuiTableSortLabel-icon': { color: '#fff !important' } }}
+                    >
+                      {headCell.label}
+                    </TableSortLabel>
+                  </TableCell>
+                ))}
+                <TableCell align="right">Acciones</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedUsers.map((user) => (
+                <TableRow key={user.id} hover>
+                  <TableCell sx={{ minWidth: 160 }}>
+                    <Typography variant="body2" fontWeight={700}>
+                      {user.nombres} {user.apellidos}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">DPI {user.dpi}</Typography>
+                  </TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{user.codigoEmpleado}</TableCell>
+                  <TableCell sx={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={user.correoInstitucional}>
+                    {user.correoInstitucional}
+                  </TableCell>
+                  <TableCell><RolesChips roles={user.roles} /></TableCell>
+                  <TableCell align="right"><ActionButtons user={user} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
-      <TablePagination
-        rowsPerPageOptions={[5, 10, 25]}
-        component="div"
-        count={sortedAndFilteredUsers.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        labelRowsPerPage="Filas por página:"
-      />
+      {sortedAndFilteredUsers.length > 0 && (
+        <TablePagination
+          rowsPerPageOptions={[5, 8, 15, 25]}
+          component="div"
+          count={sortedAndFilteredUsers.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          labelRowsPerPage="Filas:"
+          sx={{
+            '.MuiTablePagination-toolbar': { flexWrap: 'wrap', gap: 1, px: 0 },
+            '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows': { mb: 0 },
+          }}
+        />
+      )}
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ backgroundColor: 'primary.main', color: 'white' }}>
-          Detalles del Usuario: {selectedUser?.nombres} {selectedUser?.apellidos}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth fullScreen={isNarrow}>
+        <DialogTitle sx={{ fontWeight: 800, color: IGSS_COLORS.azulOscuro, bgcolor: 'rgba(0,91,145,0.04)' }}>
+          {selectedUser?.nombres} {selectedUser?.apellidos}
         </DialogTitle>
         <DialogContent dividers>
           {selectedUser && (
-            <Grid container spacing={2} sx={{ p: 2 }}>
+            <Grid container spacing={1.75} sx={{ pt: 0.5 }}>
               {Object.entries(selectedUser).map(([key, value]) => {
+                if (key === 'id') return null;
                 if (key === 'roles') {
                   return (
                     <Grid item xs={12} sm={6} key={key}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>Roles:</Typography>
-                      <Typography variant="body2">{rolesDisplay(value as Role[])}</Typography>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>Roles</Typography>
+                      <Box sx={{ mt: 0.5 }}><RolesChips roles={value as Role[]} /></Box>
                     </Grid>
                   );
                 }
-                let displayValue = String(value);
+                let displayValue = String(value ?? '—');
                 if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                  if ('name' in value) {
-                    displayValue = (value as Role).name;
-                  } else if ('nombre' in value) {
-                    displayValue = (value as Puesto).nombre;
-                  }
+                  if ('nombre' in value) displayValue = (value as Puesto).nombre;
+                  else if ('name' in value) displayValue = (value as Role).name;
                 }
                 return (
                   <Grid item xs={12} sm={6} key={key}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Typography>
-                    <Typography variant="body2">{displayValue}</Typography>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                      {FIELD_LABELS[key] || key}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{displayValue}</Typography>
                   </Grid>
                 );
               })}
             </Grid>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} color="secondary">
-            Cerrar
-          </Button>
+        <DialogActions sx={{ px: 2, py: 1.5, flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={handleCloseDialog} color="inherit">Cerrar</Button>
           <Button
             onClick={() => {
               if (selectedUser) {
@@ -295,7 +371,52 @@ const UserList: React.FC<UserListProps> = ({ users, handleEdit, handleDelete, ha
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+
+      <Dialog open={!!userToDelete} onClose={() => setUserToDelete(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Eliminar usuario</DialogTitle>
+        <DialogContent>
+          ¿Eliminar a <strong>{userToDelete?.nombres} {userToDelete?.apellidos}</strong>? Esta acción no se puede deshacer.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserToDelete(null)}>Cancelar</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => {
+              if (userToDelete) {
+                handleDelete(userToDelete.id);
+                setUserToDelete(null);
+              }
+            }}
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!userToReset} onClose={() => setUserToReset(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Restablecer contraseña</DialogTitle>
+        <DialogContent>
+          ¿Restablecer la contraseña de <strong>{userToReset?.nombres} {userToReset?.apellidos}</strong>?
+          Quedará temporalmente en <strong>123</strong> y deberá cambiarla al iniciar sesión.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserToReset(null)}>Cancelar</Button>
+          <Button
+            color="warning"
+            variant="contained"
+            onClick={() => {
+              if (userToReset) {
+                handleResetPassword(userToReset.id);
+                setUserToReset(null);
+              }
+            }}
+          >
+            Restablecer
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

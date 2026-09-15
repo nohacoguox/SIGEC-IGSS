@@ -12,11 +12,22 @@ export const formatTime = (value: number | null | undefined) => {
 export const panelSx = {
   p: 2.75,
   height: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
   borderRadius: 3,
   border: '1px solid',
   borderColor: 'divider',
   bgcolor: IGSS_COLORS.blanco,
   boxShadow: '0 8px 24px rgba(50, 90, 114, 0.06)',
+  overflow: 'hidden',
+};
+
+/** Contenedor de tablas dentro de cards: scroll horizontal sin romper el layout. */
+export const tableScrollSx = {
+  width: '100%',
+  maxWidth: '100%',
+  overflowX: 'auto' as const,
+  WebkitOverflowScrolling: 'touch' as const,
 };
 
 export const axisTick = { fill: '#6B7C8A', fontSize: 11, fontWeight: 500 };
@@ -70,9 +81,12 @@ export const analyticsTabsSx = {
 };
 
 export const analyticsPageSx = {
+  width: '100%',
   maxWidth: 1280,
   mx: 'auto',
   pb: 2,
+  boxSizing: 'border-box' as const,
+  overflowX: 'hidden',
   background: `linear-gradient(180deg, ${IGSS_COLORS.fondoClaro} 0%, ${IGSS_COLORS.fondo} 48%, transparent 100%)`,
   borderRadius: 3,
   px: { xs: 0.5, md: 1 },

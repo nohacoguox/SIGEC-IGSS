@@ -497,7 +497,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       />
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <TableContainer sx={{ maxHeight: 480 }}>
+        <TableContainer sx={{ maxHeight: 480, overflowX: 'auto' }}>
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>

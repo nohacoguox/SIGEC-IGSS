@@ -324,7 +324,7 @@ const AutorizarSiaf: React.FC = () => {
       </Box>
 
       {/* Tabla */}
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -497,66 +497,68 @@ const AutorizarSiaf: React.FC = () => {
         <DialogTitle>Documentos adjuntos del SIAF</DialogTitle>
         <DialogContent>
           {selectedSiaf?.documentosAdjuntos?.length ? (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }} align="right">Tamaño</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }} align="right">Acción</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {selectedSiaf.documentosAdjuntos.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell>{a.nombreOriginal}</TableCell>
-                    <TableCell align="right">{((a.tamanioBytes || 0) / 1024).toFixed(1)} KB</TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Visualizar">
-                        <IconButton
-                          size="small"
-                          onClick={async () => {
-                            try {
-                              const res = await api.get(`/siaf/adjuntos/${a.id}/descargar`, { responseType: 'blob' });
-                              const mime = a.mimeType || res.data?.type || 'application/pdf';
-                              const url = window.URL.createObjectURL(new Blob([res.data], { type: mime }));
-                              setViewingDoc({ id: a.id, nombreOriginal: a.nombreOriginal, mimeType: mime, url });
-                              setViewerOpen(true);
-                            } catch (err) {
-                              console.error(err);
-                              showError('Error al cargar el documento');
-                            }
-                          }}
-                        >
-                          <Visibility />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Descargar">
-                        <IconButton
-                          size="small"
-                          onClick={async () => {
-                            try {
-                              const res = await api.get(`/siaf/adjuntos/${a.id}/descargar`, { responseType: 'blob' });
-                              const url = window.URL.createObjectURL(new Blob([res.data]));
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.setAttribute('download', a.nombreOriginal);
-                              document.body.appendChild(link);
-                              link.click();
-                              link.remove();
-                              window.URL.revokeObjectURL(url);
-                            } catch (err) {
-                              console.error(err);
-                            }
-                          }}
-                        >
-                          <Download />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }} align="right">Tamaño</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }} align="right">Acción</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {selectedSiaf.documentosAdjuntos.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell>{a.nombreOriginal}</TableCell>
+                      <TableCell align="right">{((a.tamanioBytes || 0) / 1024).toFixed(1)} KB</TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Visualizar">
+                          <IconButton
+                            size="small"
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/siaf/adjuntos/${a.id}/descargar`, { responseType: 'blob' });
+                                const mime = a.mimeType || res.data?.type || 'application/pdf';
+                                const url = window.URL.createObjectURL(new Blob([res.data], { type: mime }));
+                                setViewingDoc({ id: a.id, nombreOriginal: a.nombreOriginal, mimeType: mime, url });
+                                setViewerOpen(true);
+                              } catch (err) {
+                                console.error(err);
+                                showError('Error al cargar el documento');
+                              }
+                            }}
+                          >
+                            <Visibility />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Descargar">
+                          <IconButton
+                            size="small"
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/siaf/adjuntos/${a.id}/descargar`, { responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([res.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', a.nombreOriginal);
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                window.URL.revokeObjectURL(url);
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                          >
+                            <Download />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           ) : (
             <Typography color="text.secondary">No hay documentos adjuntos.</Typography>
           )}

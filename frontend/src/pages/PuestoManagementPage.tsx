@@ -134,7 +134,7 @@ const PuestoManagementPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <TableContainer component={Paper} elevation={3} sx={{ maxHeight: 600 }}>
+        <TableContainer component={Paper} elevation={3} sx={{ maxHeight: 600, overflowX: 'auto' }}>
           <Table stickyHeader>
             <TableHead>
               <TableRow>

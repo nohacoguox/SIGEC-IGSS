@@ -182,6 +182,38 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
                 '0px 92px 184px rgba(0, 0, 0, 1)',
               ],
           components: {
+            MuiCssBaseline: {
+              styleOverrides: {
+                html: { width: '100%', maxWidth: '100%', overflowX: 'hidden' },
+                body: { width: '100%', maxWidth: '100%', overflowX: 'hidden' },
+                '#root': { width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' },
+              },
+            },
+            MuiContainer: {
+              styleOverrides: {
+                root: { width: '100%', maxWidth: '100%', boxSizing: 'border-box' },
+              },
+            },
+            MuiGrid: {
+              styleOverrides: {
+                item: { minWidth: 0, maxWidth: '100%' },
+              },
+            },
+            MuiTableContainer: {
+              styleOverrides: {
+                root: {
+                  width: '100%',
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                },
+              },
+            },
+            MuiDialogContent: {
+              styleOverrides: {
+                root: { maxWidth: '100%', boxSizing: 'border-box' },
+              },
+            },
             MuiButton: {
               styleOverrides: {
                 root: {
@@ -203,6 +235,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               styleOverrides: {
                 root: {
                   borderRadius: 16,
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                   boxShadow: mode !== 'dark'
                     ? '0px 4px 20px rgba(0, 0, 0, 0.08)'
                     : '0px 4px 20px rgba(0, 0, 0, 0.4)',
@@ -213,6 +247,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               styleOverrides: {
                 root: {
                   backgroundImage: 'none',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                 },
                 elevation1: {
                   boxShadow: mode !== 'dark'

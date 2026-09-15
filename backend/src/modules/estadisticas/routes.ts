@@ -20,6 +20,11 @@ import {
   promediarTiemposSiaf,
   unificarEventosSiaf,
 } from '../../services/siafAnalytics';
+import {
+  construirRankingExpedientes,
+  construirRankingSiaf,
+  destacarRanking,
+} from '../../services/colaboradorRanking';
 
 // El router se monta en /api/estadisticas.
 export const estadisticasRouter = Router();
@@ -981,3 +986,218 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
     res.status(500).json({ message: err?.message || 'Error al obtener analítica SIAF.' });
   }
 });
+
+/**
+ * Ranking de colaboradores (unidad): casos, aprobados, rechazos e histórico mes a mes.
+ * Pensado para directores/jefes/admin con alcance de unidad.
+ */
+estadisticasRouter.get(
+  '/ranking-colaboradores',
+  verifyToken,
+  authorizeRolesOrPermissions(
+    ['super administrador'],
+    ['ver-estadisticas-unidad', 'ver-estadisticas', 'estadisticas-tiempos', 'estadisticas-motivos']
+  ),
+  async (req: Request, res: Response) => {
+    try {
+      const userRepo = AppDataSource.getRepository(User);
+      const scopeResult = await resolveAnalyticsScope(req, userRepo);
+      if (!scopeResult.ok) return res.status(scopeResult.status).json({ message: scopeResult.message });
+      const { scope } = scopeResult;
+
+      if (!scope.canViewUnidad) {
+        return res.status(403).json({
+          message: 'Para ver el ranking por colaborador necesita el permiso de estadísticas de unidad.',
+        });
+      }
+
+      // Ranking compara personas: forzar alcance unidad si el usuario puede.
+      if (scope.alcance !== 'unidad') {
+        return res.status(400).json({
+          message: 'Seleccione el alcance «Estadísticas de mi unidad» (y la unidad, si es super administrador) para comparar colaboradores.',
+          requiereAlcanceUnidad: true,
+        });
+      }
+
+      const tipoRaw = String(req.query.tipo || 'expedientes').toLowerCase();
+      const tipo = tipoRaw === 'siaf' ? 'siaf' : 'expedientes';
+
+      const dias = Math.min(3650, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
+      const fechaConsulta = (valor: unknown, finDelDia = false) => {
+        if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+        const fecha = new Date(`${valor}T${finDelDia ? '23:59:59.999' : '00:00:00.000'}`);
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+      };
+      const hasta = fechaConsulta(req.query.hasta, true) ?? new Date();
+      const desde = fechaConsulta(req.query.desde) ?? new Date(hasta);
+      if (!fechaConsulta(req.query.desde)) desde.setDate(desde.getDate() - dias);
+      desde.setHours(0, 0, 0, 0);
+      if (desde.getTime() > hasta.getTime()) {
+        return res.status(400).json({ message: 'La fecha inicial no puede ser posterior a la fecha final.' });
+      }
+
+      const colaboradoresDb = await userRepo.find({
+        where: { id: In(scope.ownerIds) },
+        select: ['id', 'nombres', 'apellidos', 'unidadMedica'],
+      });
+      const colaboradores = colaboradoresDb.map((u) => ({
+        id: u.id,
+        etiqueta: `${u.nombres || ''} ${u.apellidos || ''}`.trim() || `Usuario #${u.id}`,
+        unidadMedica: u.unidadMedica || null,
+      }));
+
+      if (tipo === 'expedientes') {
+        const expRepo = AppDataSource.getRepository(Expediente);
+        const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
+
+        const eventosDelPeriodo = await bitacoraRepo
+          .createQueryBuilder('b')
+          .innerJoin('b.expediente', 'e')
+          .where('b.fecha BETWEEN :desde AND :hasta', { desde, hasta })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .getMany();
+        const idsActivos = new Set(eventosDelPeriodo.map((e) => e.expedienteId));
+        const creados = await expRepo
+          .createQueryBuilder('e')
+          .where('e.created_at BETWEEN :desde AND :hasta', { desde, hasta })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .getMany();
+        const abiertosPrevios = await expRepo
+          .createQueryBuilder('e')
+          .where('e.created_at < :desde', { desde })
+          .andWhere('e.usuario_id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+          .andWhere("e.estado IN ('abierto', 'en_proceso', 'rechazado')")
+          .getMany();
+        const ids = [...new Set([
+          ...idsActivos,
+          ...creados.map((e) => e.id),
+          ...abiertosPrevios.map((e) => e.id),
+        ])];
+        const expedientes = ids.length ? await expRepo.find({ where: { id: In(ids) } }) : [];
+        const historialCompleto = ids.length
+          ? await bitacoraRepo.find({
+              where: { expedienteId: In(ids) },
+              relations: ['detalle'],
+              order: { fecha: 'ASC' },
+            })
+          : [];
+        const eventosPorExpediente = new Map<number, ExpedienteBitacora[]>();
+        historialCompleto.forEach((evento) => {
+          const lista = eventosPorExpediente.get(evento.expedienteId) ?? [];
+          lista.push(evento);
+          eventosPorExpediente.set(evento.expedienteId, lista);
+        });
+
+        const ranking = construirRankingExpedientes({
+          colaboradores,
+          expedientes: expedientes.map((e) => ({
+            id: e.id,
+            usuarioId: e.usuarioId,
+            createdAt: e.createdAt || e.fechaApertura || desde,
+          })),
+          eventosPorExpediente,
+          desde,
+          hasta,
+        });
+
+        return res.json({
+          tipo,
+          desde: desde.toISOString(),
+          hasta: hasta.toISOString(),
+          alcance: {
+            modo: scope.alcance,
+            unidad: scope.unidadFiltro || scope.unidades[0] || null,
+            usuarioId: scope.usuarioFiltroId,
+            canViewUnidad: scope.canViewUnidad,
+            canPickUnidad: scope.canPickUnidad,
+          },
+          destacados: destacarRanking(ranking),
+          ranking,
+        });
+      }
+
+      // —— SIAF ——
+      const siafRepo = AppDataSource.getRepository(SiafSolicitud);
+      const autRepo = AppDataSource.getRepository(SiafAutorizacion);
+      const bitacoraRepo = AppDataSource.getRepository(SiafBitacora);
+
+      const siafsBase = await siafRepo
+        .createQueryBuilder('s')
+        .innerJoinAndSelect('s.usuarioSolicitante', 'sol')
+        .where('sol.id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+        .andWhere('(s.created_at BETWEEN :desde AND :hasta OR s.estado IN (:...abiertos))', {
+          desde,
+          hasta,
+          abiertos: ['pendiente', 'rechazado', 'borrador', 'finalizado'],
+        })
+        .getMany();
+      const autEnRango = await autRepo
+        .createQueryBuilder('aut')
+        .innerJoinAndSelect('aut.siaf', 'siaf')
+        .innerJoin('siaf.usuarioSolicitante', 'sol')
+        .where('sol.id IN (:...ownerIds)', { ownerIds: scope.ownerIds })
+        .andWhere('aut.fecha_autorizacion BETWEEN :desde AND :hasta', { desde, hasta })
+        .getMany();
+      const ids = [...new Set([
+        ...siafsBase.map((s) => s.id),
+        ...autEnRango.map((a) => a.siaf?.id).filter(Boolean) as number[],
+      ])];
+      const siafs = ids.length
+        ? await siafRepo.find({ where: { id: In(ids) }, relations: ['usuarioSolicitante'] })
+        : [];
+      const autorizaciones = ids.length
+        ? await autRepo
+            .createQueryBuilder('aut')
+            .innerJoinAndSelect('aut.siaf', 'siaf')
+            .leftJoinAndSelect('aut.usuarioAutorizador', 'operador')
+            .where('siaf.id IN (:...ids)', { ids })
+            .orderBy('aut.fecha_autorizacion', 'ASC')
+            .getMany()
+        : [];
+      const bitacora = ids.length
+        ? await bitacoraRepo
+            .createQueryBuilder('b')
+            .innerJoinAndSelect('b.siaf', 'siaf')
+            .leftJoinAndSelect('b.usuario', 'usuario')
+            .where('siaf.id IN (:...ids)', { ids })
+            .orderBy('b.fecha', 'ASC')
+            .getMany()
+        : [];
+      const createdAtPorSiaf = new Map<number, Date>();
+      siafs.forEach((s) => createdAtPorSiaf.set(s.id, new Date(s.createdAt)));
+      const porSiaf = unificarEventosSiaf(autorizaciones, bitacora, createdAtPorSiaf);
+
+      const ranking = construirRankingSiaf({
+        colaboradores,
+        siafs: siafs
+          .filter((s) => s.usuarioSolicitante?.id)
+          .map((s) => ({
+            id: s.id,
+            usuarioId: s.usuarioSolicitante!.id,
+            createdAt: s.createdAt,
+          })),
+        eventosPorSiaf: porSiaf,
+        desde,
+        hasta,
+      });
+
+      return res.json({
+        tipo,
+        desde: desde.toISOString(),
+        hasta: hasta.toISOString(),
+        alcance: {
+          modo: scope.alcance,
+          unidad: scope.unidadFiltro || scope.unidades[0] || null,
+          usuarioId: scope.usuarioFiltroId,
+          canViewUnidad: scope.canViewUnidad,
+          canPickUnidad: scope.canPickUnidad,
+        },
+        destacados: destacarRanking(ranking),
+        ranking,
+      });
+    } catch (err: any) {
+      console.error('Error al obtener ranking de colaboradores:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener ranking de colaboradores.' });
+    }
+  }
+);

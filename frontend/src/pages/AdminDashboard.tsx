@@ -46,12 +46,12 @@ import api from '../api';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Panel de Administración', subtitle: 'Bienvenido al panel de control del sistema' },
-  'user-management': { title: 'Gestión de Usuarios', subtitle: 'Administra los usuarios del sistema' },
-  'role-management': { title: 'Gestión de Roles', subtitle: 'Configura roles y permisos' },
+  'user-management': { title: 'Gestión de Usuarios', subtitle: 'Alta, edición y roles de acceso del personal' },
+  'role-management': { title: 'Gestión de Roles', subtitle: 'Defina roles (pantallas) y asígnelos a colaboradores' },
   'area-management': { title: 'Gestión de Áreas', subtitle: 'Administra las áreas del sistema' },
   'puesto-management': { title: 'Gestión de Puestos', subtitle: 'Administra los puestos de trabajo' },
   'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: 'Administra las unidades médicas' },
-  'correlativo-management': { title: 'Gestión de Correlativos', subtitle: 'Configure la secuencia automática de correlativos SIAF' },
+  'correlativo-management': { title: 'Gestión de Correlativos', subtitle: 'Numeración automática de SIAF y expedientes' },
   reports: { title: 'Reportes', subtitle: 'Genera y visualiza reportes' },
   settings: { title: 'Configuración', subtitle: 'Configura las opciones del sistema' },
 };
@@ -531,6 +531,7 @@ const AdminDashboard: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            sx={{ minWidth: 0, maxWidth: '100%' }}
           >
             {renderContent()}
           </Box>

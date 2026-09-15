@@ -130,7 +130,7 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
         <Typography variant="body2" color="text.secondary">No hay documentos en este expediente.</Typography>
       ) : (
         <Grid container spacing={2} sx={{ flex: 1, minHeight: { md: 0 }, height: { md: '100%' }, alignItems: 'stretch' }}>
-          <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
             <Box
               sx={{
                 border: '1px solid',
@@ -141,15 +141,16 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
                 boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                 flex: 1,
                 minHeight: 0,
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: 'grey.100', borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
-                <Typography variant="subtitle2" fontWeight="600" color="text.primary">
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: 'grey.100', borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap', gap: 1, minWidth: 0 }}>
+                <Typography variant="subtitle2" fontWeight="600" color="text.primary" sx={{ minWidth: 0 }}>
                   {previewRechazoLoading ? 'Cargando…' : previewRechazoNombre || 'Seleccione un documento con «Ver»'}
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                   {(previewRechazoUrl || previewRechazoLoading) && (
                     <>
                       <Tooltip title="Alejar">
@@ -299,13 +300,14 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
               </Box>
             </Box>
           </Grid>
-          <Grid item xs={12} md={5} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, alignSelf: 'stretch', maxHeight: { xs: '70vh', md: '100%' } }}>
+          <Grid item xs={12} md={5} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, alignSelf: 'stretch', maxHeight: { xs: '70vh', md: '100%' } }}>
             <Box
               sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 flex: 1,
                 minHeight: 0,
+                minWidth: 0,
                 overflow: 'hidden',
                 border: '1px solid',
                 borderColor: 'divider',

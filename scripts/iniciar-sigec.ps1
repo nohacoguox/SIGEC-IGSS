@@ -53,43 +53,53 @@ function Test-CommandExists([string]$Name) {
 }
 
 function Get-ListeningPids([int]$Port) {
-  $pids = @()
+  # Emite enteros uno a uno. El llamador DEBE capturar con @(...).
+  # No usar "return , @(...)" (anida arrays y StrictMode rompe Stop-Process -Id).
+  $seen = @{}
   try {
-    $conns = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    if ($conns) {
-      $pids = @($conns | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -gt 0 })
+    foreach ($c in @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+      $procId = 0
+      try { $procId = [int]$c.OwningProcess } catch { continue }
+      if ($procId -gt 0 -and -not $seen.ContainsKey($procId)) {
+        $seen[$procId] = $true
+        $procId
+      }
     }
   } catch {
-    $lines = netstat -ano | Select-String ":$Port\s+.+LISTENING"
-    foreach ($line in $lines) {
-      $parts = ($line.Line -split '\s+') | Where-Object { $_ }
+    foreach ($line in @(netstat -ano | Select-String ":$Port\s+.+LISTENING")) {
+      $parts = @(($line.Line -split '\s+') | Where-Object { $_ })
+      if ($parts.Count -eq 0) { continue }
       $candidate = $parts[-1]
-      if ($candidate -match '^\d+$' -and [int]$candidate -gt 0) {
-        $pids += [int]$candidate
+      if ($candidate -match '^\d+$') {
+        $procId = [int]$candidate
+        if ($procId -gt 0 -and -not $seen.ContainsKey($procId)) {
+          $seen[$procId] = $true
+          $procId
+        }
       }
     }
   }
-  return @($pids | Select-Object -Unique)
 }
 
 function Stop-ListeningPort([int]$Port) {
-  $pids = Get-ListeningPids $Port
-  if (-not $pids -or $pids.Count -eq 0) {
+  $pids = @(Get-ListeningPids $Port | ForEach-Object { [int]$_ } | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+  if ($pids.Count -eq 0) {
     Write-Ok "Puerto $Port libre"
     return
   }
   foreach ($procId in $pids) {
+    $id = [int]$procId
     try {
-      $proc = Get-Process -Id $procId -ErrorAction Stop
-      Write-WarnLog "Puerto $Port ocupado por PID $procId ($($proc.ProcessName)). Se cierra para evitar conflictos."
-      Stop-Process -Id $procId -Force -ErrorAction Stop
+      $proc = Get-Process -Id $id -ErrorAction Stop
+      Write-WarnLog "Puerto $Port ocupado por PID $id ($($proc.ProcessName)). Se cierra para evitar conflictos."
+      Stop-Process -Id $id -Force -ErrorAction Stop
     } catch {
-      Write-WarnLog "No se pudo cerrar PID $procId en puerto $Port : $($_.Exception.Message)"
+      Write-WarnLog "No se pudo cerrar PID $id en puerto $Port : $($_.Exception.Message)"
     }
   }
   Start-Sleep -Seconds 2
-  $still = Get-ListeningPids $Port
-  if ($still -and $still.Count -gt 0) {
+  $still = @(Get-ListeningPids $Port | ForEach-Object { [int]$_ } | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+  if ($still.Count -gt 0) {
     Fail-AndExit "El puerto $Port sigue ocupado (PID: $($still -join ', ')). Ciérrelo manualmente e intente de nuevo."
   }
   Write-Ok "Puerto $Port liberado"
@@ -185,7 +195,7 @@ function Test-EnvFile {
       $missing += $key
     }
   }
-  if ($missing.Count -gt 0) {
+  if (@($missing).Count -gt 0) {
     Fail-AndExit "backend\.env incompleto. Faltan: $($missing -join ', ')."
   }
   Write-Ok 'backend\.env encontrado y con variables mínimas'

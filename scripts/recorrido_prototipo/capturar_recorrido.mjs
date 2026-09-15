@@ -9,7 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'Downloads', 'Recorrido_SIGEC_IGSS', 'capturas');
+const OUT_DIR = process.env.SIGEC_CAPTURE_DIR || path.join(process.env.USERPROFILE || process.env.HOME, 'Downloads', 'Recorrido_SIGEC_IGSS', 'capturas');
 const BASE = process.env.SIGEC_BASE_URL || 'http://localhost:3010';
 const VIEWPORT = { width: 1440, height: 900 };
 
@@ -109,7 +109,7 @@ async function ensureDemoSession(page) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
