@@ -7,6 +7,7 @@ Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro
 | 1 | Modularizar backend | **Hecha** (`index.ts` bootstrap; 10 módulos en `src/modules/`) |
 | 1.5 | Esquema sin `synchronize` por defecto + migraciones TypeORM | **Hecha (puente)** — ver `MIGRACIONES-TYPEORM.md` |
 | 2 | Contrato API (rutas, permisos, pantallas) | **En curso** — catálogo canónico en backend + `/app-screens/catalog` |
+| 2.5 | Modularizar frontend por `features/` | **En curso** — Expedientes + SiafBook (primer corte); revisión DD pendiente |
 | 3 | Split de repos **solo si aporta** | Pendiente |
 
 ---
@@ -122,10 +123,37 @@ En el servidor pasarías de un solo `/var/www/sigec-igss` a dos clones (p. ej. `
 
 - Mantén `frontend/` y `backend/` en el mismo Git
 - Modulariza el backend ✅
+- Modulariza el frontend por dominio (`features/`) sin cambiar comportamiento
 - Trata cada carpeta como deployable aparte (ya lo son)
 - Si más adelante la institución pide dos remotes, el split es una copia limpia / `git filter-repo`, no un rediseño
 
 Beneficio: un PR puede tocar FE+BE; un clone despliega todo; docs y scripts siguen juntos.
+
+---
+
+## Fase 2.5 — Modularizar el frontend
+
+Misma regla que el backend: **extraer sin cambiar comportamiento**. Rutas/`App.tsx` siguen importando desde `pages/` o `components/` vía re-export.
+
+| Feature | Carpeta | Estado |
+|---------|---------|--------|
+| Expedientes (lista, detalle, docs, bitácora) | `frontend/src/features/expedientes/` | **Hecha** (`pages/ExpedientesPage.tsx` re-export) |
+| SIAF libro / crear-corregir | `frontend/src/features/siaf/book/` | **Hecha (primer corte)** — types/utils + diálogos + bitácora; `components/SiafBook.tsx` re-export |
+| Revisión DD (SIAF / expedientes) | `features/siaf/revisar/`, `features/expedientes/revisar/` | Pendiente |
+| Gestión / analítica | `SiafManagement`, `EstadisticasSiaf`, `Analitica*` | Pendiente |
+
+**Expedientes — estructura:**
+
+- `types.ts`, `constants.tsx`, `utils.ts`
+- `ExpedientesPage.tsx` (orquestador)
+- `components/`: Crear/Editar, detalle drawer, agregar/reemplazar/eliminar doc, bitácora, versiones, ver marca, viewer
+
+**SIAF book — estructura:**
+
+- `types.ts`, `utils.ts` (unidad médica, validación, ortografía)
+- `SiafBook.tsx` (orquestador / formulario)
+- `components/`: bitácora, ortografía, preview PDF, marcas, viewer de adjuntos
+- Siguiente refinamiento opcional: secciones del formulario (ítems, subproductos, solicitante, etc.)
 
 ---
 
@@ -134,4 +162,4 @@ Beneficio: un PR puede tocar FE+BE; un clone despliega todo; docs y scripts sigu
 1. Confirmar en el log: `Migraciones aplicadas` o `sin pendientes`, y `synchronize=OFF`.
 2. En servidor Debian: `DB_SYNCHRONIZE=false`; al desplegar, reiniciar API para correr migraciones.
 3. Cambios nuevos de esquema: entity + `npm run migration:generate` (ver `MIGRACIONES-TYPEORM.md`).
-4. Fase 2 cuando toque: unificar `appScreens` / contrato API.
+4. Completar Fase 2.5: revisión DD → gestión/analítica (SiafBook primer corte ya hecho).
