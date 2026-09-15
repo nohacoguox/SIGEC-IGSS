@@ -6,7 +6,7 @@ Orden recomendado: **primero módulos dentro del backend**, luego esquema seguro
 |------|-----|--------|
 | 1 | Modularizar backend | **Hecha** (`index.ts` bootstrap; 10 módulos en `src/modules/`) |
 | 1.5 | Esquema sin `synchronize` por defecto + migraciones TypeORM | **Hecha (puente)** — ver `MIGRACIONES-TYPEORM.md` |
-| 2 | Contrato API (rutas, permisos, pantallas) | **En curso** — catálogo canónico en backend + `/app-screens/catalog` |
+| 2 | Contrato API (rutas, permisos, pantallas) | **Hecha (v1 informal)** — ver `CONTRATO-API-V1.md` |
 | 2.5 | Modularizar frontend por `features/` | **Hecha (núcleo)** — Expedientes, SiafBook, revisión DD, gestión SIAF y analítica |
 | 3 | Split de repos **solo si aporta** | Pendiente |
 
@@ -87,20 +87,23 @@ Helpers compartidos: `middleware/auth`, `middleware/upload`, `services/catalogoO
 
 ---
 
-## Fase 2 — Contrato entre front y back
+## Fase 2 — Contrato entre front y back ✅
 
-### Pantallas / permisos (`appScreens`) — avance
+Documentación operativa: [`CONTRATO-API-V1.md`](./CONTRATO-API-V1.md).
+
+### Pantallas / permisos (`appScreens`)
 
 - **Fuente de verdad:** `backend/src/config/appScreens.ts`
 - **API:** `GET /api/app-screens/catalog` (cualquier autenticado) y `GET /api/app-screens` (gestión de roles, con `permissionId`)
 - **Frontend:** `AppScreensProvider` carga el catálogo tras login; el listado local es solo `FALLBACK_*`
 
-### Antes de partir repos
+### Congelado en v1
 
-- Congelar rutas `/api/...` y permisos
-- Documentar `REACT_APP_API_URL` y CORS
-- Decidir versión de API (aunque sea informal: “v1 estable”)
+- Prefijos `/api/...` por módulo (tabla en el contrato)
+- `REACT_APP_API_URL` sin `/api`; CORS abierto en prototipo
+- Versión informal: **v1 estable**
 
+Detalle histórico de payloads SIAF: [`FASE-2-ENDPOINTS-BACKEND.md`](./FASE-2-ENDPOINTS-BACKEND.md).
 ---
 
 ## Fase 3 — Si decides separar
@@ -180,7 +183,7 @@ Refinamientos opcionales: secciones del formulario SiafBook; pantallas auth/dash
 
 ## Siguiente paso práctico
 
-1. Confirmar en el log: `Migraciones aplicadas` o `sin pendientes`, y `synchronize=OFF`.
-2. En servidor Debian: `DB_SYNCHRONIZE=false`; al desplegar, reiniciar API para correr migraciones.
+1. **Local OK** si el log muestra `synchronize=OFF` y `Migraciones: sin pendientes` (o aplicadas). Guía: [`CONTRATO-API-V1.md`](./CONTRATO-API-V1.md).
+2. En servidor Debian: `DB_SYNCHRONIZE=false`; al desplegar, reiniciar API para correr migraciones; smoke del checklist.
 3. Cambios nuevos de esquema: entity + `npm run migration:generate` (ver `MIGRACIONES-TYPEORM.md`).
-4. Fase 2.5 núcleo hecha; opcionales: partir formulario SiafBook en secciones, auth/dashboards si crecen.
+4. Fase 3 (split de repos) **solo si la institución lo pide**. Opcional FE: secciones de SiafBook / auth-dashboards si crecen.
