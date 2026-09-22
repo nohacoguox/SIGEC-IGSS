@@ -1,0 +1,103 @@
+1138 [Normal] 
+    align=None first=None line=1.0
+1139 [Normal] El prototipo contempla, además, gestión de roles, áreas, puestos, unidades médicas y correlativos en el panel administrativo, analítica por caso y por motivos de rechazo, y cambio de contraseña tras una clave temporal. Esas pantallas siguen el mismo lenguaje visual y no se reproducen todas aquí para evitar reiteración; el mapa de la Figura 33 y la Tabla 34 las sitúan en la navegación. En dispositi
+    Calibri/11.0/b=None/i=None:'El prototipo contempla, además, gestión ' | Calibri/11.0/b=None/i=None:'clave temporal. Esas pantallas siguen el'
+    align=None first=457200 line=None
+1140 [Normal] En conclusión, la interfaz hace visible el flujo Consultorio–DAF con la identidad del IGSS y con un prototipo ejecutable, no con láminas desconectadas del software. Cada pantalla de las Figuras 34 a 43 corresponde a uno o más casos de uso del Capítulo IV.
+    Calibri/11.0/b=None/i=None:'En conclusión, la interfaz hace visible '
+    align=None first=457200 line=None
+1141 [List Paragraph] Programación
+    Calibri/11.0/b=True/i=None:'Programación'
+    align=LEFT (0) first=None line=None
+1142 [Normal] La programación del SIGEC-IGSS se organiza como monolito modular: una SPA y una API en el mismo repositorio, con módulos de servidor por dominio y componentes de interfaz reutilizables. Esta sección identifica los módulos principales y presenta el diagrama de componentes que relaciona páginas, servicios y persistencia. No se listan miles de líneas de código; se documenta la descomposición que perm
+    Calibri/11.0/b=None/i=None:'La programación del SIGEC-IGSS se organi'
+    align=None first=457200 line=None
+1143 [Normal] 
+    Calibri/11.0/b=None/i=None:''
+    align=None first=-14605 line=1.5083333333333333
+1144 [Caption] Figura 44
+Diagrama de componentes de programación de SIGEC-IGSS
+    Calibri/11.0/b=True/i=False:'Figura ' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:''
+    align=LEFT (0) first=None line=None
+1145 [Normal] 
+    align=None first=None line=1.0
+1146 [Normal] [IMG] 
+    None/None/b=None/i=None:''
+    align=CENTER (1) first=None line=1.0
+1147 [Normal] 
+    align=None first=None line=1.0
+1148 [Normal] Nota. Componentes de la SPA (pages, components, context, api) y del servidor (modules, entity, services, middleware, migraciones). Elaboración propia a partir de la estructura de código del prototipo.
+    Calibri/9.0/b=None/i=True:'Nota. ' | Calibri/9.0/b=None/i=None:'Componentes de la SPA (pages, components'
+    align=None first=None line=1.0
+1149 [Normal] 
+    Calibri/9.0/b=None/i=None:''
+    align=None first=-14605 line=1.5083333333333333
+1150 [Caption] Tabla 35
+Módulos principales de programación en el backend
+    Calibri/11.0/b=True/i=False:'Tabla ' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:''
+    align=LEFT (0) first=None line=None
+1151 [Normal] 
+    align=None first=None line=1.0
+1152 [Normal] 
+    align=None first=None line=1.0
+1153 [Normal] Nota. Elaboración propia. index.ts compone los enrutadores; data-source.ts declara las entidades.
+    Calibri/9.0/b=None/i=True:'Nota. ' | Calibri/9.0/b=None/i=None:'Elaboración propia. index.ts compone los'
+    align=None first=None line=None
+1154 [Normal] 
+    Calibri/9.0/b=None/i=None:''
+    align=None first=-14605 line=1.5083333333333333
+1155 [Caption] Tabla 36
+Módulos principales de programación en el frontend
+    Calibri/11.0/b=True/i=False:'Tabla ' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:''
+    align=LEFT (0) first=None line=None
+1156 [Normal] 
+    align=None first=None line=1.0
+1157 [Normal] 
+    align=None first=None line=1.0
+1158 [Normal] Nota. Elaboración propia a partir de App.tsx y del árbol frontend/src.
+    Calibri/9.0/b=None/i=True:'Nota. ' | Calibri/9.0/b=None/i=None:'Elaboración propia a partir de App.tsx y'
+    align=None first=None line=1.0
+1159 [Normal] 
+    Calibri/9.0/b=None/i=None:''
+    align=None first=-14605 line=1.5083333333333333
+1160 [Caption] Tabla 37
+Trazabilidad entre módulos de programación y requerimientos
+    Calibri/11.0/b=True/i=False:'Tabla ' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:'' | Calibri/11.0/b=True/i=False:''
+    align=LEFT (0) first=None line=None
+1161 [Normal] 
+    align=LEFT (0) first=None line=1.0
+1162 [Normal] Nota. Elaboración propia. La matriz cierra el circuito entre el Capítulo IV y el software versionado.
+    Calibri/11.0/b=None/i=True:'Nota. ' | Calibri/11.0/b=None/i=None:'Elaboración propia. La matriz cierra el '
+    align=LEFT (0) first=None line=None
+1163 [Normal] Criterios de implementación. TypeScript reduce errores de contrato entre UI y API. Las migraciones y ensureSchema evolucionan el esquema sin depender de anotaciones sueltas. Los seeders permiten levantar un ambiente de piloto con roles y catálogos. ESLint y Jest existen en el frontend; el backend del piloto aún privilegia verificación manual y compilación estática, deuda declarada en el Capítulo I
+    Calibri/11.0/b=None/i=None:'Criterios de implementación. TypeScript '
+    align=None first=457200 line=None
+1164 [Normal] El Capítulo V deja diseñado el SIGEC-IGSS en cuatro frentes exigidos por la entrega: (1) un modelo de datos por dominios, con integridad, correlativos y asociaciones lógicas declaradas; (2) un almacén documental híbrido con hash y versionado; (3) una arquitectura cliente–servidor en tres capas, vista de despliegue Palín–Escuintla y especificación de decisiones e interfaces; (4) un prototipo de int
+    Calibri/11.0/b=None/i=None:'El Capítulo V deja diseñado el SIGEC-IGS' | Calibri/11.0/b=None/i=None:'acotado al piloto: no reemplaza Guatecom'
+    align=None first=457200 line=None
+1165 [Normal] 
+    Calibri/11.0/b=True/i=None:''
+    align=None first=-14605 line=1.5083333333333333
+1166 [Normal] Conclusiones
+    Calibri/11.0/b=True/i=None:'Conclusiones'
+    align=CENTER (1) first=None line=None
+1167 [Normal] Es posible llevar a cabo el presente proyecto de graduación, porque responde a una necesidad concreta del IGSS: ordenar y digitalizar el flujo de la SIAF y del expediente de compra en la relación Consultorio de Palín–DAF departamental de Escuintla, donde predominan prácticas manuales y semi-manuales que generan reprocesos y débil trazabilidad. La propuesta del SIGEC-IGSS queda acotada a un piloto 
+    Calibri/11.0/b=None/i=None:'Es posible llevar a cabo el presente pro'
+    align=None first=457200 line=None
+1168 [Normal] Las principales limitaciones se concentran en el tiempo y el alcance del trabajo de graduación —el desarrollo prioriza funciones esenciales del piloto, dejando para fases posteriores integraciones con sistemas centrales del IGSS, mayor automatización de pruebas, endurecimiento avanzado de ciberseguridad o despliegue a otras unidades— y en el carácter híbrido del trámite: el sistema complementa el 
+    Calibri/11.0/b=None/i=None:'Las principales limitaciones se concentr'
+    align=None first=457200 line=None
+1169 [Normal] En síntesis, el SIGEC-IGSS aporta una solución factible alineada con la modernización digital que el instituto ha planteado como rumbo, sin confundir el alcance del proyecto con la sustitución de plataformas estatales de contratación (p. ej. Guatecompras) ni con la resolución total de cuellos de botella que tienen también componentes organizativos y normativos ajenos al software. El valor del trab
+    Calibri/11.0/b=None/i=None:'En síntesis, el SIGEC-IGSS aporta una so' | Calibri/11.0/b=None/i=None:'que tienen también componentes organizat'
+    align=None first=457200 line=None
+
+=== SAMPLE FIG 44 ===
+155 style=table of figures 'Figura 44 Diagrama de componentes de programación de SIGEC-IGSS\t156'
+1144 style=Caption 'Figura 44\nDiagrama de componentes de programación de SIGEC-IGSS'
+  run Calibri 11.0 b=True i=False 'Figura '
+  run Calibri 11.0 b=True i=False ''
+  run Calibri 11.0 b=True i=False ''
+  run Calibri 11.0 b=True i=False ''
+  run Calibri 11.0 b=True i=False '44'
+  run Calibri 11.0 b=True i=False ''
+  run Calibri 11.0 b=None i=None '\nDiagrama de componentes de programación de SIGEC-IGSS'

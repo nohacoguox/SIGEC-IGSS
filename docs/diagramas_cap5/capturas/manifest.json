@@ -1,0 +1,135 @@
+[
+  {
+    "id": "01",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\01_inicio_sesion.png",
+    "titulo": "Inicio de sesión",
+    "seccion": "Acceso al sistema",
+    "explicacion": "Pantalla pública de autenticación. El usuario ingresa su código de empleado y contraseña institucional para obtener un token de sesión y acceder a los paneles autorizados según roles y permisos."
+  },
+  {
+    "id": "02",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\02_panel_administracion.png",
+    "titulo": "Panel de administración",
+    "seccion": "Administración",
+    "explicacion": "Vista inicial del panel administrativo. Resume indicadores institucionales (usuarios, roles e informes) y ofrece navegación lateral hacia las gestiones maestras del sistema."
+  },
+  {
+    "id": "03",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\03_gestion_usuarios.png",
+    "titulo": "Gestión de usuarios",
+    "seccion": "Administración",
+    "explicacion": "Administración del padrón de usuarios: alta, edición, asignación de puestos/unidad y control de acceso operativo."
+  },
+  {
+    "id": "04",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\04_gestion_roles.png",
+    "titulo": "Gestión de roles",
+    "seccion": "Administración",
+    "explicacion": "Configuración de roles y permisos por pantalla. Define qué módulos puede utilizar cada perfil institucional."
+  },
+  {
+    "id": "05",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\05_gestion_areas.png",
+    "titulo": "Gestión de áreas",
+    "seccion": "Administración",
+    "explicacion": "Catálogo de áreas organizacionales utilizadas para clasificar la estructura administrativa del IGSS."
+  },
+  {
+    "id": "06",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\06_gestion_puestos.png",
+    "titulo": "Gestión de puestos",
+    "seccion": "Administración",
+    "explicacion": "Administración de puestos de trabajo vinculados a usuarios y a la estructura funcional de la institución."
+  },
+  {
+    "id": "07",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\07_gestion_unidades_medicas.png",
+    "titulo": "Gestión de unidades médicas",
+    "seccion": "Administración",
+    "explicacion": "Mantenimiento del catálogo de unidades médicas, base para la trazabilidad organizacional de las operaciones."
+  },
+  {
+    "id": "08",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\08_gestion_correlativos.png",
+    "titulo": "Gestión de correlativos",
+    "seccion": "Administración",
+    "explicacion": "Configuración de la secuencia de correlativos SIAF, reservas activas y control de numeración institucional."
+  },
+  {
+    "id": "09",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\09_panel_colaborador.png",
+    "titulo": "Panel de control del colaborador",
+    "seccion": "Operación",
+    "explicacion": "Punto de entrada operativo. Presenta accesos rápidos a Libro SIAF, expedientes, bandeja DAF, actualización de catálogos y analítica, según los permisos del usuario autenticado."
+  },
+  {
+    "id": "10",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\10_listado_siaf.png",
+    "titulo": "Listado de solicitudes SIAF",
+    "seccion": "Libro SIAF",
+    "explicacion": "Consulta del inventario de solicitudes SIAF. Permite filtrar, revisar estados, abrir detalle y continuar el ciclo de creación, corrección o autorización."
+  },
+  {
+    "id": "11",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\11_crear_siaf.png",
+    "titulo": "Creación de solicitud SIAF",
+    "seccion": "Libro SIAF",
+    "explicacion": "Formulario de captura de una nueva solicitud SIAF. Integra datos del solicitante, ítems, validaciones y generación documental alineada al formato institucional."
+  },
+  {
+    "id": "12",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\12_expedientes_compras.png",
+    "titulo": "Expedientes de compras",
+    "seccion": "Expedientes",
+    "explicacion": "Módulo de gestión de expedientes de compras: creación, adjuntos, versiones documentales, bitácora y seguimiento del ciclo de revisión ante DAF."
+  },
+  {
+    "id": "13",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\13_actualizar_codigos_productos.png",
+    "titulo": "Actualización de códigos y productos",
+    "seccion": "Catálogos",
+    "explicacion": "Herramienta de mantenimiento del catálogo de productos a partir de archivos Excel oficiales, asegurando consistencia de códigos y descripciones en SIAF."
+  },
+  {
+    "id": "14",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\14_bandeja_revisiones_daf.png",
+    "titulo": "Bandeja de revisiones DAF",
+    "seccion": "Dirección Administrativa Financiera",
+    "explicacion": "Bandeja unificada para analistas DAF. Concentra solicitudes SIAF y expedientes pendientes de revisión, aprobación o devolución con observación."
+  },
+  {
+    "id": "16",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\16_analisis_siaf_generales.png",
+    "titulo": "Análisis SIAF — Generales",
+    "seccion": "Estadísticas",
+    "explicacion": "Tablero analítico de SIAF con cierre mensual, aprobados, rechazados al cierre y pendientes de corrección. Soporta la evidencia operativa del prototipo funcional."
+  },
+  {
+    "id": "17",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\17_analisis_siaf_por_caso.png",
+    "titulo": "Análisis SIAF — Por SIAF",
+    "seccion": "Estadísticas",
+    "explicacion": "Desglose por caso: tiempos de respuesta DAF, correcciones, trazabilidad de devoluciones y distribución de ciclos de ida y vuelta."
+  },
+  {
+    "id": "18",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\18_analisis_siaf_motivos.png",
+    "titulo": "Análisis SIAF — Motivos de rechazo",
+    "seccion": "Estadísticas",
+    "explicacion": "Clasificación de motivos de rechazo registrados en el período. Permite identificar causas recurrentes y priorizar mejoras de calidad documental."
+  },
+  {
+    "id": "19",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\19_analisis_expedientes_generales.png",
+    "titulo": "Análisis de expedientes — Generales",
+    "seccion": "Estadísticas",
+    "explicacion": "Analítica de expedientes con la misma lógica de cierre mensual: aprobados, rechazados al corte, pendientes de corregir y carga en revisión DAF."
+  },
+  {
+    "id": "22",
+    "file": "c:\\PROYECTOS-PERSONALES\\SIGEC-IGSS\\docs\\diagramas_cap5\\capturas\\22_cambio_contrasena.png",
+    "titulo": "Cambio de contraseña",
+    "seccion": "Seguridad",
+    "explicacion": "Flujo de seguridad para actualizar la credencial de acceso, particularmente cuando el sistema exige cambio por contraseña temporal."
+  }
+]

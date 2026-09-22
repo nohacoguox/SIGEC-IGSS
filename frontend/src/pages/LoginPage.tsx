@@ -16,8 +16,8 @@ import {
   Alert,
   IconButton,
   Dialog,
+  DialogActions,
   DialogContent,
-  Divider,
   Stack,
   CircularProgress,
 } from '@mui/material';
@@ -121,8 +121,8 @@ function LoginPage() {
     setSubmitting(true);
     try {
       const response = await api.post('/auth/login', {
-        codigoEmpleado: email,
-        password: password,
+        codigoEmpleado: email.trim(),
+        password: password.trim(),
       });
 
       const { token, role, roles: rolesList, nombres, apellidos, isTempPassword, permissions } = response.data;
@@ -467,24 +467,30 @@ function LoginPage() {
         onClose={() => !recoverySubmitting && setRecoveryOpen(false)}
         fullWidth
         maxWidth="sm"
+        scroll="paper"
         PaperProps={{
+          component: 'form',
+          onSubmit: handlePasswordRecovery,
           sx: {
             borderRadius: 3,
             overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 32px)' },
             border: `1px solid ${IGSS_COLORS.gris}`,
             boxShadow: '0 18px 48px rgba(50, 90, 114, 0.22)',
           },
         }}
       >
-        <Box component="form" onSubmit={handlePasswordRecovery}>
           <Box
             sx={{
               position: 'relative',
+              flexShrink: 0,
               bgcolor: IGSS_COLORS.azul,
               color: IGSS_COLORS.blanco,
               px: 3,
-              pt: 3,
-              pb: 2.5,
+              pt: 2.5,
+              pb: 2,
             }}
           >
             <Box
@@ -506,8 +512,9 @@ function LoginPage() {
                 top: 10,
                 right: 10,
                 color: IGSS_COLORS.blanco,
-                bgcolor: 'rgba(255,255,255,0.12)',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.22)' },
+                bgcolor: 'rgba(255,255,255,0.18)',
+                border: '1px solid rgba(255,255,255,0.28)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.28)' },
               }}
             >
               <CloseRoundedIcon fontSize="small" />
@@ -516,8 +523,8 @@ function LoginPage() {
             <Stack direction="row" spacing={2} alignItems="center" sx={{ pr: 5 }}>
               <Box
                 sx={{
-                  width: 56,
-                  height: 56,
+                  width: 52,
+                  height: 52,
                   borderRadius: 2,
                   bgcolor: 'rgba(255,255,255,0.14)',
                   border: '1px solid rgba(255,255,255,0.22)',
@@ -527,7 +534,7 @@ function LoginPage() {
                   flexShrink: 0,
                 }}
               >
-                <MarkEmailReadOutlinedIcon sx={{ fontSize: 30 }} />
+                <MarkEmailReadOutlinedIcon sx={{ fontSize: 28 }} />
               </Box>
               <Box>
                 <Typography variant="overline" sx={{ letterSpacing: 1.2, opacity: 0.85, lineHeight: 1 }}>
@@ -543,8 +550,8 @@ function LoginPage() {
             </Stack>
           </Box>
 
-          <DialogContent sx={{ px: 3, pt: 3, pb: 1.5 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mb: 2.5 }}>
+          <DialogContent sx={{ px: 3, pt: 2.5, pb: 2, overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+            <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto' }}>
               {[
                 { step: '1', label: 'Solicitar aquí' },
                 { step: '2', label: 'Revisar tu correo' },
@@ -553,12 +560,13 @@ function LoginPage() {
                 <Box
                   key={item.step}
                   sx={{
-                    flex: 1,
+                    flex: '1 1 0',
+                    minWidth: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 1,
-                    px: 1.2,
-                    py: 1,
+                    gap: 0.8,
+                    px: 1,
+                    py: 0.75,
                     borderRadius: 2,
                     bgcolor: IGSS_COLORS.fondoClaro,
                     border: `1px solid ${IGSS_COLORS.gris}`,
@@ -566,12 +574,12 @@ function LoginPage() {
                 >
                   <Box
                     sx={{
-                      width: 24,
-                      height: 24,
+                      width: 22,
+                      height: 22,
                       borderRadius: '50%',
                       bgcolor: IGSS_COLORS.azul,
                       color: IGSS_COLORS.blanco,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
@@ -581,14 +589,22 @@ function LoginPage() {
                   >
                     {item.step}
                   </Box>
-                  <Typography variant="caption" sx={{ color: IGSS_COLORS.textoOscuro, fontWeight: 600 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: IGSS_COLORS.textoOscuro,
+                      fontWeight: 600,
+                      lineHeight: 1.2,
+                      whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                    }}
+                  >
                     {item.label}
                   </Typography>
                 </Box>
               ))}
             </Stack>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               En esta ventana solo confirmas tu identidad. Después cierras, revisas tu correo institucional
               y vuelves a iniciar sesión desde cero con la contraseña temporal. El sistema te pedirá
               crear una nueva.
@@ -598,7 +614,7 @@ function LoginPage() {
               autoFocus
               required
               fullWidth
-              margin="normal"
+              margin="dense"
               label="Código de empleado"
               value={recoveryCodigoEmpleado}
               onChange={(event) => setRecoveryCodigoEmpleado(event.target.value)}
@@ -614,7 +630,7 @@ function LoginPage() {
             <TextField
               required
               fullWidth
-              margin="normal"
+              margin="dense"
               label="Correo institucional registrado"
               type="email"
               value={recoveryCorreo}
@@ -634,7 +650,6 @@ function LoginPage() {
               icon={<ShieldOutlinedIcon fontSize="inherit" />}
               sx={{
                 mt: 2,
-                mb: 1,
                 borderRadius: 2,
                 bgcolor: 'rgba(59, 107, 133, 0.08)',
                 color: IGSS_COLORS.textoOscuro,
@@ -647,17 +662,16 @@ function LoginPage() {
             </Alert>
           </DialogContent>
 
-          <Divider />
-
-          <Box
+          <DialogActions
             sx={{
-              px: 3,
-              py: 2.2,
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1.5,
+              px: { xs: 2, sm: 3 },
+              py: 2,
+              gap: 1.25,
+              flexShrink: 0,
+              flexWrap: 'nowrap',
               justifyContent: 'flex-end',
-              bgcolor: IGSS_COLORS.fondo,
+              bgcolor: IGSS_COLORS.blanco,
+              borderTop: `2px solid ${IGSS_COLORS.verde}`,
             }}
           >
             <Button
@@ -665,12 +679,18 @@ function LoginPage() {
               disabled={recoverySubmitting}
               variant="outlined"
               sx={{
-                borderColor: IGSS_COLORS.grisOscuro,
+                minHeight: 44,
+                minWidth: { xs: 0, sm: 112 },
+                flex: { xs: 1, sm: '0 0 auto' },
+                borderWidth: 1.5,
+                borderColor: IGSS_COLORS.azul,
                 color: IGSS_COLORS.azul,
                 px: 2.2,
+                fontWeight: 700,
                 '&:hover': {
-                  borderColor: IGSS_COLORS.azul,
-                  bgcolor: 'rgba(59, 107, 133, 0.06)',
+                  borderWidth: 1.5,
+                  borderColor: IGSS_COLORS.azulOscuro,
+                  bgcolor: 'rgba(59, 107, 133, 0.08)',
                 },
               }}
             >
@@ -686,8 +706,12 @@ function LoginPage() {
                   : <ArrowForwardRoundedIcon />
               }
               sx={{
-                px: 2.4,
+                minHeight: 44,
+                flex: { xs: 1.6, sm: '0 0 auto' },
+                px: 2.6,
+                fontWeight: 700,
                 bgcolor: IGSS_COLORS.azul,
+                color: IGSS_COLORS.blanco,
                 boxShadow: '0 6px 16px rgba(59, 107, 133, 0.28)',
                 '&:hover': {
                   bgcolor: IGSS_COLORS.azulOscuro,
@@ -697,8 +721,7 @@ function LoginPage() {
             >
               {recoverySubmitting ? 'Enviando…' : 'Enviar contraseña temporal'}
             </Button>
-          </Box>
-        </Box>
+          </DialogActions>
       </Dialog>
 
       <DashboardChoicePanel

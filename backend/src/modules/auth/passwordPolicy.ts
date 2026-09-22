@@ -4,7 +4,8 @@ export function createTemporaryPassword(): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghijkmnopqrstuvwxyz';
   const digits = '23456789';
-  const symbols = '!@#$%*-_';
+  // Evita guiones y símbolos que los clientes de correo parten o alteran al copiar.
+  const symbols = '@#_';
   const all = `${upper}${lower}${digits}${symbols}`;
   const randomCharacter = (pool: string) => pool[randomBytes(1)[0] % pool.length];
   const password = [

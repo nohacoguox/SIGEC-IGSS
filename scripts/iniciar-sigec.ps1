@@ -17,14 +17,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$ProgressPreference = 'SilentlyContinue'
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $LogDir = Join-Path $Root 'logs'
 $LogFile = Join-Path $LogDir ("inicio-sigec-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
-$LoginUrl = "http://localhost:$FrontendPort/login"
-$ApiUrl = "http://localhost:$BackendPort/api"
+$LoginUrl = "http://127.0.0.1:$FrontendPort/login"
+$ApiUrl = "http://127.0.0.1:$BackendPort/api"
 
 function Write-Log {
   param([string]$Message, [string]$Level = 'INFO')
@@ -142,25 +143,28 @@ function Wait-HttpReady {
   return $false
 }
 
+function Get-CurlHttpCode {
+  param(
+    [string]$Url,
+    [int]$TimeoutSec = 4
+  )
+  # curl.exe (no el alias curl = Invoke-WebRequest). Evita el retraso de WPAD/IPv6 de PowerShell.
+  $code = & curl.exe -s -o NUL -w '%{http_code}' --connect-timeout $TimeoutSec --max-time $TimeoutSec $Url 2>$null
+  if ($code -match '^\d+$') { return [int]$code }
+  return 0
+}
+
 function Test-BackendReady {
-  try {
-    $body = '{}'
-    $resp = Invoke-WebRequest -Uri "$ApiUrl/auth/login" -Method POST -ContentType 'application/json' -Body $body -UseBasicParsing -TimeoutSec 4
-    return ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500)
-  } catch {
-    $status = $null
-    try { $status = [int]$_.Exception.Response.StatusCode } catch { }
-    return ($status -ge 400 -and $status -lt 500)
-  }
+  $code = Get-CurlHttpCode -Url "$ApiUrl/health"
+  if ($code -ge 200 -and $code -lt 500) { return $true }
+  # Compatibilidad si el backend aún no tiene /api/health
+  $code = Get-CurlHttpCode -Url "$ApiUrl/auth/login"
+  return ($code -ge 200 -and $code -lt 500)
 }
 
 function Test-FrontendReady {
-  try {
-    $resp = Invoke-WebRequest -Uri "http://localhost:$FrontendPort" -UseBasicParsing -TimeoutSec 5
-    return ($resp.StatusCode -eq 200)
-  } catch {
-    return $false
-  }
+  $code = Get-CurlHttpCode -Url "http://127.0.0.1:$FrontendPort" -TimeoutSec 5
+  return ($code -eq 200)
 }
 
 function Ensure-NpmModules([string]$Dir, [string]$Name) {

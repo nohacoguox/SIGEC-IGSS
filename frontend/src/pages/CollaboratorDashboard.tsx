@@ -163,26 +163,8 @@ const CollaboratorDashboard: React.FC = () => {
                 <PersonIcon sx={{ fontSize: 48 }} />
               </Avatar>
             </Box>
-            <Typography variant="h6" fontWeight="bold" sx={{ color: 'white', mb: 0.5 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ color: 'white' }}>
               {localStorage.getItem('userName') || 'Usuario'}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: IGSS_COLORS.blanco,
-                backgroundColor: IGSS_COLORS.azulOscuro,
-                borderRadius: 2,
-                px: 2,
-                py: 0.5,
-                display: 'inline-block',
-                fontSize: '0.75rem',
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {localStorage.getItem('userRole') || 'colaborador'}
             </Typography>
           </motion.div>
         </Box>

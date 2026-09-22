@@ -30,17 +30,29 @@ export const authRouter = Router();
 
 authRouter.post('/login', async (req: Request, res: Response) => {
   try {
-    const { codigoEmpleado, password } = req.body || {};
+    const codigoEmpleado = String(req.body?.codigoEmpleado ?? '').trim();
+    const password = String(req.body?.password ?? '').trim();
     if (!codigoEmpleado || !password) {
       return res.status(400).json({ message: 'Código de empleado y contraseña son requeridos' });
     }
     const credentialRepository = AppDataSource.getRepository(Credential);
+    const userRepository = AppDataSource.getRepository(User);
+    const credentialRelations = ['user', 'user.puesto', 'user.roles', 'user.roles.permissions'] as const;
 
-    // Find credential by codigoEmpleado
-    const credential = await credentialRepository.findOne({
+    let credential = await credentialRepository.findOne({
       where: { codigoEmpleado },
-      relations: ['user', 'user.puesto', 'user.roles', 'user.roles.permissions']
+      relations: [...credentialRelations],
     });
+
+    if (!credential) {
+      const userByCode = await userRepository.findOne({ where: { codigoEmpleado } });
+      if (userByCode) {
+        credential = await credentialRepository.findOne({
+          where: { userId: userByCode.id },
+          relations: [...credentialRelations],
+        });
+      }
+    }
 
     if (!credential) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
@@ -112,26 +124,29 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
     }
 
     const temporaryPassword = createTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    let credential = await credentialRepository.findOne({ where: { userId: user.id } });
+    if (credential) {
+      await credentialRepository.update(credential.id, {
+        password: hashedPassword,
+        isTempPassword: true,
+        codigoEmpleado: user.codigoEmpleado,
+      });
+    } else {
+      credential = credentialRepository.create({
+        codigoEmpleado: user.codigoEmpleado,
+        password: hashedPassword,
+        userId: user.id,
+        isTempPassword: true,
+      });
+      await credentialRepository.save(credential);
+    }
+
     await sendPasswordRecoveryEmail({
       recipient: user.correoInstitucional,
       recipientName: [user.nombres, user.apellidos].filter(Boolean).join(' ') || 'Usuario',
       temporaryPassword,
     });
-
-    let credential = await credentialRepository.findOne({ where: { userId: user.id } });
-    const password = await bcrypt.hash(temporaryPassword, 10);
-    if (credential) {
-      credential.password = password;
-      credential.isTempPassword = true;
-    } else {
-      credential = credentialRepository.create({
-        codigoEmpleado: user.codigoEmpleado,
-        password,
-        userId: user.id,
-        isTempPassword: true,
-      });
-    }
-    await credentialRepository.save(credential);
 
     return res.status(202).json(genericResponse);
   } catch (error: any) {

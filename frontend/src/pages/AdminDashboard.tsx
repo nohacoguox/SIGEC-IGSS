@@ -333,21 +333,8 @@ const AdminDashboard: React.FC = () => {
                 {(localStorage.getItem('userName') || 'A')[0].toUpperCase()}
               </Avatar>
             </Box>
-            <Typography variant="h6" fontWeight="bold" sx={{ color: 'white', mb: 0.5 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ color: 'white' }}>
               {localStorage.getItem('userName') || 'Administrador'}
-            </Typography>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                color: IGSS_COLORS.blanco,
-                backgroundColor: IGSS_COLORS.azulOscuro,
-                borderRadius: 2,
-                px: 2,
-                py: 0.5,
-                display: 'inline-block',
-              }}
-            >
-              {localStorage.getItem('userRole') || 'super administrador'}
             </Typography>
           </motion.div>
         </Box>

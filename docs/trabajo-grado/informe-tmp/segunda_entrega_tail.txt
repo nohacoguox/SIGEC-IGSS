@@ -1,0 +1,208 @@
+0601 [Normal] La seguridad del SIGEC-IGSS es responsabilidad compartida: el diseño de software aporta autenticación, autorización por roles y permisos, hash de contraseñas y validación en servidor, pero el IGSS aporta políticas de contraseñas, segmentación de red, certificados, revisión de logs y cultura de uso . Sinh ese marco organizacional, ningún stack por sí solo garantiza confidencialidad ni integridad.
+0602 [Normal] En lo estrictamente técnico del producto, la superficie de riesgo principal es la API expuesta tras el servidor web; ahí conviene aplicar controles de autenticación fuerte, autorización por roles, validación de entrada y aislamiento de archivos con comprobación de titularidad, en coherencia con las recomendaciones de seguridad web . El uso disciplinado de un ORM contribuye además a mitigar patrones típicos de inyección SQL en consultas generadas automáticamente.
+0603 [Normal] Además de los controles ya mencionados, las dimensiones de calidad del producto (funcionalidad, usabilidad, seguridad, mantenibilidad), la trazabilidad de cambios y la revisión estática en el frontend se vinculan al modelo ISO/IEC 25010; esa norma se cita de forma explícita en el apartado 3.9, dedicado a pruebas y calidad, para no duplicar aquí la misma referencia bibliográfica. JWT, RBAC y la validación de entrada materializan parte de esas dimensiones en la implementación actual.
+0604 [Normal] Las contraseñas no se almacenan en texto claro; el token de sesión viaja en cabeceras estándar y debe protegerse con HTTPS cuando exista certificado. La interfaz puede ocultar botones según el rol, pero la última palabra sigue siendo la API: cualquier cliente podría forjar peticiones si no hubiera comprobación en servidor.
+0605 [Normal] En el estado del piloto conviene reconocer deudas técnicas típicas: límites de tamaño en carga de archivos que deben alinearse a política institucional; almacenamiento del token en el navegador (riesgo ligado a cross-site scripting si se introdujera contenido no confiable); listas de orígenes abiertas en desarrollo que deberían acotarse en producción; y ausencia de especificación formal de API, contenedores o pipelines de integración continua —extensiones razonables si el sistema crece en critic
+0606 [Normal] Límites del piloto: no reemplaza plataformas estatales obligatorias de contratación; no es certificación OWASP/ISO 27001; no sustituye gobierno de datos del IGSS. Sí: el sistema es inteligible desde el código y la documentación hasta las bitácoras de ejecución en servidor y el modelo relacional, lo que permite evaluar coherencia entre el problema documental/compras y la solución técnica.
+0607 [Normal] En conclusión, la seguridad y la calidad del SIGEC-IGSS deben entenderse como límites explícitos y compromisos: el software aporta mecanismos técnicos serios, pero la madurez del despliegue depende de políticas institucionales y de evolución planificada frente a las deudas reconocidas del piloto.
+0608 [List Paragraph] Pruebas y calidad del software en el ciclo de vida
+0609 [Normal] El marco técnico no puede eludir cómo se valida el producto. En el frontend, la plantilla de arranque incorpora Jest y Testing Library para pruebas unitarias y de componente, además de web-vitals para métricas básicas de rendimiento percibido; ESLint aplica reglas de estilo y detecta patrones problemáticos en TypeScript/JavaScript. Esas herramientas favorecen la mantenibilidad y reducen regresiones cuando se refactorizan componentes críticos (p. ej. formularios SIAF o rutas protegidas), en línea
+0610 [Normal] En el backend, la configuración del proyecto declara aún pruebas automatizadas mínimas: en un piloto acotado, gran parte de la verificación recae en pruebas manuales guiadas por una lista de verificación interna (desarrollo y servidor), en revisión de registros y en la compilación estática con TypeScript antes de desplegar, como barrera mínima de coherencia de tipos.  recuerda que las pruebas son actividad continua, no un anexo final; el SIGEC-IGSS deja abierta la senda de añadir pruebas de inte
+0611 [Normal] En conclusión, la estrategia de pruebas refleja la etapa del proyecto: herramientas en el frontend y disciplina manual en el conjunto, con margen claro para endurecer la garantía de calidad cuando el IGSS asigne recursos y prioridad a la operación continua.
+0614 [List Paragraph] Continuidad operativa: respaldos, recuperación y portabilidad 
+0615 [Normal] La continuidad del servicio no depende solo del código: depende de respaldos reproducibles del estado conjunto base de datos, archivos en disco y parámetros de entorno debidamente documentados fuera del control de versiones público. El procedimiento típico combina un volcado lógico del motor (portable entre versiones compatibles) o un respaldo en formato nativo del gestor, con la copia del directorio donde el sistema guarda los adjuntos (la misma ruta que usa el servicio de almacenamiento en pro
+0616 [Normal] La portabilidad práctica del artefacto se observa en la bifurcación Windows (desarrollo) / Debian (servidor): el mismo repositorio compila en ambos mundos mientras Node y PostgreSQL se mantengan en versiones compatibles. Un cambio de hardware (otro equipo micro, o migración futura a máquina virtual) conserva el modelo si se trasladan los mismos procedimientos: Nginx, PM2, variables y respaldos. Para el informe de graduación, basta declarar que el IGSS debe fijar objetivos de frecuencia de respal
+0617 [Normal] En conclusión, la continuidad operativa cierra el capítulo técnico con un mensaje práctico: el valor del SIGEC-IGSS en producción no solo depende del código publicado, sino de respaldos, recuperación y portabilidad que permitan sobrevivir a fallos y cambios de plataforma sin perder la historia institucional capturada en datos y archivos.
+0619 [Normal] Capítulo IV – Ingeniería de Requerimientos
+0621 [List Paragraph] Determinación de requerimientos
+0622 [Normal] La determinación de requerimientos se orientó a comprender el proceso de gestión de solicitudes SIAF y expedientes de compras, desde la creación de una solicitud hasta su revisión, corrección, autorización y consulta analítica. Los requerimientos expresan tanto los servicios que el sistema debe proporcionar como las restricciones bajo las cuales debe operar. En SIGEC-IGSS se identificaron necesidades de trazabilidad, control de documentos, asignación de responsabilidades, estandarización de dato
+0623 [Normal] los requerimientos expresan tanto los servicios que el sistema debe proporcionar como las restricciones bajo las cuales debe operar. En SIGEC-IGSS se identificaron necesidades de trazabilidad, control de documentos, asignación de responsabilidades, estandarización de datos y disponibilidad de información para la toma de decisiones.
+0624 [Caption] Figura 3
+Proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS.
+0626 [Normal] [IMG] 
+0628 [Normal] Nota. Elaboración propia (2026). El proceso integra concepción, indagación, elaboración, validación y gestión de cambios.
+0630 [Normal] Descripción del proceso utilizado
+0631 [Caption] Tabla 6
+Fases del proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS
+0634 [Normal] Nota. Elaboración propia (2026). La entrevista debe ser validada mediante fecha, firma o constancia del participante antes de presentar el documento como evidencia de campo. Se adjunta una guía de entrevista y una hoja de registro para documentar formalmente esa validación.
+0642 [Normal] Instrumentos utilizados
+0643 [Normal] Se diseñaron instrumentos cualitativos para respaldar el levantamiento de información: (a) guía de entrevista semiestructurada; (b) lista de observación del proceso; (c) matriz de requerimientos y trazabilidad; y (d) revisión de registros y formatos asociados a solicitudes, documentos y rechazos. La guía de entrevista se dirige a Luis Gustavo Sierra González, en calidad de actor interesado que puede validar las necesidades del proceso y el valor esperado de la solución.
+0644 [Caption] Tabla 7
+Instrumentos utilizados en el levantamiento de requerimientos
+0647 [Caption] Nota. Los instrumentos I-01 a I-04 orientaron la indagación con el actor interesado y el personal operativo. DAF = Departamento de Análisis y Finanzas. 
+0649 [Normal] Aprendizajes obtenidos
+0650 [Normal] • La trazabilidad no debe limitarse al estado final: los rechazos, correcciones, responsables y fechas son información esencial para controlar el proceso.
+0651 [Normal] • Los motivos de rechazo deben estructurarse y conservarse junto con la observación textual, porque permiten análisis por frecuencia y acciones de mejora.
+0652 [Normal] • La gestión documental requiere integridad, versiones y relación con el expediente; reemplazar un archivo sin conservar evidencia afecta la auditabilidad.
+0653 [Normal] • La asignación de permisos debe responder a responsabilidades reales. Un colaborador crea y corrige; el analista DAF revisa, aprueba o rechaza; el administrador configura el sistema.
+0654 [Normal] • Los tableros analíticos deben diferenciar resultados al cierre, pendientes de corrección y casos en revisión para evitar interpretaciones incompletas.
+0655 [List Paragraph] Especificación de requerimientos
+0656 [Normal] La especificación se presenta mediante requerimientos identificables y verificables, organizados en catálogos funcionales y no funcionales que permiten evaluar prioridad, alcance y criterios de aceptación. Dado que el proyecto adopta un enfoque incremental con prototipado evolutivo, la descripción textual se complementa con diagramas de casos de uso, actividades y secuencia, además de fichas detalladas por caso de uso. Este enfoque facilita relacionar cada necesidad institucional con una interac
+0658 [Normal] Requerimientos funcionales
+0659 [Caption] Tabla 8
+Catálogo de requerimientos funcionales de SIGEC-IGSS
+0662 [Normal] Nota. RF = requerimiento funcional. La prioridad Alta identifica capacidades indispensables para el prototipo operativo. SIAF = Sistema Integrado de Administración Financiera.
+0664 [Normal] Diagramas
+0665 [Normal] Los diagramas de esta sección forman parte de la especificación funcional del Capítulo IV. Se presentan en el cuerpo del capítulo —no como anexos— para que cada vista del sistema quede asociada a su descripción y a las fichas de casos de uso. Primero se muestra la vista general; después se detallan los casos de uso; finalmente se incluyen diagramas por módulo, de actividad y de secuencia.
+0666 [Normal] Diagrama general de caso de uso
+0667 [Normal] Resume los actores principales del sistema (Colaborador, Analista DAF y Administrador) y las capacidades de mayor valor operativo. Las figuras posteriores descomponen esta vista por responsabilidad para evitar omisiones y mantener legibilidad.
+0668 [Caption] Figura 4
+Casos de uso principales de SIGEC-IGSS.
+0670 [Normal] [IMG] 
+0672 [Normal] Nota. El diagrama representa los actores Colaborador, Analista DAF y Administrador, y sus interacciones con los módulos funcionales. Elaboración propia.
+0674 [Normal] Especificación detallada de casos de uso
+0675 [Normal] A continuación, se especifican los casos de uso prioritarios con el mismo nivel de detalle requerido para su comprensión operativa: actor, descripción, precondiciones, flujo principal, flujos alternativos, postcondiciones, importancia y urgencia. Esta especificación sirve de puente entre los requerimientos funcionales y la validación del prototipo.
+0676 [Normal] UC-01 — Autenticarse en el sistema
+0677 [Caption] Tabla 9
+Especificación del caso de uso UC-01 — Autenticarse en el sistema
+0680 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-01, conforme a la especificación funcional del prototipo.
+0682 [Normal] UC-02 — Administrar usuarios, roles y estructura organizacional
+0683 [Caption] Tabla 10
+Especificación del caso de uso UC-02 — Administrar usuarios, roles y estructura organizacional
+0686 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-02, conforme a la especificación funcional del prototipo.
+0688 [Normal] UC-03 — Configurar correlativos SIAF y de expedientes
+0689 [Caption] Tabla 11
+Especificación del caso de uso UC-03 — Configurar correlativos SIAF y de expedientes
+0692 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-03, conforme a la especificación funcional del prototipo.
+0694 [Normal] UC-04 — Crear y editar solicitud SIAF
+0695 [Caption] Tabla 12
+Especificación del caso de uso UC-04 — Crear y editar solicitud SIAF
+0698 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-04, conforme a la especificación funcional del prototipo.
+0700 [Normal] UC-05 — Revisar, aprobar o rechazar SIAF (DAF)
+0701 [Caption] Tabla 13
+Especificación del caso de uso UC-05 — Revisar, aprobar o rechazar SIAF (DAF)
+0704 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-05, conforme a la especificación funcional del prototipo.
+0706 [Normal] UC-06 — Corregir SIAF rechazada y reenviar
+0707 [Caption] Tabla 14
+Especificación del caso de uso UC-06 — Corregir SIAF rechazada y reenviar
+0710 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-06, conforme a la especificación funcional del prototipo.
+0712 [Normal] UC-07 — Crear expediente y gestionar documentos
+0713 [Caption] Tabla 15
+Especificación del caso de uso UC-07 — Crear expediente y gestionar documentos
+0716 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-07, conforme a la especificación funcional del prototipo.
+0718 [Normal] UC-08 — Revisar, aprobar o rechazar expediente (DAF)
+0719 [Caption] Tabla 16
+Especificación del caso de uso UC-08 — Revisar, aprobar o rechazar expediente (DAF)
+0722 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-08, conforme a la especificación funcional del prototipo.
+0724 [Normal] UC-09 — Importar y configurar catálogo de productos
+0725 [Caption] Tabla 17
+Especificación del caso de uso UC-09 — Importar y configurar catálogo de productos
+0728 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-09, conforme a la especificación funcional del prototipo.
+0730 [Normal] UC-10 — Consultar análisis SIAF y de expedientes
+0731 [Caption] Tabla 18
+Especificación del caso de uso UC-10 — Consultar análisis SIAF y de expedientes
+0734 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-10, conforme a la especificación funcional del prototipo.
+0736 [Normal] UC-11 — Recuperar contraseña mediante correo institucional
+0737 [Caption] Tabla 19
+Especificación del caso de uso UC-11 — Recuperar contraseña mediante correo institucional
+0740 [Normal] Nota. La ficha describe actor principal, precondiciones, flujo básico y postcondiciones del caso de uso UC-11, conforme a la especificación funcional del prototipo.
+0742 [Normal] Diagramas de casos de uso opr múdulo
+0743 [Normal] Para cubrir todas las responsabilidades del sistema sin saturar una sola figura, se presentan diagramas de casos de uso por módulo. Cada figura detalla un conjunto coherente de interacciones asociadas a un área funcional. Adicionalmente, la Figura 3 desarrolla con mayor detalle el flujo de recuperación de contraseña (UC-11), por tratarse de un proceso transversal de seguridad.
+0744 [Caption] Figura 5
+Caso de uso — Recuperación de contraseña mediante correo institucional
+0746 [Caption] [IMG] 
+0748 [Normal] Nota. El flujo utiliza código de empleado y correo institucional registrado, entrega una contraseña temporal y exige un cambio de contraseña en el siguiente inicio de sesión. Elaboración propia.
+0750 [Caption] Figura 6
+Casos de uso — Administración, usuarios y seguridad
+0752 [Caption] [IMG] 
+0754 [Normal] Nota. Cubre autenticación, usuarios, roles, permisos, asignación organizacional y correlativos. Elaboración propia.
+0756 [Caption] Figura 7
+Casos de uso — Libro SIAF y revisión DAF
+0758 [Caption] [IMG] 
+0760 [Normal] Nota. Cubre reserva de correlativo, creación, PDF, adjuntos, envío, dictamen, corrección y bitácora. Elaboración propia.
+0762 [Caption] Figura 8
+Casos de uso — Expedientes, documentos y control DAF
+0764 [Caption] [IMG] 
+0766 [Normal] Nota. Cubre expediente, documentos, versiones, envío a revisión y dictamen con observaciones. Elaboración propia.
+0768 [Caption] Figura 9
+Casos de uso — Catálogos, analítica y control
+0770 [Normal] [IMG] 
+0772 [Normal] Nota. Cubre importación Excel, mapeo, filtros de alcance e indicadores de gestión. Elaboración propia.
+0774 [Normal] Diagramas de actividad
+0775 [Normal] Los diagramas de actividad describen la secuencia operativa de los procesos críticos. Incluyen tanto los flujos principales de SIAF y expedientes como las actividades de configuración administrativa, catálogos y consulta analítica.
+0776 [Caption] Figura 10
+Flujo de actividad para la gestión de una solicitud SIAF
+0778 [Normal] [IMG] 
+0780 [Normal] Nota. El proceso contempla creación, validación, revisión, rechazo, corrección, reenvío, autorización y trazabilidad. Elaboración propia.
+0782 [Caption] Figura 11
+Flujo de actividad para la gestión documental de expedientes
+0783 [Normal] [IMG] 
+0785 [Normal] Nota. El flujo incorpora control de documentos, revisión DAF, observaciones, reemplazo de archivo, versiones y bitácora. Elaboración propia.
+0787 [Caption] Figura 12
+Actividad — Creación de rol y asignación de usuario
+0789 [Normal] [IMG] 
+0791 [Normal] Nota. Describe la habilitación de un perfil de acceso y su relación con la estructura organizacional. Elaboración propia.
+0793 [Caption] Figura 13
+Actividad — Catálogos institucionales y correlativos
+0795 [Normal] [IMG] 
+0797 [Normal] Nota. Describe el mantenimiento de áreas, puestos, unidades y secuencias de correlativos. Elaboración propia.
+0799 [Caption] Figura 14
+Actividad — Importación de catálogo de productos
+0801 [Normal] [IMG] 
+0803 [Normal] Nota. Describe importación, mapeo, validación y consulta de resultados. Elaboración propia.
+0806 [Caption] Figura 15
+Actividad — Consulta de análisis y reportes de control
+0808 [Normal] [IMG] 
+0810 [Normal] Nota. Describe selección de alcance, filtros, cálculo de indicadores y uso gerencial. Elaboración propia.
+0812 [Normal] Diagramas de actividad
+0813 [Normal] Los diagramas de secuencia muestran la interacción temporal entre colaborador, interfaz, API, persistencia y analista DAF. Permiten verificar que la especificación contempla no solo pantallas, sino también mensajes, cambios de estado y conservación de evidencia. Con ello se confirma el orden de las operaciones críticas —como el envío a revisión, el dictamen y la trazabilidad— y se evidencia que cada mensaje entre componentes responde a una regla de negocio definida en los casos de uso.
+0815 [Caption] Figura 16
+Secuencia — Solicitud SIAF, revisión DAF y corrección
+0817 [Caption] [IMG] 
+0819 [Normal] Nota. Expone reserva de correlativo, persistencia, envío a revisión, dictamen y trazabilidad. Elaboración propia.
+0821 [Caption] Figura 17
+Secuencia — Expediente, versión documental y dictamen
+0823 [Normal] [IMG] 
+0825 [Normal] Nota. Expone creación, carga documental, revisión, rechazo, reemplazo y conservación de versiones. Elaboración propia.
+0827 [Normal] Requerimientos no funcionales 
+0828 [Normal] Los requerimientos no funcionales establecen atributos de calidad, seguridad, desempeño y restricciones técnicas que condicionan el comportamiento del sistema. El catálogo siguiente especifica cada atributo y la evidencia de verificación asociada en el prototipo.
+0829 [Caption] Tabla 20
+Catálogo de requerimientos no funcionales de SIGEC-IGSS
+0832 [Normal] Nota. RNF = requerimiento no funcional. La columna Verificación indica la evidencia observable en el prototipo para validar cada atributo de calidad.
+0834 [List Paragraph] Análisis de datos
+0835 [Normal] El análisis de datos de SIGEC-IGSS convierte los eventos operativos en información de gestión. Las fuentes principales son las solicitudes SIAF, autorizaciones, bitácoras, expedientes, documentos, versiones y detalles de rechazo. El análisis se realiza por período y alcance autorizado; por ello, un usuario puede consultar su propia actividad, mientras que un usuario con permiso de unidad puede revisar información consolidada de su área.
+0836 [Normal] Reportes operativos
+0837 [Normal] Los reportes operativos corresponden a salidas consultables o generables desde los módulos del prototipo para el seguimiento diario de solicitudes SIAF y expedientes. Su finalidad es apoyar la operación cotidiana del personal, facilitando la consulta de estados, correlativos, responsables y fechas relevantes sin depender de consolidaciones externas en hojas de cálculo. Estos reportes se derivan directamente de la información registrada en el sistema y permiten verificar el avance de cada trámite
+0839 [Caption] Tabla 21
+Reportes operativos identificados en SIGEC-IGSS
+0842 [Normal] Nota. RO = reporte operativo. Los reportes listados corresponden a salidas consultables o generables desde los módulos de SIAF y expedientes del prototipo.
+0844 [Normal] Reportes de control
+0845 [Normal] Los reportes de control consolidan indicadores analíticos calculados a partir de los estados y fechas registrados en el sistema, orientados a la supervisión gerencial.
+0846 [Caption] Tabla 22
+Reportes de control e indicadores analíticos de SIGEC-IGSS
+0849 [Normal] Nota. RC = reporte de control. Los indicadores se calculan a partir de los estados y fechas registrados en las solicitudes SIAF y expedientes gestionados en SIGEC-IGSS.
+0852 [Normal] Modelo entidad – relación 
+0853 [Normal] El modelo entidad–relación resume las entidades persistentes que soportan las reglas de negocio de SIGEC-IGSS. Dado el volumen del esquema (seguridad, estructura organizacional, SIAF, expedientes, catálogos y correlativos), el modelo completo se presenta en cinco partes secuenciales (Figuras 18 a 22), a fin de conservar legibilidad sin omitir entidades. Las líneas discontinuas indican asociaciones lógicas sin clave foránea en el ORM; las continuas representan relaciones implementadas con integri
+0854 [Caption] Figura 18
+Modelo entidad–relación completa de SIGEC-IGSS — Parte A: mapa de módulos
+0856 [Normal] [IMG] 
+0858 [Normal] Nota. Se presenta la organización del modelo en cinco módulos lógicos. Las partes B–E detallan atributos, claves y cardinalidades. Elaboración propia a partir de las entidades TypeORM del prototipo (25 entidades y 2 tablas de unión).
+0860 [Caption] Figura 19
+Modelo entidad–relación — Parte B: seguridad, acceso y estructura organizacional
+0862 [Normal] [IMG] 
+0864 [Normal] Nota. Incluye Usuario, Credencial, Rol, Permiso, tablas de unión user_roles y role_permissions, Puesto, Departamento, Municipio, Unidad médica y Área. La relación Usuario–Unidad médica es lógica (texto), no FK. Elaboración propia.
+0866 [Caption] Figura 20
+Modelo entidad–relación — Parte C: módulo SIAF
+0867 [Normal] [IMG] 
+0869 [Normal] Nota. Muestra SIAF_SOLICITUD y sus dependencias 1:N (ítems, subproductos, autorizaciones, bitácora y documentos adjuntos), además de vínculos con Usuario y Área. El vínculo con ProductoCatalogo es lógico por código y origen. Elaboración propia.
+0871 [Caption] Figura 21
+Modelo entidad–relación — Parte D: módulo de expedientes
+0873 [Normal] [IMG] 
+0875 [Normal] Nota. Incluye Expediente, documentos, versiones, bitácora y detalle de observaciones documentales. El campo numero_siaf vincula lógicamente el expediente con una solicitud SIAF sin FK ORM. Elaboración propia.
+0877 [Caption] Figura 22
+Modelo entidad–relación — Parte E: catálogo de productos y correlativos
+0879 [Normal] [IMG] 
+0881 [Normal] Nota. Cubre ProductoCatalogo, ProductoCatalogoConfig, configuración y reserva de correlativos SIAF, y configuración de correlativos de expedientes. Elaboración propia.
+0883 [Normal] Conclusiones
+0884 [Normal] Es posible llevar a cabo el presente proyecto de graduación, porque responde a una necesidad concreta del IGSS: ordenar y digitalizar el flujo de la SIAF y del expediente de compra en la relación Consultorio de Palín–DAF departamental de Escuintla, donde predominan prácticas manuales y semi-manuales que generan reprocesos y débil trazabilidad. La propuesta del SIGEC-IGSS queda acotada a un piloto con stack y despliegues definidos (aplicación web, API, base de datos propia del proyecto, servidor 
+0885 [Normal] Las principales limitaciones se concentran en el tiempo y el alcance del trabajo de graduación —el desarrollo prioriza funciones esenciales del piloto, dejando para fases posteriores integraciones con sistemas centrales del IGSS, mayor automatización de pruebas, endurecimiento avanzado de ciberseguridad o despliegue a otras unidades— y en el carácter híbrido del trámite: el sistema complementa el proceso y no sustituye por completo el soporte físico ni la normativa de envío cuando corresponda. A
+0886 [Normal] En síntesis, el SIGEC-IGSS aporta una solución factible alineada con la modernización digital que el instituto ha planteado como rumbo, sin confundir el alcance del proyecto con la sustitución de plataformas estatales de contratación (p. ej. Guatecompras) ni con la resolución total de cuellos de botella que tienen también componentes organizativos y normativos ajenos al software. El valor del trabajo está en instrumentar el flujo Consultorio–DAF con roles, bitácora, versionado y métricas, y en d
+0889 [Normal] Anexos 
+0890 [Caption] Figura 23
+Mapa mental del proyecto SIGEC-IGSS (2026)
+0891 [Normal] [IMG] 
+0893 [Normal] Nota: Elaboración propia (2026). El mapa sintetiza los ejes del proyecto SIGEC-IGSS: contexto, problema, solución, alcance del piloto y resultados esperados.
+0897 [Caption] Figura 24
+Matriz operacional SIGEC-IGSS (piloto Palín–DAF Escuintla, 2026)
+0898 [Normal] [IMG] 
+0900 [Normal] Nota: Elaboración propia (2026). La matriz alinea pregunta general, objetivos específicos, hipótesis, variables e indicadores. NA = no aplica en esa celda según el criterio adoptado en el diseño metodológico.

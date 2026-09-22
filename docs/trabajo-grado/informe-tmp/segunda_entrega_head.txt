@@ -1,0 +1,96 @@
+0001 [Normal] UNIVERSIDAD MARIANO GÁLVEZ DE GUATEMALA
+0002 [Normal] FACULTAD DE INGENIERÍA
+0003 [Normal] INGENIERÍA EN SISTEMAS DE LA INFORMACIÓN Y CIENCIAS DE LA
+0004 [Normal] COMPUTACIÓN
+0005 [Normal] PROYECTO DE GRADUACIÓN II  
+0016 [Normal] SIGEC-IGSS: Sistema Integral de Gestión de Expedientes de Compras del IGSS
+0017 [Normal] UNIVERSIDAD MARIANO GÁLVEZ DE GUATEMALA 
+0018 [Normal] FACULTAD DE INGENIERIA EN SISTEMAS DE INFORMACION Y CIENCIAS DE LA COMPUTACION 
+0020 [Normal] SIGEC-IGSS: Sistema Integral de Gestión de Expedientes de Compras del IGSS
+0021 [Normal] AUTORIDADES DE LA FACULTAD
+0022 [Normal] Y TRIBUNAL QUE PRACTICÓ EL EXAMEN DEL TRABAJO DE 
+0023 [Normal] GRADUACIÓN
+0027 [Normal] DECANO DE LA FACULTAD: 		Ing. Jorge Alberto Arias Tobar
+0028 [Normal] DIRECTOR DE LA FACULTAD: 		Ing. Hugo Adalberto Hernández Santizo
+0032 [Normal] TRIBUNAL EXAMINADOR
+0033 [Normal] PRESIDENTE:				Ing. Tribunal examinador
+0034 [Normal] SECRETARIO:				Ing. secretario
+0035 [Normal] VOCAL:					Ing. Vocal
+0037 [Normal] AUTORIZACIÓN PARA LA IMPRESIÓN DEL TRABAJO DE GRADUACIÓN
+0039 [Normal] FACULTAD DE: Ingeniería en Sistemas de Información
+0041 [Normal] Guatemala: 03 de noviembre de 2026                                                                                  
+0043 [Normal] Se autoriza la impresión del trabajo de Tesis titulado: “SIGEC-IGSS: Sistema Integral de Gestión de Expedientes de Compras del IGSS.”
+0045 [Normal] Presentado por el (la) estudiante: NOE ESTUARDO COGUOX MACH _________
+0046 [Normal] Carné: 5390-17-3396 ____________                                                                                  
+0048 [Normal] Quién para el efecto deberá cumplir con las disposiciones reglamentarias respectivas. Darse cuenta con el expediente a la secretaria general de la Universidad, para la celebración del Acto de Investidura y Graduación Profesional correspondiente. Artículo 57 del Reglamento de Tesis.
+0052 [Normal] Ing. José Alberto Arias Tobar
+0054 [Normal] Decano
+0055 [Normal] Facultad de Ingeniería en Sistemas de Información
+0059 [Normal] REGLAMENTO DE TRABAJO DE GRADUACIÓN
+0065 [Normal] Artículo 8°. RESPONSABILIDAD
+0066 [Normal] Solamente el autor es responsable de los conceptos expresados en el trabajo de tesis. Su aprobación en manera alguna implica responsabilidad para la Universidad.
+0071 [Normal] Índice de tablas
+0072 [table of figures] Tabla 1 Costos únicos y valorización de aportes (puesta en marcha del piloto)	27
+0073 [table of figures] Tabla 2 Costos del periodo de desarrollo (3 meses) — valor del programa	28
+0074 [table of figures] Tabla 3 Implementación y capacitación (pago único)	29
+0075 [table of figures] Tabla 4 Estimación de tiempo de desarrollo (referencial). Plazo total: 3 meses	30
+0076 [table of figures] Tabla 5 Caracterización de la muestra de línea base	52
+0077 [table of figures] Tabla 6 Fases del proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS	89
+0078 [table of figures] Tabla 7 Instrumentos utilizados en el levantamiento de requerimientos	90
+0079 [table of figures] Tabla 8 Catálogo de requerimientos funcionales de SIGEC-IGSS	92
+0080 [table of figures] Tabla 9 Especificación del caso de uso UC-01 — Autenticarse en el sistema	96
+0081 [table of figures] Tabla 10 Especificación del caso de uso UC-02 — Administrar usuarios, roles y estructura organizacional	97
+0082 [table of figures] Tabla 11 Especificación del caso de uso UC-03 — Configurar correlativos SIAF y de expedientes	98
+0083 [table of figures] Tabla 12 Especificación del caso de uso UC-04 — Crear y editar solicitud SIAF	99
+0084 [table of figures] Tabla 13 Especificación del caso de uso UC-05 — Revisar, aprobar o rechazar SIAF (DAF)	100
+0085 [table of figures] Tabla 14 Especificación del caso de uso UC-06 — Corregir SIAF rechazada y reenviar	101
+0086 [table of figures] Tabla 15 Especificación del caso de uso UC-07 — Crear expediente y gestionar documentos	102
+0087 [table of figures] Tabla 16 Especificación del caso de uso UC-08 — Revisar, aprobar o rechazar expediente (DAF)	103
+0088 [table of figures] Tabla 17 Especificación del caso de uso UC-09 — Importar y configurar catálogo de productos	104
+0089 [table of figures] Tabla 18 Especificación del caso de uso UC-10 — Consultar análisis SIAF y de expedientes	105
+0090 [table of figures] Tabla 19 Especificación del caso de uso UC-11 — Recuperar contraseña mediante correo institucional	106
+0091 [table of figures] Tabla 20 Catálogo de requerimientos no funcionales de SIGEC-IGSS	116
+0092 [table of figures] Tabla 21 Reportes operativos identificados en SIGEC-IGSS	119
+0093 [table of figures] Tabla 22 Reportes de control e indicadores analíticos de SIGEC-IGSS	120
+0095 [Normal]  Índice de figuras
+0096 [table of figures] Figura 1 Cronograma de actividades del proyecto SIGEC-IGSS (febrero–noviembre de 2026)	44
+0097 [table of figures] Figura 2 Capas de seguridad del SIGEC-IGSS (piloto)	84
+0098 [table of figures] Figura 3 Proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS.	88
+0099 [table of figures] Figura 4 Casos de uso principales de SIGEC-IGSS.	95
+0100 [table of figures] Figura 5 Caso de uso — Recuperación de contraseña mediante correo institucional	107
+0101 [table of figures] Figura 6 Casos de uso — Administración, usuarios y seguridad	108
+0102 [table of figures] Figura 7 Casos de uso — Libro SIAF y revisión DAF	108
+0103 [table of figures] Figura 8 Casos de uso — Expedientes, documentos y control DAF	109
+0104 [table of figures] Figura 9 Casos de uso — Catálogos, analítica y control	109
+0105 [table of figures] Figura 10 Flujo de actividad para la gestión de una solicitud SIAF	110
+0106 [table of figures] Figura 11 Flujo de actividad para la gestión documental de expedientes	111
+0107 [table of figures] Figura 12 Actividad — Creación de rol y asignación de usuario	111
+0108 [table of figures] Figura 13 Actividad — Catálogos institucionales y correlativos	112
+0109 [table of figures] Figura 14 Actividad — Importación de catálogo de productos	112
+0110 [table of figures] Figura 15 Actividad — Consulta de análisis y reportes de control	113
+0111 [table of figures] Figura 16 Secuencia — Solicitud SIAF, revisión DAF y corrección	114
+0112 [table of figures] Figura 17 Secuencia — Expediente, versión documental y dictamen	115
+0113 [table of figures] Figura 18 Modelo entidad–relación completa de SIGEC-IGSS — Parte A: mapa de módulos	121
+0114 [table of figures] Figura 19 Modelo entidad–relación — Parte B: seguridad, acceso y estructura organizacional	122
+0115 [table of figures] Figura 20 Modelo entidad–relación — Parte C: módulo SIAF	122
+0116 [table of figures] Figura 21 Modelo entidad–relación — Parte D: módulo de expedientes	123
+0117 [table of figures] Figura 22 Modelo entidad–relación — Parte E: catálogo de productos y correlativos	123
+0118 [table of figures] Figura 23 Mapa mental del proyecto SIGEC-IGSS (2026)	126
+0119 [table of figures] Figura 24 Matriz operacional SIGEC-IGSS (piloto Palín–DAF Escuintla, 2026)	127
+0122 [Normal] Resumen
+0123 [Normal] El presente proyecto de graduación se desarrolla en el Instituto Guatemalteco de Seguridad Social (IGSS) y responde a la necesidad de ordenar y digitalizar la gestión de compras y expedientes, en particular el flujo de la Solicitud de Insumos, Activos Fijos y Servicios (SIAF) y el manejo de expedien
+0124 [Normal] En este contexto, se propone el SIGEC-IGSS (Sistema Integral de Gestión de Expedientes de Compras del IGSS): aplicación web por navegador, con interfaz adaptable, que concentra la captura y el ciclo de vida de las solicitudes, la administración de usuarios, roles y permisos según la organización del
+0125 [Normal] La iniciativa busca reducir fricción documental y demoras entre captura, revisión y corrección; mejorar el control de requerimientos y el registro auditable; y apoyar una gestión más trazable entre direcciones, áreas y consultorios. El proyecto incluye documentación técnica y de despliegue junto al 
+0126 [Normal] En lo organizacional, aporta a la modernización gradual de compras y expedientes en el IGSS, con propuesta factible para un piloto. En lo académico, aplica la ingeniería de software a una necesidad real de gestión pública y hospitalaria-administrativa, con criterios de seguridad proporcional y opera
+0128 [Normal] Abstract
+0129 [Normal] This graduation project is carried out at the Guatemalan Social Security Institute (IGSS) and addresses the need to streamline and digitize the management of purchasing workflows and case files, focusing on the Request for Supplies, Fixed Assets and Services (SIAF) and purchase files with supporting
+0130 [Normal] In this context, the SIGEC‑IGSS (Comprehensive System for the Management of Purchasing Records at the IGSS) is proposed: a browser‑based web application with an adaptive interface that supports the lifecycle of requests, user, role and permission administration aligned with the institute’s organizat
+0131 [Normal] The initiative aims to reduce documentary friction and delays between capture, review and correction; improve control of requirements and auditable logging of actions; and support more traceable management across directions, areas and clinics. The deliverable includes technical and deployment docume
+0132 [Normal] From an organizational standpoint, it contributes to the gradual modernization of purchasing and records management at the IGSS through a feasible pilot. Academically, it applies software engineering to a real public‑sector and hospital‑administrative need, with proportionate security and operationa
+0133 [Normal] Introducción
+0134 [Normal] El proyecto de graduación presenta el SIGEC-IGSS (Sistema Integral de Gestión de Expedientes de Compras del Instituto Guatemalteco de Seguridad Social), aplicación web para digitalizar y trazar el flujo de la SIAF y del expediente de compra en el IGSS. Se parte de una operación aún manual y semi-man
+0135 [Normal] La investigación es cuantitativa, de alcance aplicado, con diseño cuasiexperimental antes–después e indicadores comparables entre línea base y piloto. El desarrollo del software combina enfoque incremental y prototipado evolutivo, con validación progresiva junto a los usuarios del piloto. El detalle
+0136 [Normal] El Capítulo II aporta el marco teórico (institucional, compras públicas, gestión documental, procesos, trazabilidad, indicadores, seguridad y adopción). El Capítulo III describe el marco técnico de la solución: arquitectura web, stack implementado, persistencia, despliegue, servicios auxiliares, seg
+0137 [Normal] En síntesis, el documento expone una intervención aplicada y evaluable para mejorar eficiencia y control del flujo Consultorio–DAF en el piloto, con base para una eventual ampliación a otras unidades si la institución lo define.
+0138 [Normal] Capítulo I – Marco Conceptual y Metodológico
+0139 [Normal] Marco Conceptual

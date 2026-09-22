@@ -1,0 +1,26 @@
+--- 133 ---
+Introducción
+
+--- 134 ---
+El proyecto de graduación presenta el SIGEC-IGSS (Sistema Integral de Gestión de Expedientes de Compras del Instituto Guatemalteco de Seguridad Social), aplicación web para digitalizar y trazar el flujo de la SIAF y del expediente de compra en el IGSS. Se parte de una operación aún manual y semi-manual (libros de actas, hojas de cálculo, idas y vueltas en físico con la DAF), asociada a reprocesos, rechazos y poca evidencia sobre observaciones y versiones. El estudio se acota al Consultorio de Palín, Escuintla, y su relación con la DAF departamental de Escuintla; el sistema complementa el trámite vigente (p. ej. envío físico cuando corresponda) y no sustituye plataformas centrales de contratación ni competencias ajenas al alcance del proyecto.
+
+--- 135 ---
+La investigación es cuantitativa, de alcance aplicado, con diseño cuasiexperimental antes–después e indicadores comparables entre línea base y piloto. El desarrollo del software combina enfoque incremental y prototipado evolutivo, con validación progresiva junto a los usuarios del piloto. El detalle metodológico está en el Capítulo I.
+
+--- 136 ---
+El Capítulo II aporta el marco teórico (institucional, compras públicas, gestión documental, procesos, trazabilidad, indicadores, seguridad y adopción). El Capítulo III describe el marco técnico de la solución: arquitectura web, stack implementado, persistencia, despliegue, servicios auxiliares, seguridad, pruebas y continuidad operativa. Las conclusiones cierran aportes y límites.
+
+--- 137 ---
+En síntesis, el documento expone una intervención aplicada y evaluable para mejorar eficiencia y control del flujo Consultorio–DAF en el piloto, con base para una eventual ampliación a otras unidades si la institución lo define.
+
+--- 883 ---
+Conclusiones
+
+--- 884 ---
+Es posible llevar a cabo el presente proyecto de graduación, porque responde a una necesidad concreta del IGSS: ordenar y digitalizar el flujo de la SIAF y del expediente de compra en la relación Consultorio de Palín–DAF departamental de Escuintla, donde predominan prácticas manuales y semi-manuales que generan reprocesos y débil trazabilidad. La propuesta del SIGEC-IGSS queda acotada a un piloto con stack y despliegues definidos (aplicación web, API, base de datos propia del proyecto, servidor y red aportados por la unidad piloto), lo que la hace pertinente y aplicable. Los criterios de viabilidad técnica, económica y operativa, junto con el marco metodológico (investigación aplicada con indicadores comparables y desarrollo incremental con prototipado evolutivo), respaldan la coherencia del trabajo con los objetivos y la hipótesis. Como cierre de ciclo, la entregable combina código versionado y documentación técnica y de despliegue, lo que favorece el traspaso a áreas de sistemas y deja un referente replicable en otras unidades si la institución lo decide.
+
+--- 885 ---
+Las principales limitaciones se concentran en el tiempo y el alcance del trabajo de graduación —el desarrollo prioriza funciones esenciales del piloto, dejando para fases posteriores integraciones con sistemas centrales del IGSS, mayor automatización de pruebas, endurecimiento avanzado de ciberseguridad o despliegue a otras unidades— y en el carácter híbrido del trámite: el sistema complementa el proceso y no sustituye por completo el soporte físico ni la normativa de envío cuando corresponda. Además, la eficacia observada dependerá de equipos, navegadores, conectividad entre Palín y Escuintla y del acompañamiento institucional; y la comparación antes–después exige homogeneidad en definiciones y fuentes de datos, pues cambios de criterio entre línea base y piloto pueden sesgar la lectura de los indicadores.
+
+--- 886 ---
+En síntesis, el SIGEC-IGSS aporta una solución factible alineada con la modernización digital que el instituto ha planteado como rumbo, sin confundir el alcance del proyecto con la sustitución de plataformas estatales de contratación (p. ej. Guatecompras) ni con la resolución total de cuellos de botella que tienen también componentes organizativos y normativos ajenos al software. El valor del trabajo está en instrumentar el flujo Consultorio–DAF con roles, bitácora, versionado y métricas, y en demostrar —en un entorno real de gestión pública y hospitalaria-administrativa— criterios de ingeniería de software, seguridad proporcional y operación acotada al piloto definido en el documento.

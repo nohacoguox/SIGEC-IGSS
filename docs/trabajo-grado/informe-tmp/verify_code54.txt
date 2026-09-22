@@ -1,0 +1,33 @@
+1150 La programación del SIGEC-IGSS se organiza como monolito modular: una SPA y una API en el mismo repositorio, con módulos de servid
+1152 Figura 44
+Diagrama de componentes de programación de SIGEC-IGSS
+1158 Tabla 35
+Módulos principales de programación en el backend
+1163 Tabla 36
+Módulos principales de programación en el frontend
+1168 Tabla 37
+Trazabilidad entre módulos de programación y requerimientos
+1171 Extractos esenciales de programación. Las Figuras 45 a 50 presentan fragmentos del prototipo que materializan las reglas ya especi
+1172 Figura 45
+1175 Figura 46
+1178 Figura 47
+1181 Figura 48
+1184 Figura 49
+1187 Figura 50
+1190 Criterios de implementación. TypeScript reduce errores de contrato entre UI y API. Las migraciones y ensureSchema evolucionan el e
+1193 Conclusiones
+IDX Figura 4 Casos de uso principales de SIGEC-IGSS.	97
+IDX Figura 5 Caso de uso — Recuperación de contraseña mediante correo institucional	109
+IDX Figura 40 Prototipo de interfaz — expedientes de compras	153
+IDX Figura 41 Prototipo de interfaz — bandeja de revisiones DAF	153
+IDX Figura 42 Prototipo de interfaz — análisis SIAF (cierre, trazabilidad y motivos)	154
+IDX Figura 43 Prototipo de interfaz — actualización de códigos y productos	154
+IDX Figura 44 Diagrama de componentes de programación de SIGEC-IGSS	156
+IDX Figura 45 Extracto de código — autenticación y emisión de JWT
+IDX Figura 46 Extracto de código — verificación de token y autorización en servidor
+IDX Figura 47 Extracto de código — reserva transaccional de correlativo SIAF
+IDX Figura 48 Extracto de código — dictamen favorable DAF sobre una solicitud SIAF
+IDX Figura 49 Extracto de código — almacenamiento del PDF SIAF con huella SHA-256
+IDX Figura 50 Extracto de código — protección de rutas en la interfaz (PrivateRoute)
+IDX Figura 51 Mapa mental del proyecto SIGEC-IGSS (2026)
+IDX Figura 52 Matriz operacional SIGEC-IGSS (piloto Palín–DAF Escuintla, 2026)

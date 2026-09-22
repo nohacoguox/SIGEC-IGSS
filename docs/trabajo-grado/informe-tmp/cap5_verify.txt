@@ -1,0 +1,239 @@
+0072 Tabla 1 Costos únicos y valorización de aportes (puesta en marcha del piloto)	27
+0073 Tabla 2 Costos del periodo de desarrollo (3 meses) — valor del programa	28
+0074 Tabla 3 Implementación y capacitación (pago único)	29
+0075 Tabla 4 Estimación de tiempo de desarrollo (referencial). Plazo total: 3 meses	30
+0076 Tabla 5 Caracterización de la muestra de línea base	52
+0077 Tabla 6 Fases del proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS	89
+0078 Tabla 7 Instrumentos utilizados en el levantamiento de requerimientos	90
+0079 Tabla 8 Catálogo de requerimientos funcionales de SIGEC-IGSS	92
+0080 Tabla 9 Especificación del caso de uso UC-01 — Autenticarse en el sistema	96
+0081 Tabla 10 Especificación del caso de uso UC-02 — Administrar usuarios, roles y estructura organizacional	97
+0082 Tabla 11 Especificación del caso de uso UC-03 — Configurar correlativos SIAF y de expedientes	98
+0083 Tabla 12 Especificación del caso de uso UC-04 — Crear y editar solicitud SIAF	99
+0084 Tabla 13 Especificación del caso de uso UC-05 — Revisar, aprobar o rechazar SIAF (DAF)	100
+0085 Tabla 14 Especificación del caso de uso UC-06 — Corregir SIAF rechazada y reenviar	101
+0086 Tabla 15 Especificación del caso de uso UC-07 — Crear expediente y gestionar documentos	102
+0087 Tabla 16 Especificación del caso de uso UC-08 — Revisar, aprobar o rechazar expediente (DAF)	103
+0088 Tabla 17 Especificación del caso de uso UC-09 — Importar y configurar catálogo de productos	104
+0089 Tabla 18 Especificación del caso de uso UC-10 — Consultar análisis SIAF y de expedientes	105
+0090 Tabla 19 Especificación del caso de uso UC-11 — Recuperar contraseña mediante correo institucional	106
+0091 Tabla 20 Catálogo de requerimientos no funcionales de SIGEC-IGSS	116
+0092 Tabla 21 Reportes operativos identificados en SIGEC-IGSS	119
+0093 Tabla 22 Reportes de control e indicadores analíticos de SIGEC-IGSS	120
+0094 Tabla 23 Dominios del modelo de datos de SIGEC-IGSS
+0095 Tabla 24 Tablas principales del modelo físico y su responsabilidad
+0096 Tabla 25 Relaciones y cardinalidades relevantes del diseño
+0097 Tabla 26 Reglas de integridad adoptadas en el diseño de datos
+0098 Tabla 27 Estructura de directorios del almacén documental
+0099 Tabla 28 Políticas de archivo aplicadas en el prototipo
+0100 Tabla 29 Vistas arquitectónicas y preocupaciones cubiertas
+0101 Tabla 30 Especificación tecnológica por capa
+0102 Tabla 31 Decisiones de arquitectura del piloto
+0103 Tabla 32 Especificación de interfaces de la API por módulo
+0104 Tabla 33 Principios de diseño de interfaz aplicados en el prototipo
+0105 Tabla 34 Pantallas del prototipo y actor principal
+0106 Tabla 35 Módulos principales de programación en el backend
+0107 Tabla 36 Módulos principales de programación en el frontend
+0108 Tabla 37 Trazabilidad entre módulos de programación y requerimientos
+0109 Tabla 38 Diccionario de tablas del esquema sigec_igss
+0112 Figura 1 Cronograma de actividades del proyecto SIGEC-IGSS (febrero–noviembre de 2026)	44
+0113 Figura 2 Capas de seguridad del SIGEC-IGSS (piloto)	84
+0114 Figura 3 Proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS.	88
+0115 Figura 4 Casos de uso principales de SIGEC-IGSS.	95
+0116 Figura 5 Caso de uso — Recuperación de contraseña mediante correo institucional	107
+0117 Figura 6 Casos de uso — Administración, usuarios y seguridad	108
+0118 Figura 7 Casos de uso — Libro SIAF y revisión DAF	108
+0119 Figura 8 Casos de uso — Expedientes, documentos y control DAF	109
+0120 Figura 9 Casos de uso — Catálogos, analítica y control	109
+0121 Figura 10 Flujo de actividad para la gestión de una solicitud SIAF	110
+0122 Figura 11 Flujo de actividad para la gestión documental de expedientes	111
+0123 Figura 12 Actividad — Creación de rol y asignación de usuario	111
+0124 Figura 13 Actividad — Catálogos institucionales y correlativos	112
+0125 Figura 14 Actividad — Importación de catálogo de productos	112
+0126 Figura 15 Actividad — Consulta de análisis y reportes de control	113
+0127 Figura 16 Secuencia — Solicitud SIAF, revisión DAF y corrección	114
+0128 Figura 17 Secuencia — Expediente, versión documental y dictamen	115
+0129 Figura 18 Modelo entidad–relación completa de SIGEC-IGSS — Parte A: mapa de módulos	121
+0130 Figura 19 Modelo entidad–relación — Parte B: seguridad, acceso y estructura organizacional	122
+0131 Figura 20 Modelo entidad–relación — Parte C: módulo SIAF	122
+0132 Figura 21 Modelo entidad–relación — Parte D: módulo de expedientes	123
+0133 Figura 22 Modelo entidad–relación — Parte E: catálogo de productos y correlativos	123
+0134 Figura 23 Modelo entidad–relación de SIGEC-IGSS — Parte A: mapa de módulos
+0135 Figura 24 Modelo entidad–relación — Parte B: seguridad, acceso y estructura organizacional
+0136 Figura 25 Modelo entidad–relación — Parte C: módulo SIAF
+0137 Figura 26 Modelo entidad–relación — Parte D: módulo de expedientes
+0138 Figura 27 Modelo entidad–relación — Parte E: catálogo de productos y correlativos
+0139 Figura 28 Esquema de almacenamiento híbrido de documentos en SIGEC-IGSS
+0140 Figura 29 Arquitectura de la solución SIGEC-IGSS (vista de contenedores)
+0141 Figura 30 Arquitectura de despliegue del piloto SIGEC-IGSS (Palín–DAF Escuintla)
+0142 Figura 31 Vistas de arquitectura del SIGEC-IGSS según el modelo 4+1
+0143 Figura 32 Flujo de una petición autenticada a través de las capas de SIGEC-IGSS
+0144 Figura 33 Mapa de navegación del prototipo de interfaz SIGEC-IGSS
+0145 Figura 34 Prototipo de interfaz — inicio de sesión
+0146 Figura 35 Prototipo de interfaz — panel de administración
+0147 Figura 36 Prototipo de interfaz — gestión de usuarios
+0148 Figura 37 Prototipo de interfaz — panel de control del colaborador
+0149 Figura 38 Prototipo de interfaz — listado de solicitudes SIAF
+0150 Figura 39 Prototipo de interfaz — creación de solicitud SIAF (formato SIAF-A-01)
+0151 Figura 40 Prototipo de interfaz — expedientes de compras
+0152 Figura 41 Prototipo de interfaz — bandeja de revisiones DAF
+0153 Figura 42 Prototipo de interfaz — análisis SIAF (cierre, trazabilidad y motivos)
+0154 Figura 43 Prototipo de interfaz — actualización de códigos y productos
+0155 Figura 44 Diagrama de componentes de programación de SIGEC-IGSS
+0156 Figura 45 Mapa mental del proyecto SIGEC-IGSS (2026)
+0157 Figura 46 Matriz operacional SIGEC-IGSS (piloto Palín–DAF Escuintla, 2026)
+0174 El Capítulo II aporta el marco teórico (institucional, compras públicas, gestión documental, procesos, trazabilidad, indicadores, seguridad 
+0176 Capítulo I – Marco Conceptual y Metodológico
+0262 Tabla 1
+Costos únicos y valorización de aportes (puesta en marcha del piloto)
+0268 Tabla 2
+Costos del periodo de desarrollo (3 meses) — valor del programa
+0278 Tabla 3
+Implementación y capacitación (pago único)
+0286 Tabla 4
+Estimación de tiempo de desarrollo (referencial). Plazo total: 3 meses
+0329 Conclusión de viabilidad legal
+0393 Figura 1
+Cronograma de actividades del proyecto SIGEC-IGSS (febrero–noviembre de 2026)
+0442 Tabla 5
+Caracterización de la muestra de línea base
+0447 Capítulo II – Marco Teórico
+0486 Conclusión: la compra pública, entendida como macroproceso, deja claro dónde se posiciona el SIAF y el expediente: en la fase de preparación
+0506 Conclusión: la digitalización con lectura de gestión documental exige, en principio, metadatos, permisos, historial y sustento de reemplazos
+0528 Conclusión: trazabilidad y bitácora, entendidas como requisito de gobernanza, son coherentes con el tipo de pregunta de investigación que ex
+0552 Conclusión: el capítulo teórico aporta sostén ético y técnico a la exigencia de un despliegue con controles, al nivel de principios de segur
+0563 Conclusión: el cierre teórico subraya que la solución, cuando exista, debe encajar con procesos, roles y criterio de trazas; que la intenció
+0566 Capítulo III – SIGEC-IGSS: Sistema Integral de Gestión de Expedientes de Compras del IGSS
+0634 Figura 2
+Capas de seguridad del SIGEC-IGSS (piloto)
+0657 Capítulo IV – Ingeniería de Requerimientos
+0662 Figura 3
+Proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS.
+0669 Tabla 6
+Fases del proceso de ingeniería de requerimientos aplicado a SIGEC-IGSS
+0682 Tabla 7
+Instrumentos utilizados en el levantamiento de requerimientos
+0697 Tabla 8
+Catálogo de requerimientos funcionales de SIGEC-IGSS
+0706 Figura 4
+Casos de uso principales de SIGEC-IGSS.
+0715 Tabla 9
+Especificación del caso de uso UC-01 — Autenticarse en el sistema
+0721 Tabla 10
+Especificación del caso de uso UC-02 — Administrar usuarios, roles y estructura organizacional
+0727 Tabla 11
+Especificación del caso de uso UC-03 — Configurar correlativos SIAF y de expedientes
+0733 Tabla 12
+Especificación del caso de uso UC-04 — Crear y editar solicitud SIAF
+0739 Tabla 13
+Especificación del caso de uso UC-05 — Revisar, aprobar o rechazar SIAF (DAF)
+0745 Tabla 14
+Especificación del caso de uso UC-06 — Corregir SIAF rechazada y reenviar
+0751 Tabla 15
+Especificación del caso de uso UC-07 — Crear expediente y gestionar documentos
+0757 Tabla 16
+Especificación del caso de uso UC-08 — Revisar, aprobar o rechazar expediente (DAF)
+0763 Tabla 17
+Especificación del caso de uso UC-09 — Importar y configurar catálogo de productos
+0769 Tabla 18
+Especificación del caso de uso UC-10 — Consultar análisis SIAF y de expedientes
+0775 Tabla 19
+Especificación del caso de uso UC-11 — Recuperar contraseña mediante correo institucional
+0782 Figura 5
+Caso de uso — Recuperación de contraseña mediante correo institucional
+0788 Figura 6
+Casos de uso — Administración, usuarios y seguridad
+0794 Figura 7
+Casos de uso — Libro SIAF y revisión DAF
+0800 Figura 8
+Casos de uso — Expedientes, documentos y control DAF
+0806 Figura 9
+Casos de uso — Catálogos, analítica y control
+0814 Figura 10
+Flujo de actividad para la gestión de una solicitud SIAF
+0820 Figura 11
+Flujo de actividad para la gestión documental de expedientes
+0825 Figura 12
+Actividad — Creación de rol y asignación de usuario
+0831 Figura 13
+Actividad — Catálogos institucionales y correlativos
+0837 Figura 14
+Actividad — Importación de catálogo de productos
+0844 Figura 15
+Actividad — Consulta de análisis y reportes de control
+0853 Figura 16
+Secuencia — Solicitud SIAF, revisión DAF y corrección
+0859 Figura 17
+Secuencia — Expediente, versión documental y dictamen
+0867 Tabla 20
+Catálogo de requerimientos no funcionales de SIGEC-IGSS
+0877 Tabla 21
+Reportes operativos identificados en SIGEC-IGSS
+0884 Tabla 22
+Reportes de control e indicadores analíticos de SIGEC-IGSS
+0892 Figura 18
+Modelo entidad–relación completa de SIGEC-IGSS — Parte A: mapa de módulos
+0898 Figura 19
+Modelo entidad–relación — Parte B: seguridad, acceso y estructura organizacional
+0904 Figura 20
+Modelo entidad–relación — Parte C: módulo SIAF
+0909 Figura 21
+Modelo entidad–relación — Parte D: módulo de expedientes
+0915 Figura 22
+Modelo entidad–relación — Parte E: catálogo de productos y correlativos
+0922 Capítulo V – Diseño de la solución
+0925 5.1 Diseño de datos
+0928 5.1.1 Modelo entidad–relación
+0930 Figura 23
+0934 Tabla 23
+0938 Figura 24
+0943 Figura 25
+0948 Figura 26
+0953 Figura 27
+0957 Tabla 24
+0960 Tabla 25
+0963 Tabla 26
+0967 5.1.2 Almacenamiento de documentos
+0969 Figura 28
+0973 Tabla 27
+0976 Tabla 28
+0980 5.2 Diseño de la arquitectura
+0982 5.2.1 Diagrama de arquitectura de la solución
+0984 Figura 29
+0989 Figura 30
+0993 5.2.2 Detalle de la arquitectura
+0995 Figura 31
+0999 Tabla 29
+1003 Figura 32
+1009 5.2.3 Especificación de la arquitectura
+1011 Tabla 30
+1014 Tabla 31
+1017 Tabla 32
+1021 5.3 Diseño de la interfaz
+1023 Tabla 33
+1026 Figura 33
+1030 Tabla 34
+1033 Figura 34
+1037 Figura 35
+1041 Figura 36
+1045 Figura 37
+1049 Figura 38
+1053 Figura 39
+1057 Figura 40
+1061 Figura 41
+1065 Figura 42
+1069 Figura 43
+1075 5.4 Programación
+1077 Figura 44
+1081 Tabla 35
+1084 Tabla 36
+1087 Tabla 37
+1091 Conclusión del capítulo
+1093 Conclusiones
+1096 En síntesis, el SIGEC-IGSS aporta una solución factible alineada con la modernización digital que el instituto ha planteado como rumbo, sin 
+1099 Anexos
+1100 Figura 23
+Mapa mental del proyecto SIGEC-IGSS (2026)
+1107 Figura 24
+Matriz operacional SIGEC-IGSS (piloto Palín–DAF Escuintla, 2026)
+1113 Tabla 38

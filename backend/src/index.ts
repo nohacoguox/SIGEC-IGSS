@@ -32,6 +32,10 @@ const synchronizeEnabled = process.env.DB_SYNCHRONIZE === 'true';
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true, service: 'sigec-backend' });
+});
+
 // Migración user_roles (automática al iniciar) y luego conexión TypeORM
 runUserRolesMigration()
   .then(() => AppDataSource.initialize())
