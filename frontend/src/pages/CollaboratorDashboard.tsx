@@ -1,7 +1,6 @@
 // frontend/src/pages/CollaboratorDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Avatar,
   Box,
   Collapse,
   Drawer,
@@ -33,7 +32,6 @@ import {
   ExitToApp as ExitToAppIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
-  Person as PersonIcon,
   Tonality as TonalityIcon,
   Dashboard as DashboardIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
@@ -45,6 +43,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import BandejaRevisionesDaf, { BandejaRevisionesTab } from '../components/BandejaRevisionesDaf';
 import AnaliticaExpedientes from '../components/AnaliticaExpedientes';
 import AnaliticaDaf from '../components/AnaliticaDaf';
+import logoIgss from '../assets/images/logo-igss.png';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Panel de Control', subtitle: 'Bienvenido al panel de control del colaborador' },
@@ -130,39 +129,27 @@ const CollaboratorDashboard: React.FC = () => {
         variant="permanent"
         sx={getDrawerSx(mode)}
       >
-        <Box sx={{ pt: 2, px: 2, textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: IGSS_COLORS.gris, letterSpacing: 1, display: 'block', mb: 1 }}>
-            SIGEC-IGSS
-          </Typography>
-        </Box>
-        <Box sx={{ p: 3, textAlign: 'center', pt: 0 }}>
+        <Box sx={{ p: 3, textAlign: 'center', mt: 1 }}>
           <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
-            <Box
-              sx={{
-                width: 100,
-                height: 100,
-                mb: 2,
-                mx: 'auto',
-                borderRadius: '50%',
-                bgcolor: IGSS_COLORS.verde,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `3px solid ${IGSS_COLORS.blanco}`,
-              }}
+            <Typography
+              variant="caption"
+              sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5, display: 'block', mb: 1.5 }}
             >
-              <Avatar
-                sx={{
-                  width: 88,
-                  height: 88,
-                  bgcolor: IGSS_COLORS.azul,
-                  color: IGSS_COLORS.blanco,
-                  fontSize: '2.5rem',
-                }}
-              >
-                <PersonIcon sx={{ fontSize: 48 }} />
-              </Avatar>
-            </Box>
+              SIGEC-IGSS
+            </Typography>
+            <Box
+              component="img"
+              src={logoIgss}
+              alt="Logo IGSS"
+              sx={{
+                width: 120,
+                height: 'auto',
+                mb: 1.5,
+                mx: 'auto',
+                display: 'block',
+                filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))',
+              }}
+            />
             <Typography variant="h6" fontWeight="bold" sx={{ color: 'white' }}>
               {localStorage.getItem('userName') || 'Usuario'}
             </Typography>
@@ -178,10 +165,10 @@ const CollaboratorDashboard: React.FC = () => {
                 width: '100%',
                 borderRadius: 2,
                 py: 1.5,
-                backgroundColor: IGSS_COLORS.azulOscuro,
+                backgroundColor: 'rgba(255,255,255,0.12)',
                 color: IGSS_COLORS.blanco,
-                border: `1px solid ${IGSS_COLORS.blanco}`,
-                '&:hover': { backgroundColor: IGSS_COLORS.azulClaro },
+                border: '1px solid rgba(255,255,255,0.55)',
+                '&:hover': { backgroundColor: 'rgba(255,255,255,0.22)' },
               }}
             >
               {mode === 'light' ? <TonalityIcon /> : mode === 'gray' ? <Brightness4Icon /> : <Brightness7Icon />}

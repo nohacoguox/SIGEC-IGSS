@@ -17,6 +17,7 @@ npm-debug.log*
 # Subidas y datos locales (se conservan en disco, no en git)
 backend/uploads/
 database/data/
+database/backups/
 
 # OS / IDE
 .DS_Store

@@ -15,6 +15,12 @@ export const IGSS_COLORS = {
   textoOscuro: '#2C3E50',
   fondo: '#F5F7FA',
   fondoClaro: '#E8EDF2',
+  /** Superficies modo oscuro (contraste con texto claro). */
+  fondoOscuro: '#0F1419',
+  paperOscuro: '#1A2332',
+  paperOscuroElevado: '#243044',
+  textoClaro: '#E8EAED',
+  textoClaroSecundario: '#A8B0B8',
   error: '#C62828',
 } as const;
 

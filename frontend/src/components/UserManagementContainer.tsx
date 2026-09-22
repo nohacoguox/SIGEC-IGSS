@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import UserForm from './UserForm';
 import UserList from './UserList';
+import { useThemeMode } from '../context/ThemeContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
 const API_URL = 'users';
@@ -58,6 +59,7 @@ const emptyForm = {
 };
 
 const UserManagementContainer: React.FC = () => {
+  const { mode } = useThemeMode();
   const [users, setUsers] = useState<User[]>([]);
   const [unidadesMedicas, setUnidadesMedicas] = useState<UnidadMedica[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
@@ -234,9 +236,13 @@ const UserManagementContainer: React.FC = () => {
         icon={<InfoOutlinedIcon />}
         sx={{
           borderRadius: 2,
-          bgcolor: 'rgba(0,91,145,0.06)',
-          color: IGSS_COLORS.textoOscuro,
-          '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+          ...(mode === 'dark'
+            ? {}
+            : {
+                bgcolor: 'rgba(0,91,145,0.06)',
+                color: IGSS_COLORS.textoOscuro,
+                '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+              }),
         }}
       >
         <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>

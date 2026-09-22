@@ -20,6 +20,7 @@ import {
   groupScreensByGroup,
 } from '../config/appScreens';
 import { useAppScreens } from '../context/AppScreensContext';
+import { useThemeMode } from '../context/ThemeContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
 interface Permission {
@@ -52,6 +53,7 @@ interface AppScreenApi extends AppScreenDefinition {
 type Order = 'asc' | 'desc';
 
 const RoleManagementPage: React.FC = () => {
+  const { mode } = useThemeMode();
   const { screens: catalogScreens } = useAppScreens();
   const [mainTab, setMainTab] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -396,7 +398,16 @@ const RoleManagementPage: React.FC = () => {
       <Alert
         severity="info"
         icon={<InfoOutlinedIcon />}
-        sx={{ borderRadius: 2, bgcolor: 'rgba(0,91,145,0.06)', color: IGSS_COLORS.textoOscuro, '& .MuiAlert-icon': { color: IGSS_COLORS.azul } }}
+        sx={{
+          borderRadius: 2,
+          ...(mode === 'dark'
+            ? {}
+            : {
+                bgcolor: 'rgba(0,91,145,0.06)',
+                color: IGSS_COLORS.textoOscuro,
+                '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+              }),
+        }}
       >
         <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
           Cómo funciona el acceso
@@ -624,7 +635,7 @@ const RoleManagementPage: React.FC = () => {
                             cursor: 'pointer',
                             borderColor: checked ? IGSS_COLORS.azul : 'divider',
                             borderWidth: checked ? 2 : 1,
-                            bgcolor: checked ? 'rgba(0,91,145,0.06)' : IGSS_COLORS.blanco,
+                            bgcolor: checked ? 'action.selected' : 'background.paper',
                             transition: 'border-color .15s ease, background-color .15s ease',
                             '&:hover': { borderColor: IGSS_COLORS.azulClaro },
                           }}

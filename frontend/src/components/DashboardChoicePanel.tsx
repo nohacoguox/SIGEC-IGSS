@@ -55,8 +55,9 @@ const PanelOption: React.FC<PanelOptionProps> = ({
       sx={{
         p: 2.5,
         borderRadius: 2,
-        border: `2px solid ${IGSS_COLORS.gris}`,
-        bgcolor: IGSS_COLORS.blanco,
+        border: '2px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
         '&:hover': {
           borderColor: accent,
@@ -121,7 +122,7 @@ const PanelContent: React.FC<DashboardChoicePanelProps> = ({
           bgcolor: IGSS_COLORS.verde,
         }}
       />
-      <Typography variant="h5" fontWeight={700} gutterBottom sx={{ color: IGSS_COLORS.azul }}>
+          <Typography variant="h5" fontWeight={700} gutterBottom sx={{ color: 'primary.main' }}>
         Bienvenido, {displayName.split(' ')[0]}
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 420, mx: 'auto' }}>
@@ -167,8 +168,9 @@ const DashboardChoicePanel: React.FC<DashboardChoicePanelProps> = ({
           sx: {
             borderRadius: 3,
             overflow: 'hidden',
-            bgcolor: IGSS_COLORS.blanco,
-            border: `2px solid ${IGSS_COLORS.gris}`,
+            bgcolor: 'background.paper',
+            border: '2px solid',
+            borderColor: 'divider',
           },
         }}
       >
@@ -201,8 +203,9 @@ const DashboardChoicePanel: React.FC<DashboardChoicePanelProps> = ({
           maxWidth: 480,
           width: '100%',
           borderRadius: 3,
-          bgcolor: IGSS_COLORS.blanco,
-          border: `2px solid ${IGSS_COLORS.gris}`,
+          bgcolor: 'background.paper',
+          border: '2px solid',
+          borderColor: 'divider',
         }}
       >
         <PanelContent

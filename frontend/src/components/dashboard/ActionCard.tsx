@@ -39,8 +39,9 @@ const ActionCard: React.FC<ActionCardProps> = ({
         cursor: 'pointer',
         borderRadius: 2,
         overflow: 'hidden',
-        border: `2px solid ${IGSS_COLORS.gris}`,
-        bgcolor: IGSS_COLORS.blanco,
+        border: `2px solid`,
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
         '&:hover': {
           borderColor: accent,
@@ -67,7 +68,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
         >
           {icon}
         </Box>
-        <Typography variant="h6" fontWeight={700} gutterBottom sx={{ color: IGSS_COLORS.textoOscuro, pr: 4 }}>
+        <Typography variant="h6" fontWeight={700} gutterBottom sx={{ color: 'text.primary', pr: 4 }}>
           {title}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, lineHeight: 1.55 }}>

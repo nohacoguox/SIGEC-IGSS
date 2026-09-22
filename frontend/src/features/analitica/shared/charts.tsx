@@ -17,7 +17,7 @@ export const panelSx = {
   borderRadius: 3,
   border: '1px solid',
   borderColor: 'divider',
-  bgcolor: IGSS_COLORS.blanco,
+  bgcolor: 'background.paper',
   boxShadow: '0 8px 24px rgba(50, 90, 114, 0.06)',
   overflow: 'hidden',
 };
@@ -64,7 +64,7 @@ export const ChartTooltip = ({ active, payload, label }: any) => {
         <Box key={entry.dataKey || entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.35 }}>
           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color || entry.fill }} />
           <Typography variant="caption" color="text.secondary">{entry.name}</Typography>
-          <Typography variant="caption" fontWeight={700} sx={{ ml: 'auto', color: IGSS_COLORS.textoOscuro }}>
+          <Typography variant="caption" fontWeight={700} sx={{ ml: 'auto', color: 'text.primary' }}>
             {typeof entry.value === 'number' ? entry.value : entry.value}
           </Typography>
         </Box>
@@ -76,8 +76,8 @@ export const ChartTooltip = ({ active, payload, label }: any) => {
 export const analyticsTabsSx = {
   minHeight: 42,
   '& .MuiTab-root': { minHeight: 42, textTransform: 'none', fontWeight: 700, fontSize: '0.92rem' },
-  '& .Mui-selected': { color: `${IGSS_COLORS.azulOscuro} !important` },
-  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, bgcolor: IGSS_COLORS.azul },
+  '& .Mui-selected': { color: 'primary.main' },
+  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, bgcolor: 'primary.main' },
 };
 
 export const analyticsPageSx = {

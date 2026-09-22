@@ -210,9 +210,11 @@ const CorrelativoManagementPage: React.FC = () => {
         icon={<InfoOutlinedIcon />}
         sx={{
           borderRadius: 2,
-          bgcolor: 'rgba(0,91,145,0.06)',
-          color: IGSS_COLORS.textoOscuro,
-          '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
+          bgcolor: (t) => (t.palette.mode === 'dark' ? undefined : 'rgba(0,91,145,0.06)'),
+          color: (t) => (t.palette.mode === 'dark' ? undefined : IGSS_COLORS.textoOscuro),
+          '& .MuiAlert-icon': {
+            color: (t) => (t.palette.mode === 'dark' ? undefined : IGSS_COLORS.azul),
+          },
         }}
       >
         <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
@@ -277,7 +279,7 @@ const CorrelativoManagementPage: React.FC = () => {
           </Button>
         </Box>
 
-        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: IGSS_COLORS.blanco }}>
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Typography variant="body2" color="text.secondary">
             {esSiaf
               ? 'Numeración de solicitudes SIAF. Al abrir «Crear SIAF» se reserva un número hasta guardar o cancelar.'

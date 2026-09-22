@@ -71,26 +71,47 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               contrastText: IGSS_COLORS.blanco,
             },
             background: {
-              default: mode === 'dark' ? '#121212' : mode === 'gray' ? IGSS_COLORS.gris : IGSS_COLORS.fondo,
-              paper: IGSS_COLORS.blanco,
+              default:
+                mode === 'dark'
+                  ? IGSS_COLORS.fondoOscuro
+                  : mode === 'gray'
+                    ? IGSS_COLORS.gris
+                    : IGSS_COLORS.fondo,
+              paper: mode === 'dark' ? IGSS_COLORS.paperOscuro : IGSS_COLORS.blanco,
             },
             text: {
-              primary: mode === 'dark' ? '#E8EAED' : mode === 'gray' ? '#374151' : IGSS_COLORS.textoOscuro,
-              secondary: mode === 'dark' ? '#9AA0A6' : mode === 'gray' ? '#6B7280' : '#5F6C7B',
+              primary:
+                mode === 'dark'
+                  ? IGSS_COLORS.textoClaro
+                  : mode === 'gray'
+                    ? '#374151'
+                    : IGSS_COLORS.textoOscuro,
+              secondary:
+                mode === 'dark'
+                  ? IGSS_COLORS.textoClaroSecundario
+                  : mode === 'gray'
+                    ? '#6B7280'
+                    : '#5F6C7B',
             },
             error: {
               main: IGSS_COLORS.error,
             },
             warning: {
-              main: '#E65100',
+              main: mode === 'dark' ? '#FFB74D' : '#E65100',
             },
             info: {
               main: IGSS_COLORS.azulClaro,
             },
             success: {
-              main: IGSS_COLORS.verde,
+              main: mode === 'dark' ? IGSS_COLORS.verdeClaro : IGSS_COLORS.verde,
             },
-            divider: mode === 'dark' ? '#2C2C2C' : mode === 'gray' ? '#D1D5DB' : '#E0E0E0',
+            divider: mode === 'dark' ? '#2F3B4A' : mode === 'gray' ? '#D1D5DB' : '#E0E0E0',
+            action: {
+              hover: mode === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+              selected: mode === 'dark' ? 'rgba(79, 129, 153, 0.28)' : 'rgba(59, 107, 133, 0.12)',
+              disabled: mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
+              disabledBackground: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.12)',
+            },
           },
           typography: {
             fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -273,6 +294,87 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
                     fontWeight: 700,
                     backgroundColor: mode === 'dark' ? IGSS_COLORS.azulOscuro : IGSS_COLORS.azul,
                     color: IGSS_COLORS.blanco,
+                  },
+                },
+              },
+            },
+            MuiTableCell: {
+              styleOverrides: {
+                root: {
+                  borderColor: mode === 'dark' ? '#2F3B4A' : undefined,
+                },
+                body: {
+                  color: mode === 'dark' ? IGSS_COLORS.textoClaro : undefined,
+                },
+              },
+            },
+            MuiChip: {
+              styleOverrides: {
+                root: {
+                  fontWeight: 600,
+                },
+                outlined: {
+                  ...(mode === 'dark'
+                    ? {
+                        borderColor: 'rgba(232, 234, 237, 0.35)',
+                        color: IGSS_COLORS.textoClaro,
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      }
+                    : {}),
+                },
+              },
+            },
+            MuiAlert: {
+              styleOverrides: {
+                standardInfo: {
+                  ...(mode === 'dark'
+                    ? {
+                        backgroundColor: 'rgba(79, 129, 153, 0.22)',
+                        color: IGSS_COLORS.textoClaro,
+                        '& .MuiAlert-icon': { color: IGSS_COLORS.azulClaro },
+                      }
+                    : {}),
+                },
+                standardSuccess: {
+                  ...(mode === 'dark'
+                    ? {
+                        backgroundColor: 'rgba(125, 160, 72, 0.22)',
+                        color: IGSS_COLORS.textoClaro,
+                      }
+                    : {}),
+                },
+                standardWarning: {
+                  ...(mode === 'dark'
+                    ? {
+                        backgroundColor: 'rgba(255, 183, 77, 0.18)',
+                        color: IGSS_COLORS.textoClaro,
+                      }
+                    : {}),
+                },
+                standardError: {
+                  ...(mode === 'dark'
+                    ? {
+                        backgroundColor: 'rgba(198, 40, 40, 0.22)',
+                        color: IGSS_COLORS.textoClaro,
+                      }
+                    : {}),
+                },
+              },
+            },
+            MuiTabs: {
+              styleOverrides: {
+                indicator: {
+                  backgroundColor: mode === 'dark' ? IGSS_COLORS.azulClaro : IGSS_COLORS.azul,
+                },
+              },
+            },
+            MuiTab: {
+              styleOverrides: {
+                root: {
+                  color: mode === 'dark' ? IGSS_COLORS.textoClaroSecundario : undefined,
+                  '&.Mui-selected': {
+                    color: mode === 'dark' ? IGSS_COLORS.azulClaro : IGSS_COLORS.azul,
+                    fontWeight: 700,
                   },
                 },
               },

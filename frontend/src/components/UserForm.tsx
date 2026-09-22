@@ -294,7 +294,7 @@ const UserForm: React.FC<UserFormProps> = ({
           pt: 1,
           position: { xs: 'sticky', sm: 'static' },
           bottom: 0,
-          bgcolor: { xs: IGSS_COLORS.blanco, sm: 'transparent' },
+          bgcolor: { xs: 'background.paper', sm: 'transparent' },
           py: { xs: 1.5, sm: 0 },
           borderTop: { xs: '1px solid', sm: 'none' },
           borderColor: 'divider',

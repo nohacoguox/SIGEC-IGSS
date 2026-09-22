@@ -160,7 +160,7 @@ export default function TabPorCaso({
               <TableContainer sx={{ ...tableScrollSx, maxHeight: 320 }}>
                 <Table size="small" stickyHeader sx={{ minWidth: 520 }}>
                   <TableHead>
-                    <TableRow sx={{ '& th': { fontWeight: 700, color: IGSS_COLORS.azulOscuro, borderBottomColor: gridStroke, whiteSpace: 'nowrap', bgcolor: IGSS_COLORS.blanco } }}>
+                    <TableRow sx={{ '& th': { fontWeight: 700, color: IGSS_COLORS.azulOscuro, borderBottomColor: gridStroke, whiteSpace: 'nowrap', bgcolor: 'background.paper' } }}>
                       <TableCell>{columnasCaso.primaria}</TableCell>
                       <TableCell>{columnasCaso.secundaria}</TableCell>
                       <TableCell>Resultado</TableCell>

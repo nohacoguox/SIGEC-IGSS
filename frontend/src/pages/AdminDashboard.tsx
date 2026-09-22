@@ -10,7 +10,6 @@ import {
   Grid, 
   Paper, 
   CircularProgress,
-  Avatar,
   IconButton,
   Tooltip,
   Collapse,
@@ -43,6 +42,7 @@ import { Assignment as AssignmentIcon } from '@mui/icons-material';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
 import NumbersIcon from '@mui/icons-material/Numbers';
 import api from '../api';
+import logoIgss from '../assets/images/logo-igss.png';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Panel de Administración', subtitle: 'Bienvenido al panel de control del sistema' },
@@ -300,39 +300,32 @@ const AdminDashboard: React.FC = () => {
         variant="permanent"
         sx={getDrawerSx(mode)}
       >
-        {/* User Profile Section */}
-        <Box sx={{ p: 3, textAlign: 'center', mt: 2 }}>
-          <motion.div 
-            initial={{ scale: 0.5, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }} 
+        {/* Brand / logo IGSS (mismo del login) */}
+        <Box sx={{ p: 3, textAlign: 'center', mt: 1 }}>
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <Box
-              sx={{
-                width: 100,
-                height: 100,
-                mb: 2,
-                mx: 'auto',
-                borderRadius: '50%',
-                bgcolor: IGSS_COLORS.verde,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `3px solid ${IGSS_COLORS.blanco}`,
-              }}
+            <Typography
+              variant="caption"
+              sx={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5, display: 'block', mb: 1.5 }}
             >
-              <Avatar 
-                sx={{ 
-                  width: 88, 
-                  height: 88,
-                  bgcolor: IGSS_COLORS.azul,
-                  fontSize: '2rem',
-                  fontWeight: 'bold',
-                }} 
-              >
-                {(localStorage.getItem('userName') || 'A')[0].toUpperCase()}
-              </Avatar>
-            </Box>
+              SIGEC-IGSS
+            </Typography>
+            <Box
+              component="img"
+              src={logoIgss}
+              alt="Logo IGSS"
+              sx={{
+                width: 120,
+                height: 'auto',
+                mb: 1.5,
+                mx: 'auto',
+                display: 'block',
+                filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))',
+              }}
+            />
             <Typography variant="h6" fontWeight="bold" sx={{ color: 'white' }}>
               {localStorage.getItem('userName') || 'Administrador'}
             </Typography>
@@ -348,11 +341,11 @@ const AdminDashboard: React.FC = () => {
                 width: '100%',
                 borderRadius: 2,
                 py: 1.5,
-                backgroundColor: IGSS_COLORS.azulOscuro,
+                backgroundColor: 'rgba(255,255,255,0.12)',
                 color: IGSS_COLORS.blanco,
-                border: `1px solid ${IGSS_COLORS.blanco}`,
+                border: '1px solid rgba(255,255,255,0.55)',
                 '&:hover': {
-                  backgroundColor: IGSS_COLORS.azulClaro,
+                  backgroundColor: 'rgba(255,255,255,0.22)',
                 },
               }}
             >

@@ -18,7 +18,7 @@ export const KpiCard = ({
         borderColor: 'divider',
         overflow: 'hidden',
         position: 'relative',
-        bgcolor: IGSS_COLORS.blanco,
+        bgcolor: 'background.paper',
         transition: 'transform .22s ease, box-shadow .22s ease',
         '&:hover': {
           transform: 'translateY(-2px)',

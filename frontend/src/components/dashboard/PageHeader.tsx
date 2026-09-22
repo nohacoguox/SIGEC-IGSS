@@ -19,7 +19,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle }) => (
     <Typography
       variant="overline"
       sx={{
-        color: IGSS_COLORS.azul,
+        color: 'primary.main',
         fontWeight: 700,
         letterSpacing: 2,
         display: 'block',
@@ -33,7 +33,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle }) => (
       component="h1"
       fontWeight={800}
       sx={{
-        color: IGSS_COLORS.azul,
+        color: 'primary.main',
         mb: 1,
         fontSize: { xs: '1.75rem', md: '2.25rem' },
       }}

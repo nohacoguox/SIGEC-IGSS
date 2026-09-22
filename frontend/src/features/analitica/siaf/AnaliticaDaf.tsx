@@ -82,7 +82,7 @@ const AnaliticaDaf: React.FC = () => {
           borderRadius: 3,
           border: '1px solid',
           borderColor: 'divider',
-          bgcolor: IGSS_COLORS.blanco,
+          bgcolor: 'background.paper',
           overflow: 'hidden',
         }}
       >
