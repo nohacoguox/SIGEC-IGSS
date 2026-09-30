@@ -35,6 +35,8 @@ type PdfViewerWithClickProps = {
   onContextMenuOnPage?: (pageNumber: number, xPercent: number, yPercent: number, event: React.MouseEvent) => void;
   /** Callback de clic izquierdo en modo marcar */
   onClickOnPage?: (pageNumber: number, xPercent: number, yPercent: number, event: React.MouseEvent) => void;
+  /** Notifica el total de páginas cuando el PDF carga */
+  onNumPagesChange?: (numPages: number) => void;
   /** Marca opcional: muestra un pin en esta página en esta posición (para "Ver marca") */
   marker?: PdfMarker | null;
   /** Varias marcas: muestra un pin por cada una */
@@ -45,6 +47,11 @@ type PdfViewerWithClickProps = {
   minHeight?: number;
   /** Si true y hay marker, solo se renderiza la página del marcador (ahorra carga) */
   markerPageOnly?: boolean;
+  /**
+   * Si se indica, solo se renderizan estas páginas (1-based).
+   * Útil para ocultar páginas ya categorizadas.
+   */
+  visiblePages?: number[] | null;
   /** Nivel de zoom (1 = 100%, 1.5 = 150%, etc.) */
   zoom?: number;
 };
@@ -71,11 +78,13 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
   enableClickMark = false,
   onContextMenuOnPage,
   onClickOnPage,
+  onNumPagesChange,
   marker = null,
   markers = null,
   className,
   minHeight = 400,
   markerPageOnly = false,
+  visiblePages = null,
   zoom = 1,
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
@@ -114,6 +123,10 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
     loadPdf();
   }, [loadPdf]);
 
+  useEffect(() => {
+    if (onNumPagesChange && numPages > 0) onNumPagesChange(numPages);
+  }, [numPages, onNumPagesChange]);
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!enableContextMenu || !onContextMenuOnPage) return;
@@ -141,15 +154,24 @@ export const PdfViewerWithClick: React.FC<PdfViewerWithClickProps> = ({
 
   const pagesToRender = (() => {
     if (numPages <= 0) return [];
+    const all = Array.from({ length: numPages }, (_, i) => i + 1);
+    if (visiblePages && visiblePages.length > 0) {
+      const allowed = new Set(
+        visiblePages
+          .map((p) => Math.max(1, Math.min(Math.floor(p), numPages)))
+          .filter((p) => p >= 1)
+      );
+      return all.filter((p) => allowed.has(p));
+    }
     if (markerPageOnly && (marker || (markers && markers.length > 0))) {
       const fromSingle = marker ? [Math.max(1, Math.min(marker.pageNumber, numPages))] : [];
       const fromMulti = markers?.length
         ? Array.from(new Set(markers.map((m) => Math.max(1, Math.min(m.pageNumber, numPages)))))
         : [];
       const pages = Array.from(new Set([...fromSingle, ...fromMulti])).sort((a, b) => a - b);
-      return pages.length ? pages : Array.from({ length: numPages }, (_, i) => i + 1);
+      return pages.length ? pages : all;
     }
-    return Array.from({ length: numPages }, (_, i) => i + 1);
+    return all;
   })();
 
   useEffect(() => {

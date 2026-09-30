@@ -120,7 +120,7 @@ export class ExpedienteBitacora {
   @Column({ name: 'expediente_id' })
   expedienteId: number;
 
-  @Column({ type: 'varchar', length: 20 }) // 'rechazo' | 'aprobacion' | 'correccion'
+  @Column({ type: 'varchar', length: 40 }) // rechazo | aprobacion | correccion | envio_revision | categorizacion
   tipo: string;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })

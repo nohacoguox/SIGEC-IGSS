@@ -13,7 +13,6 @@ import {
 import { motion } from 'framer-motion';
 import {
   ArrowBack as ArrowBackIcon,
-  AttachFile as AttachFileIcon,
   CloudUpload as CloudUploadIcon,
   Delete as DeleteIcon,
   DescriptionOutlined as DescriptionIcon,
@@ -27,7 +26,7 @@ import {
 } from '@mui/icons-material';
 import { primaryButtonSx } from '../../../theme/institutionalStyles';
 import { IGSS_COLORS } from '../../../theme/institutionalColors';
-import { estadoConfig } from '../constants';
+import { estadoConfig, esDocumentoPaquete } from '../constants';
 import type { DocumentoRow, ExpedienteRow, UltimoRechazo } from '../types';
 import { formatBytes } from '../utils';
 
@@ -41,7 +40,7 @@ type ExpedienteDetalleDrawerProps = {
   eliminandoId: number | null;
   onClose: () => void;
   onOpenBitacora: (expedienteId: number, numeroExpediente: string) => void;
-  onAgregarDocumento: () => void;
+  onCategorizarPaquete: (doc: DocumentoRow) => void;
   onEnviarRevision: () => void;
   onVerDocumento: (expedienteId: number, docId: number, nombre: string, mimeType: string) => void;
   onReemplazarDoc: (doc: DocumentoRow) => void;
@@ -70,14 +69,19 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
   eliminandoId,
   onClose,
   onOpenBitacora,
-  onAgregarDocumento,
+  onCategorizarPaquete,
   onEnviarRevision,
   onVerDocumento,
   onReemplazarDoc,
   onAbrirVersiones,
   onSolicitarEliminar,
   onVerMarca,
-}) => (
+}) => {
+  const docsSeparados = documentos.filter((d) => !esDocumentoPaquete(d.tipoDocumento));
+  const paqueteDoc = documentos.find((d) => esDocumentoPaquete(d.tipoDocumento)) || null;
+  const puedeEditarDocs = expedienteDetalle?.estado === 'abierto' || expedienteDetalle?.estado === 'rechazado';
+
+  return (
   <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
     <Box
       sx={{
@@ -99,7 +103,7 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
               <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.15, letterSpacing: 0.3 }}>
                 {expedienteDetalle.numeroExpediente}
               </Typography>
-              <Typography variant="body1" sx={{ mt: 0.75, opacity: 0.92, maxWidth: 720 }}>
+              <Typography variant="body1" sx={{ mt: 0.75, opacity: 0.92 }}>
                 {expedienteDetalle.titulo}
                 {expedienteDetalle.descripcion ? ` · ${expedienteDetalle.descripcion}` : ''}
               </Typography>
@@ -136,7 +140,7 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
               <Chip
                 size="small"
                 icon={<NumbersIcon />}
-                label={`${documentos.length} documento${documentos.length === 1 ? '' : 's'}`}
+                label={`${docsSeparados.length} documento${docsSeparados.length === 1 ? '' : 's'}`}
                 sx={{
                   fontWeight: 700,
                   bgcolor: alpha('#fff', 0.16),
@@ -194,9 +198,10 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '340px 1fr' },
-          gap: 2.5,
+          gridTemplateColumns: { xs: '1fr', md: 'minmax(260px, 300px) minmax(0, 1fr)' },
+          gap: { xs: 2, md: 3 },
           alignItems: 'start',
+          width: '100%',
         }}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -269,18 +274,18 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
               gap: 1.25,
             }}
           >
-            {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+            {puedeEditarDocs && paqueteDoc && (
               <Button
                 variant="contained"
-                startIcon={<AttachFileIcon />}
-                onClick={onAgregarDocumento}
+                startIcon={<FolderOpenIcon />}
+                onClick={() => onCategorizarPaquete(paqueteDoc)}
                 sx={{
                   ...primaryButtonSx,
                   bgcolor: IGSS_COLORS.azulOscuro,
                   '&:hover': { bgcolor: IGSS_COLORS.azul },
                 }}
               >
-                Agregar documento
+                Categorizar PDF completo
               </Button>
             )}
             {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && puedeCrear && (
@@ -288,7 +293,7 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                 variant="contained"
                 startIcon={<SendIcon />}
                 onClick={onEnviarRevision}
-                disabled={enviandoRevision || documentos.length === 0}
+                disabled={enviandoRevision || docsSeparados.length === 0}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 700,
@@ -300,9 +305,11 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                 {enviandoRevision ? 'Enviando…' : 'Enviar a revisión'}
               </Button>
             )}
-            {documentos.length === 0 && (expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+            {docsSeparados.length === 0 && (expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
               <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                Agregue al menos un documento para poder enviar a revisión.
+                {paqueteDoc
+                  ? 'Categorice el PDF completo para poder enviar a revisión.'
+                  : 'Este expediente no tiene PDF completo. Créelo de nuevo con el archivo del expediente.'}
               </Typography>
             )}
           </Paper>
@@ -363,12 +370,12 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
             bgcolor: '#fff',
             overflow: 'hidden',
             boxShadow: `0 4px 18px ${alpha('#000', 0.05)}`,
-            minHeight: 420,
+            minHeight: { xs: 420, md: 'calc(100vh - 280px)' },
           }}
         >
           <Box
             sx={{
-              px: 2.5,
+              px: { xs: 2.5, md: 3 },
               py: 2,
               borderBottom: '1px solid',
               borderColor: 'divider',
@@ -386,28 +393,12 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                 Documentos del expediente
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Gestione los archivos que conforman este expediente.
+                Se generan al categorizar el PDF completo por tipo y páginas.
               </Typography>
             </Box>
-            {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<AttachFileIcon />}
-                onClick={onAgregarDocumento}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 700,
-                  bgcolor: IGSS_COLORS.azulOscuro,
-                  '&:hover': { bgcolor: IGSS_COLORS.azul },
-                }}
-              >
-                Agregar
-              </Button>
-            )}
           </Box>
 
-          <Box sx={{ p: 2.5 }}>
+          <Box sx={{ p: { xs: 2.5, md: 3 } }}>
             {documentos.length === 0 ? (
               <Box
                 sx={{
@@ -434,32 +425,34 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                   <FolderOpenIcon sx={{ fontSize: 36 }} />
                 </Box>
                 <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 0.75 }}>
-                  Expediente listo para documentar
+                  Sin PDF completo
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 520, mx: 'auto' }}>
+                  Al crear el expediente debe subir el PDF completo. Luego categorice las páginas (SIAF, factura, O.C., etc.).
+                </Typography>
+              </Box>
+            ) : docsSeparados.length === 0 && paqueteDoc ? (
+              <Box
+                sx={{
+                  p: { xs: 3, md: 5 },
+                  borderRadius: 3,
+                  border: `1.5px dashed ${alpha(IGSS_COLORS.azul, 0.45)}`,
+                  bgcolor: alpha(IGSS_COLORS.azul, 0.04),
+                  textAlign: 'center',
+                }}
+              >
+                <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 0.75 }}>
+                  PDF completo cargado
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 520, mx: 'auto', mb: 2.5 }}>
-                  Agregue los archivos del expediente. Puede iniciar con la Orden de Compras, ACTA, SIAF autorizado, Contrato u otros.
+                  Marque qué páginas son SIAF, factura, O.C., acta, etc. El sistema generará cada documento por separado.
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.75, mb: 3 }}>
-                  {['Orden de Compras', 'ACTA', 'SIAF autorizado', 'Contrato', 'Factura'].map((tipo) => (
-                    <Chip
-                      key={tipo}
-                      size="small"
-                      label={tipo}
-                      sx={{
-                        fontWeight: 600,
-                        bgcolor: '#fff',
-                        border: `1px solid ${alpha(IGSS_COLORS.azul, 0.25)}`,
-                        color: IGSS_COLORS.azulOscuro,
-                      }}
-                    />
-                  ))}
-                </Box>
-                {(expedienteDetalle.estado === 'abierto' || expedienteDetalle.estado === 'rechazado') && (
+                {puedeEditarDocs && (
                   <Button
                     variant="contained"
                     size="large"
-                    startIcon={<CloudUploadIcon />}
-                    onClick={onAgregarDocumento}
+                    startIcon={<FolderOpenIcon />}
+                    onClick={() => onCategorizarPaquete(paqueteDoc)}
                     sx={{
                       ...primaryButtonSx,
                       bgcolor: IGSS_COLORS.azulOscuro,
@@ -467,7 +460,7 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                       px: 3,
                     }}
                   >
-                    Subir primer documento
+                    Categorizar ahora
                   </Button>
                 )}
               </Box>
@@ -475,8 +468,13 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                  gap: 1.5,
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, minmax(0, 1fr))',
+                    lg: 'repeat(3, minmax(0, 1fr))',
+                    xl: 'repeat(4, minmax(0, 1fr))',
+                  },
+                  gap: 2,
                 }}
               >
                 {documentos.map((doc) => (
@@ -484,14 +482,15 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                     key={doc.id}
                     elevation={0}
                     sx={{
-                      p: 2,
+                      p: 2.25,
                       borderRadius: 2.5,
                       border: '1px solid',
-                      borderColor: 'divider',
+                      borderColor: esDocumentoPaquete(doc.tipoDocumento) ? alpha(IGSS_COLORS.azul, 0.45) : 'divider',
                       bgcolor: IGSS_COLORS.fondo,
                       display: 'flex',
-                      alignItems: 'center',
+                      flexDirection: 'column',
                       gap: 1.5,
+                      minHeight: 132,
                       transition: 'box-shadow .2s ease, border-color .2s ease',
                       '&:hover': {
                         borderColor: alpha(IGSS_COLORS.azul, 0.45),
@@ -499,29 +498,41 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
                       },
                     }}
                   >
-                    <Box
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 2,
-                        flexShrink: 0,
-                        display: 'grid',
-                        placeItems: 'center',
-                        bgcolor: alpha(IGSS_COLORS.verde, 0.12),
-                        color: IGSS_COLORS.verdeOscuro,
-                      }}
-                    >
-                      <DescriptionIcon />
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                      <Box
+                        sx={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 2,
+                          flexShrink: 0,
+                          display: 'grid',
+                          placeItems: 'center',
+                          bgcolor: alpha(IGSS_COLORS.verde, 0.12),
+                          color: IGSS_COLORS.verdeOscuro,
+                        }}
+                      >
+                        <DescriptionIcon />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.25 }}>
+                          {doc.tipoDocumento || doc.nombreArchivo}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {doc.descripcion || doc.nombreArchivo} · {formatBytes(doc.tamanioBytes)}
+                        </Typography>
+                        {esDocumentoPaquete(doc.tipoDocumento) && (
+                          <Chip size="small" label="Paquete origen" sx={{ mt: 0.75, height: 22, fontWeight: 600 }} />
+                        )}
+                      </Box>
                     </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="subtitle2" fontWeight={800} noWrap sx={{ color: IGSS_COLORS.azulOscuro }}>
-                        {doc.tipoDocumento || doc.nombreArchivo}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                        {doc.descripcion || doc.nombreArchivo} · {formatBytes(doc.tamanioBytes)}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25, mt: 'auto' }}>
+                      {esDocumentoPaquete(doc.tipoDocumento) && puedeEditarDocs && (
+                        <Tooltip title="Categorizar páginas">
+                          <IconButton size="small" onClick={() => onCategorizarPaquete(doc)} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                            <FolderOpenIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Visualizar">
                         <IconButton
                           size="small"
@@ -565,6 +576,7 @@ const ExpedienteDetalleDrawer: React.FC<ExpedienteDetalleDrawerProps> = ({
       </Box>
     ) : null}
   </motion.div>
-);
+  );
+};
 
 export default ExpedienteDetalleDrawer;

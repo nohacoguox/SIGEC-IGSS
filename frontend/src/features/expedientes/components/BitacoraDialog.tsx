@@ -106,8 +106,8 @@ const BitacoraDialog: React.FC<BitacoraDialogProps> = ({
                     <TableCell sx={{ verticalAlign: 'top', pt: 2, pb: 2 }}>
                       <Chip
                         size="small"
-                        label={b.tipo === 'rechazo' ? 'Rechazo' : b.tipo === 'aprobacion' ? 'Aprobado' : b.tipo === 'correccion' ? 'Reemplazo de documento' : b.tipo}
-                        color={b.tipo === 'rechazo' ? 'error' : b.tipo === 'aprobacion' ? 'success' : b.tipo === 'correccion' ? 'info' : 'default'}
+                        label={b.tipo === 'rechazo' ? 'Rechazo' : b.tipo === 'aprobacion' ? 'Aprobado' : b.tipo === 'correccion' ? 'Reemplazo de documento' : b.tipo === 'categorizacion' ? 'Categorización PDF' : b.tipo === 'envio_revision' ? 'Envío a revisión' : b.tipo}
+                        color={b.tipo === 'rechazo' ? 'error' : b.tipo === 'aprobacion' ? 'success' : b.tipo === 'correccion' ? 'info' : b.tipo === 'categorizacion' ? 'primary' : 'default'}
                         variant="filled"
                         sx={{ fontWeight: 600 }}
                       />

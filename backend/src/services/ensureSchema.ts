@@ -14,6 +14,16 @@ import { ensureCorrelativoTables } from './ensureCorrelativoTables';
  */
 export async function ensureSchema(): Promise<void> {
   try {
+    await AppDataSource.query(
+      `ALTER TABLE expediente_bitacora ALTER COLUMN tipo TYPE varchar(40)`
+    );
+  } catch (e: any) {
+    if (!/does not exist|already|same/i.test(e?.message || '')) {
+      console.error('Aviso al ampliar expediente_bitacora.tipo:', e?.message);
+    }
+  }
+
+  try {
     await ensureCorrelativoTables();
   } catch (e: any) {
     console.error('Aviso al crear tablas de correlativos:', e?.message);

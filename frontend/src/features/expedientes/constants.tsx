@@ -15,10 +15,19 @@ export const TIPOS_DOCUMENTO = [
   'Otro',
 ];
 
+/** PDF único con todo el expediente; se separa luego por rangos de páginas. */
+export const TIPO_DOCUMENTO_PAQUETE = 'Expediente completo (paquete)';
+
+export const esDocumentoPaquete = (tipoDocumento?: string | null) =>
+  String(tipoDocumento || '').trim() === TIPO_DOCUMENTO_PAQUETE;
+
 export const TITULOS_OPCIONES = ['Bien/Producto', 'Servicio'];
 
 /** Lista corta de extensiones: los comodines MIME (image/*) hacen lento el diálogo nativo de Windows. */
 export const ARCHIVOS_ACEPTADOS = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png';
+
+/** Solo PDF para el expediente completo al crear. */
+export const ARCHIVO_PAQUETE_ACEPTADO = '.pdf,application/pdf';
 
 export const estadoConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactElement }> = {
   abierto: {

@@ -40,7 +40,7 @@ import {
   primaryButtonSx,
 } from '../../theme/institutionalStyles';
 import { IGSS_COLORS } from '../../theme/institutionalColors';
-import { ARCHIVOS_ACEPTADOS, TIPOS_DOCUMENTO, TITULOS_OPCIONES, estadoConfig } from './constants';
+import { ARCHIVOS_ACEPTADOS, TIPO_DOCUMENTO_PAQUETE, TITULOS_OPCIONES, estadoConfig } from './constants';
 import type {
   BitacoraEntry,
   DocumentoRow,
@@ -50,8 +50,8 @@ import type {
   ViewingDoc,
 } from './types';
 import { abrirSelectorArchivo, esArchivoPrevisualizable } from './utils';
-import AgregarDocumentoDialog from './components/AgregarDocumentoDialog';
 import BitacoraDialog from './components/BitacoraDialog';
+import CategorizarPaqueteDialog from './components/CategorizarPaqueteDialog';
 import ConfirmarEliminarDocDialog from './components/ConfirmarEliminarDocDialog';
 import DocumentoViewerDialog from './components/DocumentoViewerDialog';
 import ExpedienteCrearDialog from './components/ExpedienteCrearDialog';
@@ -81,6 +81,14 @@ const ExpedientesPage: React.FC = () => {
   const [creando, setCreando] = useState(false);
   const [siguienteCorrelativo, setSiguienteCorrelativo] = useState<string | null>(null);
   const [cargandoCorrelativo, setCargandoCorrelativo] = useState(false);
+  const [paqueteFile, setPaqueteFile] = useState<File | null>(null);
+
+  const [categorizarOpen, setCategorizarOpen] = useState(false);
+  const [categorizarGuardando, setCategorizarGuardando] = useState(false);
+  const [categorizarDocId, setCategorizarDocId] = useState<number | null>(null);
+  const [categorizarFileUrl, setCategorizarFileUrl] = useState<string | null>(null);
+  const [categorizarExpedienteId, setCategorizarExpedienteId] = useState<number | null>(null);
+  const [categorizarNumero, setCategorizarNumero] = useState('');
 
   const [editOpen, setEditOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -96,14 +104,6 @@ const ExpedientesPage: React.FC = () => {
   const [documentos, setDocumentos] = useState<DocumentoRow[]>([]);
   const [ultimoRechazo, setUltimoRechazo] = useState<UltimoRechazo | null>(null);
   const [detalleLoading, setDetalleLoading] = useState(false);
-  const [agregarDocOpen, setAgregarDocOpen] = useState(false);
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
-  const [docTipo, setDocTipo] = useState(TIPOS_DOCUMENTO[0]);
-  const [docTipoOtro, setDocTipoOtro] = useState('');
-  const [docComentario, setDocComentario] = useState('');
-  const [subiendoDoc, setSubiendoDoc] = useState(false);
-  const [arrastrandoDoc, setArrastrandoDoc] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [confirmEliminarOpen, setConfirmEliminarOpen] = useState(false);
   const [docAEliminar, setDocAEliminar] = useState<{ id: number; nombre: string } | null>(null);
@@ -132,7 +132,6 @@ const ExpedientesPage: React.FC = () => {
 
   const [verMarcaRequest, setVerMarcaRequest] = useState<VerMarcaRequest | null>(null);
 
-  const docFileInputRef = useRef<HTMLInputElement>(null);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadExpedientes = async () => {
@@ -162,22 +161,6 @@ const ExpedientesPage: React.FC = () => {
   useEffect(() => {
     loadExpedientes();
   }, []);
-
-  useEffect(() => {
-    if (!docFile || !esArchivoPrevisualizable(docFile)) {
-      setDocPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      return;
-    }
-    const url = URL.createObjectURL(docFile);
-    setDocPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-    return () => URL.revokeObjectURL(url);
-  }, [docFile]);
 
   useEffect(() => {
     if (!replaceDocFile || !esArchivoPrevisualizable(replaceDocFile)) {
@@ -248,6 +231,7 @@ const ExpedientesPage: React.FC = () => {
     setNuevoNumeroOc('');
     setNuevoNumeroSiaf('');
     setNuevoTipo('Compras');
+    setPaqueteFile(null);
     setSiguienteCorrelativo(null);
     setCrearOpen(true);
     setCargandoCorrelativo(true);
@@ -261,6 +245,60 @@ const ExpedientesPage: React.FC = () => {
     }
   };
 
+  const cerrarCategorizar = () => {
+    setCategorizarOpen(false);
+    setCategorizarGuardando(false);
+    setCategorizarDocId(null);
+    setCategorizarExpedienteId(null);
+    setCategorizarNumero('');
+    if (categorizarFileUrl) {
+      URL.revokeObjectURL(categorizarFileUrl);
+      setCategorizarFileUrl(null);
+    }
+  };
+
+  const abrirCategorizarPaquete = async (
+    expedienteId: number,
+    doc: DocumentoRow,
+    numeroExpediente?: string,
+  ) => {
+    try {
+      const res = await api.get(`/expedientes/${expedienteId}/documentos/${doc.id}/archivo`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: res.data.type || 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      if (categorizarFileUrl) URL.revokeObjectURL(categorizarFileUrl);
+      setCategorizarFileUrl(url);
+      setCategorizarDocId(doc.id);
+      setCategorizarExpedienteId(expedienteId);
+      setCategorizarNumero(numeroExpediente || expedienteDetalle?.numeroExpediente || '');
+      setCategorizarOpen(true);
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'No se pudo abrir el PDF completo para categorizar.');
+    }
+  };
+
+  const handleGuardarCategorizacion = async (
+    secciones: Array<{ tipoDocumento: string; paginaInicio: number; paginaFin: number }>,
+  ) => {
+    if (!categorizarExpedienteId || !categorizarDocId) return;
+    const expId = categorizarExpedienteId;
+    setCategorizarGuardando(true);
+    try {
+      const { data } = await api.post(
+        `/expedientes/${expId}/documentos/${categorizarDocId}/categorizar`,
+        { secciones },
+      );
+      const n = Array.isArray(data?.documentos) ? data.documentos.length : secciones.length;
+      showSuccess(`Se generaron ${n} documento(s) desde el PDF completo.`);
+      cerrarCategorizar();
+      await openDetalle(expId);
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'Error al categorizar el expediente completo.');
+    } finally {
+      setCategorizarGuardando(false);
+    }
+  };
+
   const handleCrear = async () => {
     const tit = nuevoTitulo.trim();
     const desc = nuevoDescripcion.trim();
@@ -269,6 +307,11 @@ const ExpedientesPage: React.FC = () => {
     if (!tit) { showError('Elija un título (Bien/Producto o Servicio).'); return; }
     if (!desc) { showError('La descripción es obligatoria.'); return; }
     if (!oc) { showError('El número de orden de compra (O.C.) es obligatorio.'); return; }
+    if (!paqueteFile) { showError('Suba el PDF completo del expediente.'); return; }
+    if (!/\.pdf$/i.test(paqueteFile.name) && paqueteFile.type !== 'application/pdf') {
+      showError('El expediente completo debe ser un archivo PDF.');
+      return;
+    }
     setCreando(true);
     try {
       const { data } = await api.post('/expedientes', {
@@ -278,12 +321,33 @@ const ExpedientesPage: React.FC = () => {
         numeroOrdenCompra: oc,
         numeroSiaf: siaf,
       });
-      showSuccess(data?.numeroExpediente ? `Expediente ${data.numeroExpediente} creado correctamente.` : 'Expediente creado correctamente.');
+      const form = new FormData();
+      form.append('archivo', paqueteFile);
+      form.append('tipoDocumento', TIPO_DOCUMENTO_PAQUETE);
+      form.append('descripcion', 'PDF completo del expediente (origen para categorización por páginas).');
+      const up = await api.post(`/expedientes/${data.id}/documentos`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      showSuccess(data?.numeroExpediente ? `Expediente ${data.numeroExpediente} creado. Categorice las páginas.` : 'Expediente creado.');
       setCrearOpen(false);
       setSiguienteCorrelativo(null);
       setNuevoTitulo(TITULOS_OPCIONES[0]); setNuevoDescripcion(''); setNuevoNumeroOc(''); setNuevoNumeroSiaf(''); setNuevoTipo('Compras');
+      const fileForCat = paqueteFile;
+      setPaqueteFile(null);
       await loadExpedientes();
-      if (data?.id) openDetalle(data.id);
+      if (data?.id) {
+        await openDetalle(data.id);
+        const docRow: DocumentoRow = {
+          id: up.data.id,
+          tipoDocumento: up.data.tipoDocumento || TIPO_DOCUMENTO_PAQUETE,
+          nombreArchivo: up.data.nombreArchivo || fileForCat.name,
+          descripcion: up.data.descripcion ?? null,
+          fechaSubida: up.data.fechaSubida || new Date().toISOString(),
+          tamanioBytes: up.data.tamanioBytes || fileForCat.size,
+          mimeType: up.data.mimeType || 'application/pdf',
+        };
+        await abrirCategorizarPaquete(data.id, docRow, data.numeroExpediente);
+      }
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al crear expediente.');
     } finally {
@@ -334,11 +398,6 @@ const ExpedientesPage: React.FC = () => {
     setExpedienteDetalle(null);
     setDocumentos([]);
     setUltimoRechazo(null);
-    setAgregarDocOpen(false);
-    setDocFile(null);
-    setDocTipo(TIPOS_DOCUMENTO[0]);
-    setDocTipoOtro('');
-    setDocComentario('');
   };
 
   const fetchBitacora = async (expedienteId: number): Promise<BitacoraEntry[]> => {
@@ -476,31 +535,6 @@ const ExpedientesPage: React.FC = () => {
     });
   };
 
-  const handleAgregarDocumento = async () => {
-    if (!expedienteDetalle) return;
-    if (!docFile) { showError('Seleccione un archivo.'); return; }
-    setSubiendoDoc(true);
-    try {
-      const form = new FormData();
-      form.append('archivo', docFile);
-      const tipoEnviar = docTipo === 'Otro' ? (docTipoOtro.trim() || 'Otro') : docTipo;
-      form.append('tipoDocumento', tipoEnviar);
-      if (docComentario.trim()) form.append('descripcion', docComentario.trim());
-      await api.post(`/expedientes/${expedienteDetalle.id}/documentos`, form);
-      showSuccess('Documento agregado correctamente.');
-      setAgregarDocOpen(false);
-      setDocFile(null);
-      setDocTipo(TIPOS_DOCUMENTO[0]);
-      setDocTipoOtro('');
-      setDocComentario('');
-      openDetalle(expedienteDetalle.id);
-    } catch (err: any) {
-      showError(err?.response?.data?.message || 'Error al subir el documento.');
-    } finally {
-      setSubiendoDoc(false);
-    }
-  };
-
   const handleVerDocumento = (expedienteId: number, docId: number, nombre: string, mimeType: string) => {
     setViewerDocLoading(true);
     setViewingDoc(null);
@@ -590,14 +624,7 @@ const ExpedientesPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth={drawerOpen ? 'xl' : 'lg'} sx={{ py: 4 }}>
-      <input
-        ref={docFileInputRef}
-        type="file"
-        accept={ARCHIVOS_ACEPTADOS}
-        style={{ display: 'none' }}
-        onChange={(e) => setDocFile(e.target.files?.[0] || null)}
-      />
+    <Container maxWidth={drawerOpen ? false : 'lg'} sx={{ py: 4, px: drawerOpen ? { xs: 2, sm: 3, md: 4 } : undefined }}>
       <input
         ref={replaceFileInputRef}
         type="file"
@@ -873,7 +900,9 @@ const ExpedientesPage: React.FC = () => {
           eliminandoId={eliminandoId}
           onClose={closeDrawer}
           onOpenBitacora={handleOpenBitacora}
-          onAgregarDocumento={() => setAgregarDocOpen(true)}
+          onCategorizarPaquete={(doc) => {
+            if (expedienteDetalle?.id) abrirCategorizarPaquete(expedienteDetalle.id, doc, expedienteDetalle.numeroExpediente);
+          }}
           onEnviarRevision={enviarARevision}
           onVerDocumento={handleVerDocumento}
           onReemplazarDoc={abrirReemplazarDoc}
@@ -883,23 +912,13 @@ const ExpedientesPage: React.FC = () => {
         />
       )}
 
-      <AgregarDocumentoDialog
-        open={agregarDocOpen}
-        subiendoDoc={subiendoDoc}
-        docFile={docFile}
-        docPreviewUrl={docPreviewUrl}
-        docTipo={docTipo}
-        docTipoOtro={docTipoOtro}
-        docComentario={docComentario}
-        arrastrandoDoc={arrastrandoDoc}
-        onClose={() => setAgregarDocOpen(false)}
-        onSubmit={handleAgregarDocumento}
-        onDocTipoChange={setDocTipo}
-        onDocTipoOtroChange={setDocTipoOtro}
-        onDocComentarioChange={setDocComentario}
-        onDocFileChange={setDocFile}
-        onArrastrandoChange={setArrastrandoDoc}
-        onBrowseFile={() => abrirSelectorArchivo(docFileInputRef)}
+      <CategorizarPaqueteDialog
+        open={categorizarOpen}
+        guardando={categorizarGuardando}
+        fileUrl={categorizarFileUrl}
+        numeroExpediente={categorizarNumero}
+        onClose={cerrarCategorizar}
+        onGuardar={handleGuardarCategorizacion}
       />
 
       <ConfirmarEliminarDocDialog
@@ -970,12 +989,14 @@ const ExpedientesPage: React.FC = () => {
         nuevoNumeroOc={nuevoNumeroOc}
         nuevoNumeroSiaf={nuevoNumeroSiaf}
         nuevoDescripcion={nuevoDescripcion}
-        onClose={() => setCrearOpen(false)}
+        paqueteFile={paqueteFile}
+        onClose={() => { if (!creando) { setCrearOpen(false); setPaqueteFile(null); } }}
         onCrear={handleCrear}
         onNuevoTituloChange={setNuevoTitulo}
         onNuevoNumeroOcChange={setNuevoNumeroOc}
         onNuevoNumeroSiafChange={setNuevoNumeroSiaf}
         onNuevoDescripcionChange={setNuevoDescripcion}
+        onPaqueteFileChange={setPaqueteFile}
       />
 
       <ExpedienteEditarDialog

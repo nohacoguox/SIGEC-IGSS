@@ -16,8 +16,12 @@ import { uploadMemory } from '../../middleware/upload';
 import { fileStorageService } from '../../services/FileStorageService';
 import { resolveDepartamentoDireccion } from '../../services/departamentoDireccion';
 import { asignarCorrelativoExpediente } from '../../services/ExpedienteCorrelativoService';
+import { extractPdfPageRange, getPdfPageCount } from '../../services/PdfPageSplitService';
 
 const TITULOS_EXPEDIENTE_VALIDOS = ['Bien/Producto', 'Servicio'];
+
+/** Documento PDF único con todo el expediente; luego se categoriza por rangos de páginas. */
+export const TIPO_DOCUMENTO_PAQUETE = 'Expediente completo (paquete)';
 
 // El router se monta en /api/expedientes. El orden de declaración importa:
 // para-revision-departamental y revisados-departamental deben quedar antes de
@@ -588,6 +592,146 @@ expedientesRouter.post('/:id/documentos', verifyToken, uploadMemory.single('arch
   } catch (err: any) {
     console.error('Error al subir documento al expediente:', err?.message || err);
     res.status(500).json({ message: err?.message || 'Error al subir el documento.' });
+  }
+});
+
+/**
+ * Categoriza un PDF paquete: crea un documento por cada rango de páginas (tipo SIAF, Factura, etc.).
+ * Body: { secciones: [{ tipoDocumento, paginaInicio, paginaFin, descripcion? }] }
+ */
+expedientesRouter.post('/:id/documentos/:docId/categorizar', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Usuario no identificado.' });
+    const expedienteId = parseInt(req.params.id);
+    const docId = parseInt(req.params.docId);
+    if (isNaN(expedienteId) || isNaN(docId)) return res.status(400).json({ message: 'Parámetros inválidos.' });
+
+    const expRepo = AppDataSource.getRepository(Expediente);
+    const exp = await expRepo.findOne({ where: { id: expedienteId } });
+    if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
+    if (exp.usuarioId !== userId) return res.status(403).json({ message: 'No puede categorizar documentos de este expediente.' });
+    if (exp.estado === 'en_proceso') {
+      return res.status(400).json({ message: 'No puede categorizar mientras el expediente está en revisión.' });
+    }
+
+    const docRepo = AppDataSource.getRepository(ExpedienteDocumento);
+    const origen = await docRepo.findOne({ where: { id: docId, expedienteId } });
+    if (!origen) return res.status(404).json({ message: 'Documento paquete no encontrado.' });
+    if (origen.tipoDocumento !== TIPO_DOCUMENTO_PAQUETE) {
+      return res.status(400).json({
+        message: `Solo se puede categorizar un documento de tipo «${TIPO_DOCUMENTO_PAQUETE}».`,
+      });
+    }
+    const mime = (origen.mimeType || '').toLowerCase();
+    if (!mime.includes('pdf') && !String(origen.nombreArchivo || '').toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({ message: 'El paquete debe ser un archivo PDF.' });
+    }
+
+    const seccionesRaw = Array.isArray((req as any).body?.secciones) ? (req as any).body.secciones : [];
+    if (!seccionesRaw.length) {
+      return res.status(400).json({ message: 'Indique al menos una sección (tipo + páginas).' });
+    }
+
+    type Seccion = { tipoDocumento: string; paginaInicio: number; paginaFin: number; descripcion: string | null };
+    const secciones: Seccion[] = [];
+    for (const s of seccionesRaw) {
+      const tipoDocumento = typeof s?.tipoDocumento === 'string' ? s.tipoDocumento.trim() : '';
+      const paginaInicio = Number(s?.paginaInicio);
+      const paginaFin = Number(s?.paginaFin);
+      const descripcion = typeof s?.descripcion === 'string' ? s.descripcion.trim() || null : null;
+      if (!tipoDocumento) return res.status(400).json({ message: 'Cada sección debe tener tipoDocumento.' });
+      if (tipoDocumento === TIPO_DOCUMENTO_PAQUETE) {
+        return res.status(400).json({ message: 'No use el tipo paquete en las secciones categorizadas.' });
+      }
+      if (!Number.isFinite(paginaInicio) || !Number.isFinite(paginaFin) || paginaInicio < 1 || paginaFin < 1) {
+        return res.status(400).json({ message: 'paginaInicio y paginaFin deben ser enteros >= 1.' });
+      }
+      if (paginaFin < paginaInicio) {
+        return res.status(400).json({ message: `En «${tipoDocumento}», la página final no puede ser menor que la inicial.` });
+      }
+      secciones.push({ tipoDocumento, paginaInicio: Math.floor(paginaInicio), paginaFin: Math.floor(paginaFin), descripcion });
+    }
+
+    const sourceBuffer = await fileStorageService.readExpedienteDocument(origen.rutaArchivo);
+    const totalPages = await getPdfPageCount(sourceBuffer);
+    for (const s of secciones) {
+      if (s.paginaInicio > totalPages || s.paginaFin > totalPages) {
+        return res.status(400).json({
+          message: `El PDF tiene ${totalPages} página(s). Revise el rango de «${s.tipoDocumento}».`,
+        });
+      }
+    }
+
+    const userRepo = AppDataSource.getRepository(User);
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
+    const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
+
+    const creados: ExpedienteDocumento[] = [];
+    for (const s of secciones) {
+      const slice = await extractPdfPageRange(sourceBuffer, s.paginaInicio, s.paginaFin);
+      const safeTipo = s.tipoDocumento.replace(/[^\w\-áéíóúÁÉÍÓÚñÑ ]+/gi, '').slice(0, 60) || 'documento';
+      const nombreOriginal = `${safeTipo}-p${s.paginaInicio}-${s.paginaFin}.pdf`;
+      const pdfInfo = await fileStorageService.saveExpedienteDocument(slice, exp.numeroExpediente, nombreOriginal);
+      const descRango = `Páginas ${s.paginaInicio}–${s.paginaFin} del paquete original.`;
+      const doc = docRepo.create({
+        expedienteId: exp.id,
+        expediente: exp,
+        tipoDocumento: s.tipoDocumento,
+        nombreArchivo: nombreOriginal,
+        rutaArchivo: pdfInfo.filePath,
+        mimeType: 'application/pdf',
+        tamanioBytes: pdfInfo.size,
+        hashArchivo: pdfInfo.hash,
+        subidoPorId: userId,
+        subidoPor: user,
+        descripcion: s.descripcion ? `${s.descripcion} (${descRango})` : descRango,
+      });
+      await docRepo.save(doc);
+      const v1 = versionRepo.create({
+        expedienteDocumentoId: doc.id,
+        expedienteDocumento: doc,
+        numeroVersion: 1,
+        esActual: true,
+        nombreArchivo: nombreOriginal,
+        rutaArchivo: pdfInfo.filePath,
+        hashArchivo: pdfInfo.hash,
+        tamanioBytes: pdfInfo.size,
+        mimeType: 'application/pdf',
+        subidoPorId: userId,
+        subidoPor: user,
+      });
+      await versionRepo.save(v1);
+      creados.push(doc);
+    }
+
+    await AppDataSource.getRepository(ExpedienteBitacora).save(
+      AppDataSource.getRepository(ExpedienteBitacora).create({
+        expedienteId,
+        // varchar(20) en expediente_bitacora.tipo
+        tipo: 'categorizacion',
+        usuarioId: userId,
+        comentario: `Paquete PDF categorizado en ${creados.length} documento(s): ${secciones
+          .map((s) => `${s.tipoDocumento} (p.${s.paginaInicio}–${s.paginaFin})`)
+          .join('; ')}.`.slice(0, 2000),
+      } as any)
+    );
+
+    res.status(201).json({
+      documentos: creados,
+      paqueteId: origen.id,
+      totalPaginasOrigen: totalPages,
+    });
+  } catch (err: any) {
+    console.error('Error al categorizar paquete PDF:', err?.message || err);
+    const detail = err?.message || String(err);
+    const isValueTooLong = /value too long|character varying\(20\)/i.test(detail);
+    res.status(500).json({
+      message: isValueTooLong
+        ? 'Error de bitácora al guardar la categorización. Reinicie el backend (corrección aplicada) e intente de nuevo.'
+        : (detail || 'Error al categorizar el expediente completo.'),
+    });
   }
 });
 
