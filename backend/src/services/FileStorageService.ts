@@ -42,6 +42,19 @@ export class FileStorageService {
   }
 
   /**
+   * Normaliza rutas relativas guardadas en Windows (\) para que funcionen en Linux.
+   */
+  private normalizeRelativePath(filePath: string): string {
+    return String(filePath || '')
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '');
+  }
+
+  private resolveUploadPath(filePath: string): string {
+    return path.join(this.uploadDir, this.normalizeRelativePath(filePath));
+  }
+
+  /**
    * Guarda un archivo PDF de SIAF
    * @param pdfBuffer Buffer del PDF generado
    * @param correlativo Correlativo de la solicitud SIAF
@@ -85,7 +98,7 @@ export class FileStorageService {
    * @returns Buffer del archivo
    */
   async readSiafPdf(filePath: string): Promise<Buffer> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     
     if (!fs.existsSync(fullPath)) {
       throw new Error('Archivo no encontrado');
@@ -115,7 +128,7 @@ export class FileStorageService {
    * @param filePath Ruta relativa del archivo
    */
   async deleteSiafPdf(filePath: string): Promise<void> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
@@ -173,8 +186,8 @@ export class FileStorageService {
    * @returns Buffer del archivo
    */
   async readExpedienteDocument(filePath: string): Promise<Buffer> {
-    const fullPath = path.join(this.uploadDir, filePath);
-    
+    const fullPath = this.resolveUploadPath(filePath);
+
     if (!fs.existsSync(fullPath)) {
       throw new Error('Archivo no encontrado');
     }
@@ -192,7 +205,7 @@ export class FileStorageService {
     createdAt: Date;
     modifiedAt: Date;
   }> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     
     if (!fs.existsSync(fullPath)) {
       throw new Error('Archivo no encontrado');
@@ -263,7 +276,7 @@ export class FileStorageService {
    * Lee un archivo por ruta relativa (adjuntos SIAF, etc.)
    */
   async readFileByRelativePath(filePath: string): Promise<Buffer> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     if (!fs.existsSync(fullPath)) {
       throw new Error('Archivo no encontrado');
     }
@@ -274,7 +287,7 @@ export class FileStorageService {
    * Elimina un archivo adjunto de SIAF por ruta relativa
    */
   async deleteSiafAdjunto(filePath: string): Promise<void> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
@@ -284,7 +297,7 @@ export class FileStorageService {
    * Elimina un documento de expediente por ruta relativa
    */
   async deleteExpedienteDocument(filePath: string): Promise<void> {
-    const fullPath = path.join(this.uploadDir, filePath);
+    const fullPath = this.resolveUploadPath(filePath);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }

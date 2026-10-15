@@ -1,9 +1,11 @@
 import {
-  Alert, Box, Button, SelectChangeEvent, Snackbar, Tab, Tabs, Typography, Paper,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
+  SelectChangeEvent, Snackbar, Tab, Tabs, Typography, Paper,
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useState, useEffect } from 'react';
 import api from '../api';
@@ -71,6 +73,13 @@ const UserManagementContainer: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    codigoEmpleado: string;
+    temporaryPassword: string;
+    correoInstitucional: string;
+    emailSent: boolean;
+    emailError: string | null;
+  } | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -168,7 +177,21 @@ const UserManagementContainer: React.FC = () => {
         if (newUser?.id && (roleIds?.length ?? 0) > 0) {
           await api.put(`${API_URL}/${newUser.id}/roles`, { roleIds });
         }
-        setSnackbarMessage('Usuario creado. Ya puede iniciar sesión con su código de empleado.');
+        const tempPassword = String(newUser?.temporaryPassword || '');
+        const emailSent = Boolean(newUser?.emailSent);
+        const emailError = newUser?.emailError ? String(newUser.emailError) : null;
+        setCreatedCredentials({
+          codigoEmpleado: String(newUser?.codigoEmpleado || userPayload.codigoEmpleado || ''),
+          temporaryPassword: tempPassword,
+          correoInstitucional: String(newUser?.correoInstitucional || userPayload.correoInstitucional || ''),
+          emailSent,
+          emailError,
+        });
+        setSnackbarMessage(
+          emailSent
+            ? 'Usuario creado. Contraseña temporal mostrada y enviada al correo institucional.'
+            : 'Usuario creado. Revise la contraseña temporal en pantalla (el correo no se envió).'
+        );
         setSnackbarSeverity('success');
       }
       fetchUsers();
@@ -320,7 +343,7 @@ const UserManagementContainer: React.FC = () => {
               ? `${users.length} usuario(s) registrados. Use la búsqueda o las acciones de cada fila.`
               : editingId != null
                 ? 'Modifique los datos y guarde. Los roles definen qué pantallas verá al iniciar sesión.'
-                : 'Complete los datos obligatorios. Tras crear, el colaborador inicia con su código de empleado.'}
+                : 'Complete los datos obligatorios. Al crear, se mostrará la contraseña temporal y se enviará al correo institucional.'}
           </Typography>
         </Box>
 
@@ -372,6 +395,95 @@ const UserManagementContainer: React.FC = () => {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={Boolean(createdCredentials)}
+        onClose={() => setCreatedCredentials(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Usuario creado — credenciales temporales</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Anote o copie estos datos. El colaborador deberá cambiar la contraseña en el primer ingreso.
+          </Typography>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Código de empleado</Typography>
+          <Typography
+            component="code"
+            sx={{
+              display: 'block',
+              mb: 2,
+              px: 1.5,
+              py: 1,
+              bgcolor: 'action.hover',
+              borderRadius: 1,
+              fontFamily: 'Consolas, monospace',
+              fontSize: '1.05rem',
+            }}
+          >
+            {createdCredentials?.codigoEmpleado || '—'}
+          </Typography>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Contraseña temporal</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Typography
+              component="code"
+              sx={{
+                flex: 1,
+                px: 1.5,
+                py: 1,
+                bgcolor: 'action.hover',
+                borderRadius: 1,
+                fontFamily: 'Consolas, monospace',
+                fontSize: '1.15rem',
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                wordBreak: 'break-all',
+              }}
+            >
+              {createdCredentials?.temporaryPassword || '—'}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ContentCopyIcon />}
+              disabled={!createdCredentials?.temporaryPassword}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(createdCredentials?.temporaryPassword || '');
+                  setSnackbarMessage('Contraseña copiada al portapapeles.');
+                  setSnackbarSeverity('success');
+                  setSnackbarOpen(true);
+                } catch {
+                  setSnackbarMessage('No se pudo copiar. Seleccione el texto manualmente.');
+                  setSnackbarSeverity('error');
+                  setSnackbarOpen(true);
+                }
+              }}
+            >
+              Copiar
+            </Button>
+          </Box>
+          {createdCredentials?.emailSent ? (
+            <Alert severity="success">
+              Correo enviado a <strong>{createdCredentials.correoInstitucional}</strong> con la contraseña temporal.
+            </Alert>
+          ) : (
+            <Alert severity="warning">
+              No se envió el correo
+              {createdCredentials?.correoInstitucional
+                ? ` a ${createdCredentials.correoInstitucional}`
+                : ''}
+              {createdCredentials?.emailError ? `: ${createdCredentials.emailError}` : '.'}
+              {' '}Entregue la contraseña de forma segura al colaborador.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setCreatedCredentials(null)}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

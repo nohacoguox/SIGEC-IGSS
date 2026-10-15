@@ -7,6 +7,8 @@ import { Credential } from '../../entity/Credential';
 import { Puesto } from '../../entity/Puesto';
 import { Role } from '../../entity/Role';
 import { verifyToken, authorizeRoles } from '../../middleware/auth';
+import { createTemporaryPassword } from '../auth/passwordPolicy';
+import { sendTemporaryPasswordEmail } from '../../services/PasswordRecoveryMailService';
 
 // El router se monta en /api/users. Solo super administrador o gestionar-usuarios,
 // salvo las consultas de director y personal médico que usa el formulario SIAF.
@@ -126,7 +128,8 @@ usuariosRouter.post('/', verifyToken, authorizeRoles(['super administrador', 'ge
     if (!puestoId) return res.status(400).json({ message: 'Puesto es requerido' });
     const puesto = await puestoRepository.findOneBy({ id: puestoId });
     if (!puesto) return res.status(400).json({ message: 'Puesto no encontrado' });
-    const hashed = await bcrypt.hash('TempPass123!', 10);
+    const temporaryPassword = createTemporaryPassword();
+    const hashed = await bcrypt.hash(temporaryPassword, 10);
     const user = userRepository.create({
       nombres,
       apellidos,
@@ -149,7 +152,34 @@ usuariosRouter.post('/', verifyToken, authorizeRoles(['super administrador', 'ge
       isTempPassword: true,
     });
     await credentialRepository.save(cred);
-    res.status(201).json(savedUser);
+
+    let emailSent = false;
+    let emailError: string | null = null;
+    const correo = String(correoInstitucional || '').trim();
+    if (correo) {
+      try {
+        await sendTemporaryPasswordEmail({
+          recipient: correo,
+          recipientName: [nombres, apellidos].filter(Boolean).join(' ') || 'colaborador',
+          temporaryPassword,
+          kind: 'welcome',
+          codigoEmpleado: String(codigoEmpleado || ''),
+        });
+        emailSent = true;
+      } catch (mailErr: any) {
+        emailError = mailErr?.message || 'No se pudo enviar el correo.';
+        console.error('Error al enviar correo de alta de usuario:', emailError);
+      }
+    } else {
+      emailError = 'El usuario no tiene correo institucional registrado.';
+    }
+
+    res.status(201).json({
+      ...savedUser,
+      temporaryPassword,
+      emailSent,
+      emailError,
+    });
   } catch (error: any) {
     console.error('Error al crear usuario:', error);
     res.status(500).json({ message: error?.message || 'Error al crear usuario' });

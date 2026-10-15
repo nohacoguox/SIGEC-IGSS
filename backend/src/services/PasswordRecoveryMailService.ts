@@ -2,10 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import nodemailer from 'nodemailer';
 
-interface PasswordRecoveryEmailInput {
+type TemporaryPasswordEmailKind = 'recovery' | 'welcome';
+
+interface TemporaryPasswordEmailInput {
   recipient: string;
   recipientName: string;
   temporaryPassword: string;
+  kind?: TemporaryPasswordEmailKind;
+  codigoEmpleado?: string;
 }
 
 const IGSS_LOGO_CID = 'igss-logo';
@@ -36,16 +40,37 @@ function getIgssLogoPath(): string | null {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
-export async function sendPasswordRecoveryEmail({
+export async function sendPasswordRecoveryEmail(input: TemporaryPasswordEmailInput): Promise<void> {
+  return sendTemporaryPasswordEmail({ ...input, kind: input.kind || 'recovery' });
+}
+
+export async function sendTemporaryPasswordEmail({
   recipient,
   recipientName,
   temporaryPassword,
-}: PasswordRecoveryEmailInput): Promise<void> {
+  kind = 'recovery',
+  codigoEmpleado,
+}: TemporaryPasswordEmailInput): Promise<void> {
   const transporter = getMailTransporter();
   const sender = process.env.MAIL_FROM || process.env.MAIL_USER;
   const logoPath = getIgssLogoPath();
   const safeName = escapeHtml(recipientName);
   const safePassword = escapeHtml(temporaryPassword);
+  const safeCodigo = escapeHtml(codigoEmpleado || '');
+
+  const isWelcome = kind === 'welcome';
+  const subject = isWelcome
+    ? 'SIGEC-IGSS — Acceso creado (contraseña temporal)'
+    : 'SIGEC-IGSS — Contraseña temporal de recuperación';
+  const introText = isWelcome
+    ? 'Se creó su cuenta de acceso en SIGEC-IGSS.'
+    : 'Se solicitó el restablecimiento de su contraseña en SIGEC-IGSS.';
+  const codigoLine = isWelcome && codigoEmpleado
+    ? `Su código de empleado (usuario) es: ${codigoEmpleado}`
+    : '';
+  const codigoHtml = isWelcome && safeCodigo
+    ? `<p style="margin:0 0 16px 0;">Su código de empleado (usuario) es: <strong>${safeCodigo}</strong></p>`
+    : '';
 
   const logoHtml = logoPath
     ? `<img src="cid:${IGSS_LOGO_CID}" alt="Instituto Guatemalteco de Seguridad Social" width="88" style="display:block;border:0;outline:none;text-decoration:none;width:88px;height:auto;" />`
@@ -54,15 +79,16 @@ export async function sendPasswordRecoveryEmail({
   await transporter.sendMail({
     from: sender,
     to: recipient,
-    subject: 'SIGEC-IGSS — Contraseña temporal de recuperación',
+    subject,
     text: [
       `Estimado(a) ${recipientName}:`,
       '',
-      'Se solicitó el restablecimiento de su contraseña en SIGEC-IGSS.',
+      introText,
+      ...(codigoLine ? [codigoLine] : []),
       `Su contraseña temporal es: ${temporaryPassword}`,
       '',
       'Utilícela únicamente para iniciar sesión. El sistema le solicitará crear una nueva contraseña antes de permitirle acceder a los módulos institucionales.',
-      'Si usted no realizó esta solicitud, comuníquese con el administrador del sistema.',
+      'Si usted no solicitó este acceso, comuníquese con el administrador del sistema.',
       '',
       'Instituto Guatemalteco de Seguridad Social',
       'SIGEC-IGSS',
@@ -90,7 +116,8 @@ export async function sendPasswordRecoveryEmail({
                 <tr>
                   <td style="padding:28px 28px 8px 28px;font-family:Arial,sans-serif;color:#2C3E50;font-size:15px;line-height:1.55;">
                     <p style="margin:0 0 16px 0;">Estimado(a) <strong>${safeName}</strong>:</p>
-                    <p style="margin:0 0 16px 0;">Se solicitó el restablecimiento de su contraseña en SIGEC-IGSS.</p>
+                    <p style="margin:0 0 16px 0;">${escapeHtml(introText)}</p>
+                    ${codigoHtml}
                     <p style="margin:0 0 10px 0;">Su contraseña temporal es:</p>
                   </td>
                 </tr>
@@ -108,7 +135,7 @@ export async function sendPasswordRecoveryEmail({
                 <tr>
                   <td style="padding:0 28px 28px 28px;font-family:Arial,sans-serif;color:#2C3E50;font-size:15px;line-height:1.55;">
                     <p style="margin:0 0 16px 0;">Utilícela únicamente para iniciar sesión. El sistema le solicitará crear una nueva contraseña antes de permitirle acceder a los módulos institucionales.</p>
-                    <p style="margin:0;">Si usted no realizó esta solicitud, comuníquese con el administrador del sistema.</p>
+                    <p style="margin:0;">Si usted no solicitó este acceso, comuníquese con el administrador del sistema.</p>
                   </td>
                 </tr>
                 <tr>
