@@ -2,7 +2,7 @@
  * Cierre mensual y métricas por SIAF (espejo de expedienteAnalytics).
  */
 import { SiafAutorizacion, SiafBitacora } from '../entity/SiafSolicitud';
-import { CierreMesRow, claveMes } from './expedienteAnalytics';
+import { CierreMesRow, EsperaRevisionDaf, claveMes } from './expedienteAnalytics';
 
 export type SiafEvento = {
   tipo: 'envio_revision' | 'rechazo' | 'aprobacion' | 'correccion';
@@ -202,6 +202,46 @@ export function unificarEventosSiaf(
   return porSiaf;
 }
 
+/** Tiempo en cola de revisión DAF (espejo de expedientes). */
+export function medirEsperaRevisionDafSiaf(
+  historial: SiafEvento[],
+  ahora: Date = new Date(),
+): EsperaRevisionDaf {
+  const hastaAhora = eventosHasta(historial, ahora);
+  const envios = hastaAhora.filter((e) => e.tipo === 'envio_revision');
+  const ultimoEnvio = [...envios].reverse()[0];
+  if (!ultimoEnvio) {
+    return { horas: null, abierta: false, desde: null, hasta: null };
+  }
+
+  const decisionPosterior = hastaAhora.find(
+    (e) =>
+      (e.tipo === 'rechazo' || e.tipo === 'aprobacion') &&
+      new Date(e.fecha).getTime() > new Date(ultimoEnvio.fecha).getTime(),
+  );
+
+  if (decisionPosterior) {
+    return {
+      horas: horasEntre(ultimoEnvio.fecha, decisionPosterior.fecha),
+      abierta: false,
+      desde: new Date(ultimoEnvio.fecha).toISOString(),
+      hasta: new Date(decisionPosterior.fecha).toISOString(),
+    };
+  }
+
+  const clase = clasificarSiafAlCorte(historial, ahora);
+  if (clase.resultado === 'pendiente_revision_daf') {
+    return {
+      horas: horasEntre(ultimoEnvio.fecha, ahora),
+      abierta: true,
+      desde: new Date(ultimoEnvio.fecha).toISOString(),
+      hasta: null,
+    };
+  }
+
+  return { horas: null, abierta: false, desde: null, hasta: null };
+}
+
 export function construirTrazabilidadSiaf(historial: SiafEvento[]) {
   const envios = historial.filter((e) => e.tipo === 'envio_revision');
   const rechazos = historial.filter((e) => e.tipo === 'rechazo');
@@ -239,11 +279,13 @@ export function construirTrazabilidadSiaf(historial: SiafEvento[]) {
   });
 }
 
-export function promediarTiemposSiaf(porSiaf: Map<number, SiafEvento[]>) {
+export function promediarTiemposSiaf(porSiaf: Map<number, SiafEvento[]>, ahora: Date = new Date()) {
   const respuestas: number[] = [];
   const correcciones: number[] = [];
   const respuestasTrasReenvio: number[] = [];
   const ciclosCompletos: number[] = [];
+  const esperasRevisionDaf: number[] = [];
+  const esperasAbiertas: number[] = [];
 
   porSiaf.forEach((historial) => {
     const envios = historial.filter((e) => e.tipo === 'envio_revision');
@@ -255,6 +297,12 @@ export function promediarTiemposSiaf(porSiaf: Map<number, SiafEvento[]>) {
     if (h1 != null) respuestas.push(h1);
     const hCiclo = horasEntre(primerEnvio?.fecha, aprobacion?.fecha);
     if (hCiclo != null) ciclosCompletos.push(hCiclo);
+
+    const espera = medirEsperaRevisionDafSiaf(historial, ahora);
+    if (espera.horas != null) {
+      esperasRevisionDaf.push(espera.horas);
+      if (espera.abierta) esperasAbiertas.push(espera.horas);
+    }
 
     rechazos.forEach((rechazo, index) => {
       const siguienteLimite = rechazos[index + 1]?.fecha ?? aprobacion?.fecha ?? null;
@@ -278,9 +326,13 @@ export function promediarTiemposSiaf(porSiaf: Map<number, SiafEvento[]>) {
     correccionHoras: promedio(correcciones),
     respuestaTrasReenvioHoras: promedio(respuestasTrasReenvio),
     cicloCompletoHoras: promedio(ciclosCompletos),
+    pendienteRevisionDafHoras: promedio(esperasRevisionDaf),
+    pendienteRevisionDafAbiertaHoras: promedio(esperasAbiertas),
     muestraPrimeraRespuesta: respuestas.length,
     muestraCorreccion: correcciones.length,
     muestraRespuestaTrasReenvio: respuestasTrasReenvio.length,
     muestraCicloCompleto: ciclosCompletos.length,
+    muestraPendienteRevisionDaf: esperasRevisionDaf.length,
+    muestraPendienteRevisionDafAbierta: esperasAbiertas.length,
   };
 }

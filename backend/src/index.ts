@@ -85,12 +85,12 @@ runUserRolesMigration()
   // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
     try {
-      const [totalUsers, totalRoles, totalReports] = await Promise.all([
+      const [totalUsers, totalRoles, totalSiaf] = await Promise.all([
         AppDataSource.getRepository(User).count(),
         AppDataSource.getRepository(Role).count(),
         AppDataSource.getRepository(SiafSolicitud).count(),
       ]);
-      res.json({ totalUsers, totalRoles, totalReports });
+      res.json({ totalUsers, totalRoles, totalSiaf });
     } catch (error) {
       console.error('Error al obtener estadísticas del dashboard:', error);
       res.status(500).json({ message: 'Error al obtener estadísticas del dashboard' });
@@ -131,9 +131,11 @@ runUserRolesMigration()
   });
 
   // Start server
-  app.listen(PORT, () => {
+  // 0.0.0.0: accesible desde otras PCs en la red (no solo localhost)
+  app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    console.log(`📡 API disponible en http://localhost:${PORT}/api`);
+    console.log(`📡 API local:    http://localhost:${PORT}/api`);
+    console.log(`📡 API en red:   http://<IP-de-esta-PC>:${PORT}/api`);
   });
 
 }).catch(error => {

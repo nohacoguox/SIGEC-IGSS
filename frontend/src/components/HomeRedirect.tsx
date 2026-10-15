@@ -16,12 +16,14 @@ const canAccessAdmin = (userRole: string, permissions: string[]) => {
 const canAccessColaborador = (permissions: string[], userRole: string) =>
   hasScreenAccess(permissions, 'listado-siaf') ||
   hasScreenAccess(permissions, 'crear-siaf') ||
-  permissions.includes('autorizar-siaf') ||
+  permissions.includes('listado-siaf-unidad-finalizados') ||
   permissions.includes('revisar-siaf-direccion-departamental') ||
   permissions.includes('crear-expediente') ||
+  permissions.includes('listado-expedientes-unidad') ||
   permissions.includes('revisar-expediente-direccion-departamental') ||
   hasScreenAccess(permissions, 'estadisticas-tiempos') ||
-  hasScreenAccess(permissions, 'estadisticas-motivos') ||
+  permissions.includes('ver-estadisticas-unidad') ||
+  hasScreenAccess(permissions, 'estadisticas-analista-daf') ||
   permissions.includes('actualizar-codigos-productos') ||
   userRole.toLowerCase() === 'revisar-siaf-direccion-departamental';
 

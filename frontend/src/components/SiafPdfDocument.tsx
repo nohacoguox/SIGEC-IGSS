@@ -145,19 +145,98 @@ const styles = StyleSheet.create({
   },
   tableContentBlock: {
     height: CONTENT_BLOCK_HEIGHT,
+    flexDirection: 'column',
+    // La línea inferior la aporta el borderTop del encabezado de subproductos
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+  tableItemRow: {
     flexDirection: 'row',
-    borderBottom: '1px solid #000',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 5,
+  },
+  tableItemCodigo: {
+    width: '15%',
+    paddingHorizontal: 4,
+    fontSize: FONT_TABLE,
+    textAlign: 'center',
+  },
+  tableItemDesc: {
+    width: '65%',
+    paddingHorizontal: 4,
+    fontSize: FONT_TABLE,
+    textAlign: 'left',
+  },
+  tableItemCant: {
+    width: '20%',
+    paddingHorizontal: 4,
+    fontSize: FONT_TABLE,
+    textAlign: 'center',
   },
   subproductHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     height: ROW_HEIGHT,
-    borderBottom: '1px solid #000',
+    borderTopWidth: 1,
+    borderTopColor: '#000',
+    borderTopStyle: 'solid',
+    borderBottomWidth: 1,
+    borderBottomColor: '#000',
+    borderBottomStyle: 'solid',
     backgroundColor: '#f5f5f5',
   },
+  /** Dos columnas 50/50: códigos arriba + Total abajo-derecha | cantidades arriba + total con línea */
   subproductContentBlock: {
     height: SUBPRODUCT_CONTENT_HEIGHT,
     flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  subproductColLeft: {
+    width: '50%',
+    height: '100%',
+    flexDirection: 'column',
+    paddingTop: 4,
+    paddingHorizontal: 4,
+    paddingBottom: 3,
+  },
+  subproductColRight: {
+    width: '50%',
+    height: '100%',
+    flexDirection: 'column',
+    paddingTop: 4,
+    paddingBottom: 0,
+  },
+  subproductCodigo: {
+    fontSize: FONT_TABLE,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  subproductCant: {
+    fontSize: FONT_TABLE,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  subproductTotalLabel: {
+    marginTop: 'auto',
+    fontSize: FONT_TABLE,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    paddingRight: 6,
+  },
+  subproductTotalValueBox: {
+    marginTop: 'auto',
+    borderTopWidth: 1,
+    borderTopColor: '#000',
+    borderTopStyle: 'solid',
+    height: TOTAL_ROW_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subproductTotalValue: {
+    fontSize: FONT_TABLE,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   tableContentCol: {
     padding: 4,
@@ -202,14 +281,16 @@ const styles = StyleSheet.create({
     height: FIRMA_BOX_HEIGHT,
     border: '1px solid #000',
     borderRadius: TABLE_RADIUS,
-    justifyContent: 'center',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingBottom: 5,
+    paddingHorizontal: 4,
   },
   firmaText: {
-    fontSize: FONT_TABLE,
+    fontSize: 7.5,
     textAlign: 'center',
+    lineHeight: 1.15,
   },
   firmaLabel: {
     fontSize: FONT_SIGN_LABEL,
@@ -291,68 +372,90 @@ export const SiafPdfDocument: React.FC<SiafPdfDocumentProps> = ({ data }) => (
           </View>
         </View>
         <View style={styles.tableContentBlock}>
-          <View style={[styles.tableContentCol, { width: '15%' }]}>
-            {(data.items || []).map((item, index) => (
-              <Text key={index} style={[styles.contentBlockText, { textAlign: 'center' }]}>{item.codigo}</Text>
-            ))}
-          </View>
-          <View style={[styles.tableContentCol, { width: '65%' }]}>
-            {(data.items || []).map((item, index) => (
-              <Text key={index} style={[styles.contentBlockText, { textAlign: 'left' }]}>{item.descripcion}</Text>
-            ))}
-            {data.consistentItem && (
-              <Text style={[styles.contentBlockText, styles.consistentItemText, { textAlign: 'left' }]}>Consiste en: {data.consistentItem}</Text>
-            )}
-          </View>
-          <View style={[styles.tableContentColLast, { width: '20%' }]}>
-            {(data.items || []).map((item, index) => (
-              <Text key={index} style={[styles.contentBlockText, { textAlign: 'center' }]}>{item.cantidad}</Text>
-            ))}
-          </View>
-        </View>
-        <View style={styles.subproductHeaderRow}>
-          <View style={[styles.tableContentCol, { width: '50%', justifyContent: 'center' }]}>
-            <Text style={styles.tableHeaderCell}>Código de Subproducto</Text>
-          </View>
-          <View style={[styles.tableContentColLast, { width: '50%', justifyContent: 'center' }]}>
-            <Text style={styles.tableHeaderCell}>Cantidad por Subproducto</Text>
-          </View>
-        </View>
-        <View style={styles.subproductContentBlock}>
-          <View style={[styles.tableContentCol, { width: '50%', justifyContent: 'space-between' }]}>
-            <View>
-              {(data.subproductos || []).map((sub, index) => (
-                <Text key={index} style={[styles.contentBlockText, { textAlign: 'center' }]}>{sub.codigo}</Text>
-              ))}
+          {/* Columnas visuales (solo bordes verticales del bloque) */}
+          <View style={{ position: 'absolute', top: 0, bottom: 0, left: '15%', width: 1, backgroundColor: '#000' }} />
+          <View style={{ position: 'absolute', top: 0, bottom: 0, left: '80%', width: 1, backgroundColor: '#000' }} />
+          {(data.items || []).map((item, index) => (
+            <View key={index} style={styles.tableItemRow} wrap={false}>
+              <Text style={styles.tableItemCodigo}>{item.codigo}</Text>
+              <Text style={styles.tableItemDesc}>{item.descripcion}</Text>
+              <Text style={styles.tableItemCant}>{item.cantidad}</Text>
             </View>
-            <Text style={[styles.tableDataCell, { textAlign: 'center' }]}>Total</Text>
-          </View>
-          <View style={[styles.tableContentColLast, { width: '50%', flex: 1, justifyContent: 'space-between', overflow: 'hidden' }]}>
-            <View>
-              {(data.subproductos || []).map((sub, index) => (
-                <Text key={index} style={[styles.contentBlockText, { textAlign: 'center' }]}>{sub.cantidad}</Text>
-              ))}
-            </View>
-            <View style={{ borderTop: '1px solid #000', height: TOTAL_ROW_HEIGHT, justifyContent: 'center' }}>
-              <Text style={[styles.tableDataCell, { textAlign: 'center' }]}>
-                {(data.subproductos || []).reduce((s, sp) => s + Number(sp.cantidad || 0), 0)}
+          ))}
+          {data.consistentItem ? (
+            <View style={styles.tableItemRow} wrap={false}>
+              <Text style={styles.tableItemCodigo}> </Text>
+              <Text style={[styles.tableItemDesc, styles.consistentItemText]}>
+                Consiste en: {data.consistentItem}
               </Text>
+              <Text style={styles.tableItemCant}> </Text>
+            </View>
+          ) : null}
+        </View>
+        {/* Subproductos: vertical al 50% desde el TOPE del encabezado hasta el fondo */}
+        <View style={{ position: 'relative' }}>
+          <View style={styles.subproductHeaderRow}>
+            <View style={{ width: '50%', padding: 4, justifyContent: 'center' }}>
+              <Text style={styles.tableHeaderCell}>Código de Subproducto</Text>
+            </View>
+            <View style={{ width: '50%', padding: 4, justifyContent: 'center' }}>
+              <Text style={styles.tableHeaderCell}>Cantidad por Subproducto</Text>
             </View>
           </View>
+          <View style={styles.subproductContentBlock}>
+            <View style={styles.subproductColLeft}>
+              {(data.subproductos || []).map((sub, index) => (
+                <Text key={`c-${index}`} style={styles.subproductCodigo}>
+                  {sub.codigo}
+                </Text>
+              ))}
+              <Text style={styles.subproductTotalLabel}>Total</Text>
+            </View>
+            <View style={styles.subproductColRight}>
+              {(data.subproductos || []).map((sub, index) => (
+                <Text key={`q-${index}`} style={styles.subproductCant}>
+                  {sub.cantidad}
+                </Text>
+              ))}
+              <View style={styles.subproductTotalValueBox}>
+                <Text style={styles.subproductTotalValue}>
+                  {typeof data.totalSubproductoCantidad === 'number'
+                    ? data.totalSubproductoCantidad
+                    : (data.subproductos || []).reduce((s, sp) => s + Number(sp.cantidad || 0), 0)}
+                </Text>
+              </View>
+            </View>
+          </View>
+          {/* Línea encima de todo: del tope del encabezado al fondo (no la tapa el gris) */}
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: '50%',
+              marginLeft: -0.5,
+              width: 1,
+              backgroundColor: '#000',
+            }}
+          />
         </View>
       </View>
 
-      {/* 5. FIRMAS: primero (como en la imagen) */}
+      {/* 5. FIRMAS: letra pequeña y texto abajo (espacio arriba para firmar) */}
       <View style={[styles.firmasSection, { marginTop: GAP_BETWEEN_SECTIONS }]}>
         <View style={styles.firmaBox}>
-          <Text style={styles.firmaText}>{data.nombreSolicitante}</Text>
-          <Text style={styles.firmaText}>{data.puestoSolicitante}</Text>
-          <Text style={styles.firmaText}>{data.unidadSolicitante}</Text>
+          <View style={{ marginTop: 'auto', width: '100%', alignItems: 'center' }}>
+            <Text style={styles.firmaText}>{data.nombreSolicitante}</Text>
+            <Text style={styles.firmaText}>{data.puestoSolicitante}</Text>
+            <Text style={styles.firmaText}>{data.unidadSolicitante}</Text>
+          </View>
         </View>
         <View style={styles.firmaBox}>
-          <Text style={styles.firmaText}>{data.nombreAutoridad}</Text>
-          <Text style={styles.firmaText}>{data.puestoAutoridad}</Text>
-          <Text style={styles.firmaText}>{data.unidadAutoridad}</Text>
+          <View style={{ marginTop: 'auto', width: '100%', alignItems: 'center' }}>
+            <Text style={styles.firmaText}>{data.nombreAutoridad}</Text>
+            <Text style={styles.firmaText}>{data.puestoAutoridad}</Text>
+            <Text style={styles.firmaText}>{data.unidadAutoridad}</Text>
+          </View>
         </View>
       </View>
 

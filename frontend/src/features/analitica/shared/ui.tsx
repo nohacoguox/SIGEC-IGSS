@@ -130,10 +130,13 @@ export function SectionBlock({
   );
 }
 
-/** Guía corta bajo las pestañas principales. */
-export const TAB_GUIDES = [
-  'Volumen y cierre del período: cuántos casos hay y cómo terminaron cada mes.',
-  'Tiempos promedio, devoluciones y detalle de un caso concreto.',
-  'Por qué se rechazan: motivos más frecuentes en el período.',
-  'Quién tramitó más casos, aprobaciones y devoluciones en su unidad.',
+/** Guía corta bajo las pestañas (preguntas de negocio). */
+export const ANALYTICS_TAB_GUIDES = [
+  '¿Cómo vamos? Totales del período y evolución mes a mes (aprobados, rechazos y pendientes).',
+  '¿Quién destaca? Ranking de casos, aprobaciones y rechazos por colaborador.',
+  '¿Por qué rechazan? Motivos más frecuentes (gráfica y detalle).',
+  '¿Qué pasó en un caso? Tiempos, ciclos y trazabilidad de un SIAF o expediente concreto.',
 ] as const;
+
+/** @deprecated use ANALYTICS_TAB_GUIDES */
+export const TAB_GUIDES = ANALYTICS_TAB_GUIDES;

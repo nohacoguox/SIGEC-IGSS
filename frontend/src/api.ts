@@ -1,9 +1,24 @@
 import axios from 'axios';
 
-// Crea una instancia de Axios (base URL desde env o por defecto localhost:3001)
-const baseURL = process.env.REACT_APP_API_URL
-  ? `${process.env.REACT_APP_API_URL.replace(/\/$/, '')}/api`
-  : 'http://localhost:3001/api';
+/**
+ * URL del API:
+ * 1) REACT_APP_API_URL si está definida (sin /api; aquí se añade)
+ * 2) Si no, mismo host desde el que abrieron el frontend + puerto 3001
+ *    (así funciona en localhost y desde otra PC con la IP de la red)
+ */
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.REACT_APP_API_URL?.trim().replace(/\/$/, '');
+  if (fromEnv) return `${fromEnv}/api`;
+
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${window.location.hostname}:3001/api`;
+  }
+
+  return 'http://localhost:3001/api';
+}
+
+const baseURL = resolveApiBaseUrl();
 
 const api = axios.create({
   baseURL,

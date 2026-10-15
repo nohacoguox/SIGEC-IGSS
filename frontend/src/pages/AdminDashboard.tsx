@@ -22,7 +22,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import { Settings, Group, Security, Assessment, ExitToApp, Brightness4, Brightness7, Tonality } from '@mui/icons-material';
+import { Settings, Group, Security, ExitToApp, Brightness4, Brightness7, Tonality } from '@mui/icons-material';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import { motion, AnimatePresence } from 'framer-motion';
 import UserManagementContainer from '../components/UserManagementContainer';
@@ -52,27 +52,33 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   'puesto-management': { title: 'Gestión de Puestos', subtitle: 'Administra los puestos de trabajo' },
   'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: 'Administra las unidades médicas' },
   'correlativo-management': { title: 'Gestión de Correlativos', subtitle: 'Numeración automática de SIAF y expedientes' },
-  reports: { title: 'Reportes', subtitle: 'Genera y visualiza reportes' },
   settings: { title: 'Configuración', subtitle: 'Configura las opciones del sistema' },
 };
 
 interface DashboardStats {
   totalUsers: number;
   totalRoles: number;
-  totalReports: number;
+  totalSiaf: number;
 }
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { mode, toggleTheme, nextModeLabel } = useThemeMode();
   const { hasPermission } = usePermissions();
-  const canAccessColaborador = hasPermission('crear-siaf') || hasPermission('listado-siaf') || hasPermission('autorizar-siaf');
+  const canAccessColaborador =
+    hasPermission('crear-siaf') ||
+    hasPermission('listado-siaf') ||
+    hasPermission('listado-siaf-unidad-finalizados') ||
+    hasPermission('revisar-siaf-direccion-departamental') ||
+    hasPermission('crear-expediente') ||
+    hasPermission('listado-expedientes-unidad') ||
+    hasPermission('estadisticas-analista-daf');
   const [selectedMenuItem, setSelectedMenuItem] = useState('dashboard');
   const [gestionesOpen, setGestionesOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalRoles: 0,
-    totalReports: 0
+    totalSiaf: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +102,6 @@ const AdminDashboard: React.FC = () => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <BarChartIcon />, id: 'dashboard' },
-    { text: 'Reportes', icon: <Assessment />, id: 'reports' },
     { text: 'Configuración', icon: <Settings />, id: 'settings' },
   ];
 
@@ -119,7 +124,12 @@ const AdminDashboard: React.FC = () => {
         setLoading(true);
         setError(null);
         const response = await api.get('/dashboard/stats');
-        setStats(response.data);
+        const data = response.data || {};
+        setStats({
+          totalUsers: data.totalUsers ?? 0,
+          totalRoles: data.totalRoles ?? 0,
+          totalSiaf: data.totalSiaf ?? data.totalReports ?? 0,
+        });
       } catch (err: any) {
         console.error('Error al obtener estadísticas:', err);
         setError('Error al cargar las estadísticas del dashboard');
@@ -176,9 +186,9 @@ const AdminDashboard: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <StatCard
-                title="Informes Generados"
-                value={stats.totalReports}
-                icon={<Assessment />}
+                title="Solicitudes SIAF"
+                value={stats.totalSiaf}
+                icon={<AssignmentIcon />}
                 color={IGSS_COLORS.azulOscuro}
                 delay={0.19}
                 loading={loading}
@@ -284,8 +294,6 @@ const AdminDashboard: React.FC = () => {
           );
         }
         return <CorrelativoManagementPage />;
-      case 'reports':
-        return <Typography variant="h4">Contenido de Reportes</Typography>;
       case 'settings':
         return <Typography variant="h4">Contenido de Configuración</Typography>;
       default:
@@ -463,7 +471,7 @@ const AdminDashboard: React.FC = () => {
                 }
                 secondary={
                   <Typography sx={{ color: IGSS_COLORS.gris, fontSize: '0.75rem' }}>
-                    Crear / Autorizar SIAF
+                    Libro SIAF / Expedientes
                   </Typography>
                 }
               />
@@ -511,7 +519,7 @@ const AdminDashboard: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            sx={{ minWidth: 0, maxWidth: '100%' }}
+            sx={{ minWidth: 0, width: '100%', maxWidth: '100%' }}
           >
             {renderContent()}
           </Box>

@@ -82,13 +82,13 @@ export const analyticsTabsSx = {
 
 export const analyticsPageSx = {
   width: '100%',
-  maxWidth: 1280,
+  maxWidth: 1440,
   mx: 'auto',
   pb: 2,
   boxSizing: 'border-box' as const,
   overflowX: 'hidden',
   background: `linear-gradient(180deg, ${IGSS_COLORS.fondoClaro} 0%, ${IGSS_COLORS.fondo} 48%, transparent 100%)`,
   borderRadius: 3,
-  px: { xs: 0.5, md: 1 },
-  pt: 0.5,
+  px: { xs: 0.75, md: 1.25 },
+  pt: 0.75,
 };

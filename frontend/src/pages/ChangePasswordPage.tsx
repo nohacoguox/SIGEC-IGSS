@@ -108,7 +108,7 @@ function ChangePasswordPage() {
         const isColaborador =
           userRole === 'colaborador' ||
           permissions.includes('crear-siaf') ||
-          permissions.includes('autorizar-siaf') ||
+          permissions.includes('revisar-siaf-direccion-departamental') ||
           permissions.includes('crear-expediente') ||
           permissions.includes('revisar-expediente-direccion-departamental');
         if (isAdmin) navigate('/admin-dashboard');

@@ -31,9 +31,10 @@ function hasPermission(req: Request, names: string[]): boolean {
 }
 
 /**
- * Resuelve el alcance de estadísticas:
- * - personal: solo trámites del usuario autenticado
- * - unidad: directores/jefes (permiso) ven su unidad; super admin elige unidad(es)
+ * Alcance de estadísticas (3 niveles):
+ * 1) Colaborador (estadisticas-tiempos / legado): solo lo suyo → personal
+ * 2) Jefe / Administrador C (ver-estadisticas-unidad): solo su unidad médica → unidad fija
+ * 3) Super administrador: cualquier unidad (elige en filtro) → canPickUnidad
  */
 export async function resolveAnalyticsScope(
   req: Request,
@@ -45,11 +46,21 @@ export async function resolveAnalyticsScope(
   const viewer = await userRepo.findOne({ where: { id: viewerId } });
   if (!viewer) return { ok: false, status: 404, message: 'Usuario no encontrado.' };
 
-  const canViewUnidad = hasPermission(req, ['ver-estadisticas-unidad', 'ver-estadisticas']);
+  // Solo este permiso (o super admin) abre vista de unidad. ver-estadisticas es solo acceso personal legado.
+  const canViewUnidad = isSuperAdmin(req) || hasPermission(req, ['ver-estadisticas-unidad']);
   const canPickUnidad = isSuperAdmin(req);
+  const hasMisEstadisticas =
+    isSuperAdmin(req) || hasPermission(req, ['estadisticas-tiempos', 'ver-estadisticas']);
   const requested = String(req.query.alcance || '').toLowerCase();
-  const alcance: AnalyticsAlcance =
-    requested === 'unidad' && canViewUnidad ? 'unidad' : 'personal';
+  // Rol solo «Estadísticas de mi unidad» → siempre unidad (todos los de la unidad).
+  // Rol solo «Mis estadísticas» → personal.
+  // Ambos / super → respeta query (`unidad` solo si tiene permiso).
+  let alcance: AnalyticsAlcance = 'personal';
+  if (canViewUnidad && !hasMisEstadisticas && !isSuperAdmin(req)) {
+    alcance = 'unidad';
+  } else if (requested === 'unidad' && canViewUnidad) {
+    alcance = 'unidad';
+  }
 
   const usuarioFiltroRaw = parseInt(String(req.query.usuarioId || ''), 10);
   const usuarioFiltroId = Number.isInteger(usuarioFiltroRaw) && usuarioFiltroRaw > 0 ? usuarioFiltroRaw : null;

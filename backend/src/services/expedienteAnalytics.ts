@@ -27,6 +27,15 @@ export type TrazabilidadCiclo = {
   horasRespuestaTrasReenvio: number | null;
 };
 
+/** Tiempo en cola de revisión DAF (desde el último envío hasta decisión o hasta ahora). */
+export type EsperaRevisionDaf = {
+  horas: number | null;
+  /** true = sigue en «Pendiente revisión DAF». */
+  abierta: boolean;
+  desde: string | null;
+  hasta: string | null;
+};
+
 const promedio = (valores: number[]) => (valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null);
 
 const horasEntre = (inicio?: Date | string | null, fin?: Date | string | null) => {
@@ -153,6 +162,51 @@ export function construirCierresMensuales(
   return filas;
 }
 
+/**
+ * Mide cuánto lleva / llevó DAF en revisar tras el último `envio_revision`
+ * sin decisión posterior (rechazo/aprobación).
+ * - Si está pendiente → horas desde el envío hasta `ahora` (espera abierta).
+ * - Si ya hubo decisión → horas envío → decisión (espera cerrada).
+ */
+export function medirEsperaRevisionDaf(
+  historial: ExpedienteBitacora[],
+  ahora: Date = new Date(),
+): EsperaRevisionDaf {
+  const hastaAhora = eventosHasta(historial, ahora);
+  const envios = hastaAhora.filter((e) => e.tipo === 'envio_revision');
+  const ultimoEnvio = [...envios].reverse()[0];
+  if (!ultimoEnvio) {
+    return { horas: null, abierta: false, desde: null, hasta: null };
+  }
+
+  const decisionPosterior = hastaAhora.find(
+    (e) =>
+      (e.tipo === 'rechazo' || e.tipo === 'aprobacion') &&
+      new Date(e.fecha).getTime() > new Date(ultimoEnvio.fecha).getTime(),
+  );
+
+  if (decisionPosterior) {
+    return {
+      horas: horasEntre(ultimoEnvio.fecha, decisionPosterior.fecha),
+      abierta: false,
+      desde: new Date(ultimoEnvio.fecha).toISOString(),
+      hasta: new Date(decisionPosterior.fecha).toISOString(),
+    };
+  }
+
+  const clase = clasificarAlCorte(historial, ahora);
+  if (clase.resultado === 'pendiente_revision_daf') {
+    return {
+      horas: horasEntre(ultimoEnvio.fecha, ahora),
+      abierta: true,
+      desde: new Date(ultimoEnvio.fecha).toISOString(),
+      hasta: null,
+    };
+  }
+
+  return { horas: null, abierta: false, desde: null, hasta: null };
+}
+
 export function construirTrazabilidad(historial: ExpedienteBitacora[]): TrazabilidadCiclo[] {
   const envios = historial.filter((e) => e.tipo === 'envio_revision');
   const rechazos = historial.filter((e) => e.tipo === 'rechazo');
@@ -193,11 +247,16 @@ export function construirTrazabilidad(historial: ExpedienteBitacora[]): Trazabil
   return trazabilidad;
 }
 
-export function promediarTiemposDesdeHistoriales(porExpediente: Map<number, ExpedienteBitacora[]>) {
+export function promediarTiemposDesdeHistoriales(
+  porExpediente: Map<number, ExpedienteBitacora[]>,
+  ahora: Date = new Date(),
+) {
   const respuestas: number[] = [];
   const correcciones: number[] = [];
   const respuestasTrasReenvio: number[] = [];
   const ciclosCompletos: number[] = [];
+  const esperasRevisionDaf: number[] = [];
+  const esperasAbiertas: number[] = [];
 
   porExpediente.forEach((historial) => {
     const envios = historial.filter((e) => e.tipo === 'envio_revision');
@@ -209,6 +268,12 @@ export function promediarTiemposDesdeHistoriales(porExpediente: Map<number, Expe
     if (h1 != null) respuestas.push(h1);
     const hCiclo = horasEntre(primerEnvio?.fecha, aprobacion?.fecha);
     if (hCiclo != null) ciclosCompletos.push(hCiclo);
+
+    const espera = medirEsperaRevisionDaf(historial, ahora);
+    if (espera.horas != null) {
+      esperasRevisionDaf.push(espera.horas);
+      if (espera.abierta) esperasAbiertas.push(espera.horas);
+    }
 
     rechazos.forEach((rechazo, index) => {
       const siguienteLimite = rechazos[index + 1]?.fecha
@@ -232,10 +297,16 @@ export function promediarTiemposDesdeHistoriales(porExpediente: Map<number, Expe
     correccionHoras: promedio(correcciones),
     respuestaTrasReenvioHoras: promedio(respuestasTrasReenvio),
     cicloCompletoHoras: promedio(ciclosCompletos),
+    /** Promedio del tiempo en cola DAF (cerradas + abiertas). */
+    pendienteRevisionDafHoras: promedio(esperasRevisionDaf),
+    /** Solo casos que siguen pendientes de revisión DAF. */
+    pendienteRevisionDafAbiertaHoras: promedio(esperasAbiertas),
     muestraPrimeraRespuesta: respuestas.length,
     muestraCorreccion: correcciones.length,
     muestraRespuestaTrasReenvio: respuestasTrasReenvio.length,
     muestraCicloCompleto: ciclosCompletos.length,
+    muestraPendienteRevisionDaf: esperasRevisionDaf.length,
+    muestraPendienteRevisionDafAbierta: esperasAbiertas.length,
   };
 }
 

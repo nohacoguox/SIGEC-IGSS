@@ -1,153 +1,301 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Alert, Box, CircularProgress, Paper, Tab, Tabs, Typography,
-} from '@mui/material';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Box, CircularProgress } from '@mui/material';
 import { motion } from 'framer-motion';
 import api from '../../../api';
-import { IGSS_COLORS } from '../../../theme/institutionalColors';
+import { usePermissions } from '../../../hooks/usePermissions';
 import AnalyticsFilterPanel, { AnalyticsFilter } from '../shared/AnalyticsFilterPanel';
-import { analyticsPageSx, analyticsTabsSx } from '../shared/charts';
-import { TAB_GUIDES } from '../shared/ui';
+import AnaliticaShell, { type AnaliticaTabId } from '../shared/AnaliticaShell';
 import TabGenerales from '../shared/TabGenerales';
 import TabPorCaso from '../shared/TabPorCaso';
 import TabMotivos from '../shared/TabMotivos';
 import TabColaboradores from '../shared/TabColaboradores';
+import {
+  createDefaultAnalyticsFilter,
+  etiquetaModo,
+  resolveAnalyticsRoleMode,
+  type AnalyticsRoleMode,
+} from '../shared/analyticsScope';
 import type { ExpedientesAnalytics } from './types';
 
 const AnaliticaExpedientes: React.FC = () => {
-  const [filters, setFilters] = useState<AnalyticsFilter>({ dias: 90, agrupacion: 'mes', alcance: 'personal' });
-  const [tab, setTab] = useState(0);
+  const { hasPermission, isSuperAdmin } = usePermissions();
+  const roleMode = useMemo(
+    () =>
+      resolveAnalyticsRoleMode({
+        isSuperAdmin,
+        hasMisEstadisticas: hasPermission('estadisticas-tiempos'),
+        hasUnidad: hasPermission('ver-estadisticas-unidad'),
+      }),
+    [hasPermission, isSuperAdmin],
+  );
+
+  const showRankings = roleMode !== 'personal';
+  const [filters, setFilters] = useState<AnalyticsFilter>(() => createDefaultAnalyticsFilter(roleMode));
+  const [scopeReady, setScopeReady] = useState(false);
+  const lastModeRef = useRef<AnalyticsRoleMode | null>(null);
+  const [tab, setTab] = useState<AnaliticaTabId>('general');
   const [data, setData] = useState<ExpedientesAnalytics | null>(null);
+  const [casosListado, setCasosListado] = useState<
+    Array<{
+      id: number;
+      correlativo: string;
+      estado: string;
+      resultadoAlCorte: string;
+      devoluciones: number;
+      correcciones: number;
+      horasPendienteRevisionDaf?: number | null;
+      esperaRevisionDaf?: {
+        horas: number | null;
+        abierta: boolean;
+        desde: string | null;
+        hasta: string | null;
+      } | null;
+    }>
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
+  // Cuando cargan permisos: fijar alcance (unidad = todos; personal = solo míos).
   useEffect(() => {
-    if (tab === 3) {
-      setLoading(false);
+    if (lastModeRef.current === roleMode) {
+      setScopeReady(true);
+      return;
+    }
+    lastModeRef.current = roleMode;
+    setFilters((prev) => ({ ...createDefaultAnalyticsFilter(roleMode), itemId: prev.itemId }));
+    setScopeReady(true);
+    if (roleMode === 'personal') setTab((t) => (t === 'rankings' ? 'general' : t));
+  }, [roleMode]);
+
+  const esRanking = tab === 'rankings';
+  const esDetalleCaso = tab === 'caso' && filters.itemId != null;
+  const puedeConsultar =
+    scopeReady && !(filters.alcance === 'unidad' && isSuperAdmin && !filters.unidad);
+
+  const mapCasos = (payload: ExpedientesAnalytics) =>
+    (payload.porExpediente?.casos ?? []).map((c) => ({
+      id: c.id,
+      correlativo: c.numeroExpediente,
+      estado: c.titulo,
+      resultadoAlCorte: c.resultadoAlCorte,
+      devoluciones: c.devoluciones,
+      correcciones: c.correcciones,
+      horasPendienteRevisionDaf: c.horasPendienteRevisionDaf ?? c.esperaRevisionDaf?.horas ?? null,
+      esperaRevisionDaf: c.esperaRevisionDaf ?? null,
+    }));
+
+  // Carga general (sin expediente seleccionado): mantiene el listado completo.
+  useEffect(() => {
+    if (esRanking || !puedeConsultar || filters.itemId != null) {
+      if (esRanking || !puedeConsultar) setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    api.get('/estadisticas/expedientes-analitica', {
-      params: {
-        dias: filters.dias,
-        desde: filters.desde,
-        hasta: filters.hasta,
-        agrupacion: 'mes',
-        expedienteId: tab === 1 ? filters.itemId : undefined,
-        alcance: filters.alcance,
-        unidad: filters.unidad,
-        usuarioId: filters.usuarioId,
-      },
-    })
-      .then((res) => setData(res.data))
+    api
+      .get('/estadisticas/expedientes-analitica', {
+        params: {
+          dias: filters.dias,
+          desde: filters.desde,
+          hasta: filters.hasta,
+          agrupacion: 'mes',
+          alcance: filters.alcance,
+          unidad: filters.unidad,
+          usuarioId: filters.usuarioId,
+        },
+      })
+      .then((res) => {
+        setData(res.data);
+        setCasosListado(mapCasos(res.data));
+      })
       .catch((err) => setError(err.response?.data?.message || 'No se pudo cargar el análisis de expedientes.'))
       .finally(() => setLoading(false));
-  }, [filters, tab]);
+  }, [
+    filters.dias,
+    filters.desde,
+    filters.hasta,
+    filters.alcance,
+    filters.unidad,
+    filters.usuarioId,
+    filters.itemId,
+    tab,
+    esRanking,
+    puedeConsultar,
+  ]);
 
-  const cambiarTab = (_e: React.SyntheticEvent, next: number) => {
+  // Detalle de un expediente: solo trazabilidad; no reemplaza el listado.
+  useEffect(() => {
+    if (!esDetalleCaso || !puedeConsultar || !filters.itemId) {
+      setLoadingDetalle(false);
+      return;
+    }
+    setLoadingDetalle(true);
+    api
+      .get('/estadisticas/expedientes-analitica', {
+        params: {
+          dias: filters.dias,
+          desde: filters.desde,
+          hasta: filters.hasta,
+          agrupacion: 'mes',
+          expedienteId: filters.itemId,
+          alcance: filters.alcance,
+          unidad: filters.unidad,
+          usuarioId: filters.usuarioId,
+        },
+      })
+      .then((res) => {
+        const traza = res.data.porExpediente?.trazabilidad ?? res.data.trazabilidad ?? [];
+        const espera = res.data.porExpediente?.esperaRevisionDaf
+          ?? res.data.porExpediente?.casos?.[0]?.esperaRevisionDaf
+          ?? null;
+        setData((prev) => {
+          if (!prev?.porExpediente) return res.data;
+          return {
+            ...prev,
+            porExpediente: {
+              ...prev.porExpediente,
+              trazabilidad: traza,
+              esperaRevisionDaf: espera,
+            },
+            trazabilidad: traza,
+          };
+        });
+        if (espera && filters.itemId) {
+          setCasosListado((prev) =>
+            prev.map((c) =>
+              c.id === filters.itemId
+                ? { ...c, esperaRevisionDaf: espera, horasPendienteRevisionDaf: espera.horas }
+                : c,
+            ),
+          );
+        }
+      })
+      .catch(() => {
+        /* el listado sigue visible; el diálogo mostrará vacío */
+      })
+      .finally(() => setLoadingDetalle(false));
+  }, [
+    filters.itemId,
+    filters.dias,
+    filters.desde,
+    filters.hasta,
+    filters.alcance,
+    filters.unidad,
+    filters.usuarioId,
+    esDetalleCaso,
+    puedeConsultar,
+  ]);
+
+  const cambiarTab = (next: AnaliticaTabId) => {
     setTab(next);
-    if (next !== 1 && filters.itemId != null) {
+    if (next !== 'caso' && filters.itemId != null) {
       setFilters((prev) => ({ ...prev, itemId: undefined }));
     }
   };
 
   const seleccionarCaso = (id: number) => {
     setFilters((prev) => ({ ...prev, itemId: id }));
-    if (tab !== 1) setTab(1);
+    setData((prev) =>
+      prev?.porExpediente
+        ? { ...prev, porExpediente: { ...prev.porExpediente, trazabilidad: [] }, trazabilidad: [] }
+        : prev,
+    );
+    if (tab !== 'caso') setTab('caso');
   };
 
+  const limpiarCaso = () => {
+    setFilters((prev) => ({ ...prev, itemId: undefined }));
+    setData((prev) =>
+      prev?.porExpediente
+        ? { ...prev, porExpediente: { ...prev.porExpediente, trazabilidad: [] }, trazabilidad: [] }
+        : prev,
+    );
+  };
+
+  const onApply = useCallback(
+    (f: AnalyticsFilter) => {
+      setFilters({ ...f, itemId: esDetalleCaso ? filters.itemId : f.itemId });
+    },
+    [esDetalleCaso, filters.itemId],
+  );
+
+  const periodLabel =
+    data && !esRanking
+      ? `${new Date(data.desde).toLocaleDateString('es-GT', { dateStyle: 'medium' })} — ${new Date(data.hasta).toLocaleDateString('es-GT', { dateStyle: 'medium' })}`
+      : null;
+
+  const subtitle =
+    roleMode === 'unidad'
+      ? `${etiquetaModo(roleMode, 'unidad')} · se muestran automáticamente todos los de su unidad.`
+      : roleMode === 'personal'
+        ? `${etiquetaModo(roleMode, 'personal')} · solo sus trámites.`
+        : 'Período y alcance según su rol. Cambie fechas y pulse Aplicar.';
+
   return (
-    <Box sx={analyticsPageSx}>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, letterSpacing: -0.3 }}>
-          Análisis de expedientes
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, maxWidth: 720 }}>
-          Vista organizada por tema: resumen, tiempos y casos, motivos, y rendimiento por colaborador.
-        </Typography>
-      </Box>
-
-      <AnalyticsFilterPanel
-        tipo="expediente"
-        value={filters}
-        onApply={setFilters}
-        mostrarCasoEspecifico={tab === 1}
-      />
-
-      <Paper
-        elevation={0}
-        sx={{
-          mb: 2.5,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-          overflow: 'hidden',
-        }}
-      >
-        <Box sx={{ px: { xs: 1, sm: 2 }, pt: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <Tabs
-            value={tab}
-            onChange={cambiarTab}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{ ...analyticsTabsSx, maxWidth: '100%', minWidth: 0 }}
-          >
-            <Tab label="1. Resumen" />
-            <Tab label="2. Por expediente" />
-            <Tab label="3. Motivos" />
-            <Tab label="4. Colaboradores" />
-          </Tabs>
-          {data && tab !== 3 && (
-            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ pr: 1, whiteSpace: 'nowrap' }}>
-              {new Date(data.desde).toLocaleDateString('es-GT', { dateStyle: 'medium' })} — {new Date(data.hasta).toLocaleDateString('es-GT', { dateStyle: 'medium' })}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ px: 2, py: 1.25, bgcolor: 'rgba(0,91,145,0.03)', borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="body2" color="text.secondary">
-            {TAB_GUIDES[tab]}
-          </Typography>
-        </Box>
-      </Paper>
-
-      {tab !== 3 && loading && (
-        <Box display="grid" sx={{ placeItems: 'center', minHeight: 280 }}><CircularProgress /></Box>
+    <AnaliticaShell
+      title="Resultados de expedientes"
+      subtitle={subtitle}
+      tab={tab}
+      onTabChange={cambiarTab}
+      showRankings={showRankings}
+      analisisTabLabel="Análisis de expedientes"
+      analisisTabGuide="Listado del período → seleccione un expediente para ver proceso y tiempos."
+      periodLabel={periodLabel}
+      filterSlot={
+        <AnalyticsFilterPanel
+          tipo="expediente"
+          value={filters}
+          onApply={onApply}
+          mostrarCasoEspecifico={false}
+        />
+      }
+    >
+      {esRanking && showRankings && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
+          <TabColaboradores tipo="expedientes" filters={filters} />
+        </motion.div>
       )}
-      {tab !== 3 && !loading && error && <Alert severity="error">{error}</Alert>}
-      {tab !== 3 && !loading && !error && data && (
+
+      {!esRanking && !puedeConsultar && isSuperAdmin && (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>
+          Seleccione una unidad médica en los filtros y pulse Aplicar.
+        </Alert>
+      )}
+
+      {!esRanking && loading && !data && puedeConsultar && (
+        <Box display="grid" sx={{ placeItems: 'center', minHeight: 240 }}>
+          <CircularProgress />
+        </Box>
+      )}
+      {!esRanking && !loading && error && !data && <Alert severity="error">{error}</Alert>}
+      {!esRanking && data && (
         <>
-          {tab === 0 && (
+          {tab === 'general' && (
             <TabGenerales
               casoLabel="Expedientes"
               gradId="exp"
-              resumen={data.general?.resumen ?? {
-                total: data.resumen.total,
-                aprobados: data.resumen.aprobados,
-                rechazadosAlCierre: data.resumen.rechazadosAlCierre ?? 0,
-                pendientesCorreccion: data.resumen.pendientesCorreccion ?? 0,
-                pendientesRevisionDaf: data.resumen.pendientesRevisionDaf ?? 0,
-              }}
+              resumen={
+                data.general?.resumen ?? {
+                  total: data.resumen.total,
+                  aprobados: data.resumen.aprobados,
+                  rechazadosAlCierre: data.resumen.rechazadosAlCierre ?? 0,
+                  pendientesCorreccion: data.resumen.pendientesCorreccion ?? 0,
+                  pendientesRevisionDaf: data.resumen.pendientesRevisionDaf ?? 0,
+                }
+              }
               cierre={data.general?.cierreMensual ?? data.cierreMensual ?? []}
+              tiempos={data.porExpediente?.tiempos ?? data.tiempos}
             />
           )}
-          {tab === 1 && (
+          {tab === 'motivos' && <TabMotivos gradId="exp" motivos={data.porExpediente?.motivos ?? data.motivos} />}
+          {tab === 'caso' && (
             <TabPorCaso
               casoLabel="Expediente"
-              gradId="exp"
               itemId={filters.itemId}
-              tiempos={data.porExpediente?.tiempos ?? data.tiempos}
-              ciclos={data.porExpediente?.ciclos ?? data.ciclos}
-              casos={(data.porExpediente?.casos ?? []).map((c) => ({
-                id: c.id,
-                correlativo: c.numeroExpediente,
-                estado: c.titulo,
-                resultadoAlCorte: c.resultadoAlCorte,
-                devoluciones: c.devoluciones,
-                correcciones: c.correcciones,
-              }))}
+              cargandoDetalle={loadingDetalle}
+              casos={casosListado}
+              esperaRevisionDaf={data.porExpediente?.esperaRevisionDaf ?? null}
               trazabilidad={(data.porExpediente?.trazabilidad ?? data.trazabilidad ?? []).map((t) => ({
                 rechazoNumero: t.rechazoNumero,
                 fechaRechazo: t.fechaRechazo,
@@ -158,25 +306,14 @@ const AnaliticaExpedientes: React.FC = () => {
                 horasRespuestaTrasReenvio: t.horasRespuestaTrasReenvio,
               }))}
               onSelectCaso={seleccionarCaso}
+              onClearCaso={limpiarCaso}
               columnasCaso={{ primaria: 'Nº expediente', secundaria: 'Título' }}
               columnaMotivos="Observaciones"
             />
           )}
-          {tab === 2 && (
-            <TabMotivos
-              gradId="exp"
-              motivos={data.porExpediente?.motivos ?? data.motivos}
-            />
-          )}
         </>
       )}
-
-      {tab === 3 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
-          <TabColaboradores tipo="expedientes" filters={filters} />
-        </motion.div>
-      )}
-    </Box>
+    </AnaliticaShell>
   );
 };
 

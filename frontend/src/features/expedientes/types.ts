@@ -81,6 +81,12 @@ export type ViewingDoc = {
   mimeType: string;
   expedienteId: number;
   docId: number;
+  /** Observaciones del último rechazo asociadas a este documento. */
+  observaciones?: Array<{
+    comentario: string;
+    pagina?: number | null;
+    tieneMarca?: boolean;
+  }>;
 };
 
 export type VerMarcaData = {

@@ -154,6 +154,57 @@ export async function ensureCorrelativoTables(): Promise<void> {
     }
   }
 
+  // Esquema legado del dump (anio/piso + id sin SERIAL) → alinear con entidad actual
+  try {
+    await AppDataSource.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'siaf_correlativo_config' AND column_name = 'anio'
+        ) THEN
+          UPDATE siaf_correlativo_config
+          SET anio_actual = COALESCE(anio_actual, anio, EXTRACT(YEAR FROM CURRENT_DATE)::INT);
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'siaf_correlativo_config' AND column_name = 'piso'
+        ) THEN
+          UPDATE siaf_correlativo_config
+          SET numero_inicio = COALESCE(NULLIF(numero_inicio, 0), piso, 1),
+              siguiente_numero = COALESCE(NULLIF(siguiente_numero, 0), piso, 1);
+        END IF;
+      END $$;
+    `);
+  } catch (e: any) {
+    console.warn('[correlativos] migración anio/piso:', e?.message);
+  }
+  for (const col of ['anio', 'piso']) {
+    try {
+      await AppDataSource.query(`ALTER TABLE siaf_correlativo_config DROP COLUMN IF EXISTS ${col}`);
+    } catch (e: any) {
+      console.warn(`[correlativos] drop ${col}:`, e?.message);
+    }
+  }
+  try {
+    await AppDataSource.query(`CREATE SEQUENCE IF NOT EXISTS siaf_correlativo_config_id_seq`);
+    await AppDataSource.query(
+      `ALTER TABLE siaf_correlativo_config ALTER COLUMN id SET DEFAULT nextval('siaf_correlativo_config_id_seq')`
+    );
+    await AppDataSource.query(
+      `ALTER SEQUENCE siaf_correlativo_config_id_seq OWNED BY siaf_correlativo_config.id`
+    );
+    await AppDataSource.query(`
+      SELECT setval(
+        'siaf_correlativo_config_id_seq',
+        GREATEST(1, COALESCE((SELECT MAX(id) FROM siaf_correlativo_config), 0) + 1),
+        false
+      )
+    `);
+  } catch (e: any) {
+    console.warn('[correlativos] secuencia id config:', e?.message);
+  }
+
   try {
     await AppDataSource.query(`
       CREATE INDEX IF NOT EXISTS idx_siaf_correlativo_reservas_estado_numero

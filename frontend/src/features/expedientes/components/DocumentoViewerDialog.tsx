@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -7,8 +8,10 @@ import {
   DialogContent,
   DialogTitle,
   Typography,
+  alpha,
 } from '@mui/material';
 import { Download as DownloadIcon } from '@mui/icons-material';
+import { IGSS_COLORS } from '../../../theme/institutionalColors';
 import type { ViewingDoc } from '../types';
 
 type DocumentoViewerDialogProps = {
@@ -25,8 +28,45 @@ const DocumentoViewerDialog: React.FC<DocumentoViewerDialogProps> = ({
   onDownload,
 }) => (
   <Dialog open={!!viewingDoc || loading} onClose={onClose} maxWidth="xl" fullWidth>
-    <DialogTitle>{viewingDoc?.nombreOriginal || 'Cargando…'}</DialogTitle>
-    <DialogContent sx={{ height: '80vh', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 0 }}>
+    <DialogTitle sx={{ pb: viewingDoc?.observaciones?.length ? 1 : undefined }}>
+      {viewingDoc?.nombreOriginal || 'Cargando…'}
+    </DialogTitle>
+    {!!viewingDoc?.observaciones?.length && (
+      <Box sx={{ px: 3, pb: 1.5 }}>
+        <Alert
+          severity="error"
+          sx={{
+            borderRadius: 2,
+            borderLeft: `4px solid ${IGSS_COLORS.error}`,
+            bgcolor: alpha(IGSS_COLORS.error, 0.06),
+          }}
+        >
+          <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 0.5 }}>
+            Observaciones a corregir ({viewingDoc.observaciones.length})
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2 }}>
+            {viewingDoc.observaciones.map((o, i) => (
+              <li key={i}>
+                <Typography variant="body2">
+                  {o.comentario}
+                  {o.pagina != null ? ` · pág. ${o.pagina}` : ''}
+                  {o.tieneMarca ? ' · señalizado en el PDF' : ''}
+                </Typography>
+              </li>
+            ))}
+          </Box>
+        </Alert>
+      </Box>
+    )}
+    <DialogContent
+      sx={{
+        height: viewingDoc?.observaciones?.length ? '72vh' : '80vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        p: 0,
+      }}
+    >
       {loading && (
         <Typography color="text.secondary">Cargando documento…</Typography>
       )}

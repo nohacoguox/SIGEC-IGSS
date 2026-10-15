@@ -63,7 +63,7 @@ const UserManagementContainer: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [unidadesMedicas, setUnidadesMedicas] = useState<UnidadMedica[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
-  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: number; name: string; permissions?: { id: number; name: string }[] }[]>([]);
   const [formState, setFormState] = useState(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tab, setTab] = useState(0);
@@ -332,7 +332,7 @@ const UserManagementContainer: React.FC = () => {
             exit={{ y: -8, opacity: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <Box sx={{ p: { xs: 1.5, sm: 2.5 }, minWidth: 0 }}>
+            <Box sx={{ p: { xs: 1.5, sm: 2.5, md: 3 }, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
               {tab === 0 && (
                 <UserList
                   users={users}

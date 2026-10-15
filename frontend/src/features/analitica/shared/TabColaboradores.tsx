@@ -7,10 +7,13 @@ import {
 import {
   EmojiEvents, Groups, ThumbDownAlt, ThumbUpAlt, TrendingUp,
 } from '@mui/icons-material';
+import {
+  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import { IGSS_COLORS } from '../../../theme/institutionalColors';
 import api from '../../../api';
 import { AnalyticsFilter } from './AnalyticsFilterPanel';
-import { panelSx, tableScrollSx, gridStroke, analyticsTabsSx } from './charts';
+import { axisTick, ChartTooltip, panelSx, tableScrollSx, gridStroke, analyticsTabsSx } from './charts';
 import { KpiCard, SectionBlock } from './ui';
 
 type Contadores = {
@@ -168,7 +171,7 @@ export default function TabColaboradores({ tipo, filters }: Props) {
         {error}
         {(error.includes('alcance') || error.includes('unidad')) && (
           <Typography variant="body2" sx={{ mt: 1 }}>
-            En <strong>Filtros</strong> cambie el alcance a «Estadísticas de mi unidad».
+            Su rol actual es «Mis estadísticas». Para rankings de toda la unidad necesita el permiso «Estadísticas de mi unidad».
           </Typography>
         )}
       </Alert>
@@ -180,6 +183,22 @@ export default function TabColaboradores({ tipo, filters }: Props) {
   const d = data.destacados;
   const casoLabel = etiquetaCaso(tipo);
   const rankingPage = rankingOrdenado.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const topAprobadosChart = [...rankingOrdenado]
+    .filter((r) => r.historico.aprobados > 0)
+    .sort((a, b) => b.historico.aprobados - a.historico.aprobados)
+    .slice(0, 8)
+    .map((r) => ({
+      nombre: r.etiqueta.length > 18 ? `${r.etiqueta.slice(0, 16)}…` : r.etiqueta,
+      aprobados: r.historico.aprobados,
+    }));
+  const topRechazosChart = [...rankingOrdenado]
+    .filter((r) => r.historico.rechazosAcumulados > 0)
+    .sort((a, b) => b.historico.rechazosAcumulados - a.historico.rechazosAcumulados)
+    .slice(0, 8)
+    .map((r) => ({
+      nombre: r.etiqueta.length > 18 ? `${r.etiqueta.slice(0, 16)}…` : r.etiqueta,
+      rechazos: r.historico.rechazosAcumulados,
+    }));
 
   return (
     <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
@@ -198,10 +217,10 @@ export default function TabColaboradores({ tipo, filters }: Props) {
           <Groups sx={{ fontSize: 32, opacity: 0.95 }} />
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.25 }}>
-              Rendimiento por colaborador
+              Rankings de colaboradores
             </Typography>
             <Typography variant="body2" sx={{ opacity: 0.92, mt: 0.35, maxWidth: 640 }}>
-              Compare volumen, aprobaciones y devoluciones del período. Independiente de tiempos y motivos.
+              Quién lidera en casos, aprobaciones y rechazos según el alcance de su rol.
             </Typography>
           </Box>
           {data.alcance?.unidad && (
@@ -215,8 +234,8 @@ export default function TabColaboradores({ tipo, filters }: Props) {
       </Paper>
 
       <SectionBlock
-        title="1. Destacados del período"
-        description={`Quién lidera en ${casoLabel}, aprobaciones y rechazos acumulados.`}
+        title="Podio del período"
+        description={`Líderes en ${casoLabel}: más casos, más aprobados y más rechazos.`}
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} sm={4}>
@@ -230,7 +249,7 @@ export default function TabColaboradores({ tipo, filters }: Props) {
           </Grid>
           <Grid item xs={12} sm={4}>
             <KpiCard
-              label="Más aprobaciones"
+              label="Más aprobados"
               value={d.masAprobados ? d.masAprobados.valor : '—'}
               note={d.masAprobados ? d.masAprobados.etiqueta : 'Sin datos'}
               icon={<ThumbUpAlt />}
@@ -252,8 +271,60 @@ export default function TabColaboradores({ tipo, filters }: Props) {
       </SectionBlock>
 
       <SectionBlock
-        title="2. Detalle"
-        description="Elija una sola vista a la vez: ranking del período o desglose mes a mes."
+        title="Gráficas rápidas (Top 8)"
+        description="Compare de un vistazo aprobados y rechazos. Debajo está el ranking completo."
+      >
+        <Grid container spacing={2.25}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={0} sx={{ ...panelSx, height: '100%' }}>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, color: IGSS_COLORS.verdeOscuro }}>
+                Ranking de aprobados
+              </Typography>
+              {topAprobadosChart.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Sin aprobados en el período.</Typography>
+              ) : (
+                <Box sx={{ height: Math.min(360, Math.max(220, topAprobadosChart.length * 40)) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topAprobadosChart} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridStroke} />
+                      <XAxis type="number" allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="nombre" width={110} tick={axisTick} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="aprobados" name="Aprobados" fill={IGSS_COLORS.verde} radius={[0, 6, 6, 0]} barSize={16} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={0} sx={{ ...panelSx, height: '100%' }}>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.5, color: IGSS_COLORS.error }}>
+                Ranking de rechazos
+              </Typography>
+              {topRechazosChart.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Sin rechazos en el período.</Typography>
+              ) : (
+                <Box sx={{ height: Math.min(360, Math.max(220, topRechazosChart.length * 40)) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topRechazosChart} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridStroke} />
+                      <XAxis type="number" allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="nombre" width={110} tick={axisTick} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="rechazos" name="Rechazos" fill={IGSS_COLORS.error} radius={[0, 6, 6, 0]} barSize={16} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      </SectionBlock>
+
+      <SectionBlock
+        title="Tabla completa"
+        description="Ordene por casos, aprobados o rechazos. También puede ver el desglose mes a mes."
       >
         <Paper elevation={0} sx={{ ...panelSx, p: 0, overflow: 'hidden' }}>
           <Box sx={{ px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>

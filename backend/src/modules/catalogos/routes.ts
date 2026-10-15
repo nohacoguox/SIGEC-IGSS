@@ -292,8 +292,15 @@ catalogosRouter.delete(
   }
 );
 
-// Area Endpoints: GET lista (para dropdown en formulario SIAF) permite también crear-siaf y autorizar-siaf; gestión completa solo super admin o gestionar-areas
-catalogosRouter.get('/areas', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas', 'crear-siaf', 'autorizar-siaf']), async (req: Request, res: Response) => {
+// Area Endpoints: GET lista (dropdown SIAF) por rol o permiso; gestión completa por gestionar-areas
+catalogosRouter.get(
+  '/areas',
+  verifyToken,
+  authorizeRolesOrPermissions(
+    ['super administrador', 'gestionar-areas', 'crear-siaf', 'revisar-siaf-direccion-departamental', 'Crear SIAF', 'Áreas'],
+    ['gestionar-areas', 'crear-siaf', 'revisar-siaf-direccion-departamental']
+  ),
+  async (req: Request, res: Response) => {
   try {
     const areaRepository = AppDataSource.getRepository(Area);
     const areas = await areaRepository.find({ order: { nombre: 'ASC' } });
@@ -304,7 +311,11 @@ catalogosRouter.get('/areas', verifyToken, authorizeRoles(['super administrador'
   }
 });
 
-catalogosRouter.post('/areas', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas']), async (req: Request, res: Response) => {
+catalogosRouter.post(
+  '/areas',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-areas', 'Áreas'], ['gestionar-areas']),
+  async (req: Request, res: Response) => {
   try {
     const nombre = typeof req.body.nombre === 'string' ? req.body.nombre.trim() : '';
     const descripcion = typeof req.body.descripcion === 'string' ? req.body.descripcion.trim() : null;
@@ -339,7 +350,11 @@ catalogosRouter.post('/areas', verifyToken, authorizeRoles(['super administrador
   }
 });
 
-catalogosRouter.put('/areas/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas']), async (req: Request, res: Response) => {
+catalogosRouter.put(
+  '/areas/:id',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-areas', 'Áreas'], ['gestionar-areas']),
+  async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: 'ID de área inválido.' });
@@ -378,7 +393,11 @@ catalogosRouter.put('/areas/:id', verifyToken, authorizeRoles(['super administra
   }
 });
 
-catalogosRouter.delete('/areas/:id', verifyToken, authorizeRoles(['super administrador', 'gestionar-areas']), async (req: Request, res: Response) => {
+catalogosRouter.delete(
+  '/areas/:id',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-areas', 'Áreas'], ['gestionar-areas']),
+  async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: 'ID de área inválido.' });

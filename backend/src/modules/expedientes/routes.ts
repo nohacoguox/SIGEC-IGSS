@@ -17,14 +17,46 @@ import { fileStorageService } from '../../services/FileStorageService';
 import { resolveDepartamentoDireccion } from '../../services/departamentoDireccion';
 import { asignarCorrelativoExpediente } from '../../services/ExpedienteCorrelativoService';
 import { extractPdfPageRange, getPdfPageCount } from '../../services/PdfPageSplitService';
+import { ESTADOS_EXPEDIENTE_UNIDAD, mismaUnidadMedica } from '../../services/unidadMedicaMatch';
 
 const TITULOS_EXPEDIENTE_VALIDOS = ['Bien/Producto', 'Servicio'];
 
 /** Documento PDF único con todo el expediente; luego se categoriza por rangos de páginas. */
 export const TIPO_DOCUMENTO_PAQUETE = 'Expediente completo (paquete)';
 
+function tienePermisoExpedientesUnidad(req: Request): boolean {
+  const permissions: string[] = (req as any).user?.permissions ?? [];
+  const roles: string[] = (req as any).user?.roles ?? [];
+  if (permissions.includes('listado-expedientes-unidad')) return true;
+  if (roles.some((r) => String(r || '').toLowerCase() === 'super administrador')) return true;
+  return roles.some((r) =>
+    ['Expedientes de mi unidad', 'listado-expedientes-unidad'].includes(String(r || ''))
+  );
+}
+
+/** Lectura solo de expedientes de la unidad del viewer (estados no abiertos). */
+async function puedeLeerExpedienteComoUnidad(req: Request, exp: Expediente): Promise<boolean> {
+  if (!tienePermisoExpedientesUnidad(req)) return false;
+  if (!ESTADOS_EXPEDIENTE_UNIDAD.includes(String(exp.estado || ''))) return false;
+  const userId = (req as any).user?.userId as number | undefined;
+  if (!userId) return false;
+  const viewer = await AppDataSource.getRepository(User).findOne({ where: { id: userId } });
+  if (!viewer) return false;
+  const unidad = (viewer.unidadMedica || '').trim();
+  if (!unidad) return false;
+  let ownerUnidad: string | null | undefined = (exp as any).usuario?.unidadMedica;
+  if (ownerUnidad == null && exp.usuarioId) {
+    const owner = await AppDataSource.getRepository(User).findOne({
+      where: { id: exp.usuarioId },
+      select: ['id', 'unidadMedica'],
+    });
+    ownerUnidad = owner?.unidadMedica;
+  }
+  return mismaUnidadMedica(exp.unidadOrigen, unidad) || mismaUnidadMedica(ownerUnidad, unidad);
+}
+
 // El router se monta en /api/expedientes. El orden de declaración importa:
-// para-revision-departamental y revisados-departamental deben quedar antes de
+// para-revision-departamental, revisados-departamental y /unidad deben quedar antes de
 // /:id para que Express no las interprete como un id.
 export const expedientesRouter = Router();
 
@@ -182,6 +214,92 @@ expedientesRouter.get('/revisados-departamental', verifyToken, authorizeRolesOrP
     res.status(500).json({ message: err?.message || 'Error al listar expedientes revisados.' });
   }
 });
+
+/**
+ * Director / Administrador de unidad: expedientes de su unidad en
+ * En revisión / Rechazado / Cerrado (y estados equivalentes; no abiertos). Solo lectura.
+ */
+expedientesRouter.get(
+  '/unidad',
+  verifyToken,
+  authorizeRolesOrPermissions(
+    ['super administrador', 'Expedientes de mi unidad'],
+    ['listado-expedientes-unidad']
+  ),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId as number;
+      const userRepo = AppDataSource.getRepository(User);
+      const viewer = await userRepo.findOne({ where: { id: userId } });
+      if (!viewer) return res.status(404).json({ message: 'Usuario no encontrado.' });
+
+      const roles: string[] = (req as any).user?.roles ?? [];
+      const isSuper = roles.some((r) => String(r || '').toLowerCase() === 'super administrador');
+      let unidad = (viewer.unidadMedica || '').trim();
+      if (isSuper && typeof req.query.unidad === 'string' && req.query.unidad.trim()) {
+        unidad = req.query.unidad.trim();
+      }
+      if (!unidad) {
+        return res.status(400).json({
+          message: 'Su usuario no tiene unidad médica asignada. Asígnele una unidad en Gestión de Usuarios.',
+        });
+      }
+
+      const todosUsuarios = await userRepo.find({ select: ['id', 'unidadMedica'] });
+      const ownerIds = todosUsuarios
+        .filter((u) => mismaUnidadMedica(u.unidadMedica, unidad))
+        .map((u) => u.id);
+
+      const repo = AppDataSource.getRepository(Expediente);
+      const qb = repo
+        .createQueryBuilder('exp')
+        .leftJoinAndSelect('exp.usuario', 'usuario')
+        .where('exp.estado IN (:...estados)', { estados: ESTADOS_EXPEDIENTE_UNIDAD })
+        .orderBy('exp.createdAt', 'DESC');
+
+      if (ownerIds.length > 0) {
+        qb.andWhere(
+          `(exp.usuarioId IN (:...ownerIds) OR exp.unidadOrigen ILIKE :unidadLike)`,
+          { ownerIds, unidadLike: `%${unidad}%` }
+        );
+      } else {
+        qb.andWhere(`exp.unidadOrigen ILIKE :unidadLike`, { unidadLike: `%${unidad}%` });
+      }
+
+      const lista = await qb.getMany();
+      const filtradas = lista.filter((e) => {
+        const ownerUnidad = (e as any).usuario?.unidadMedica;
+        return (
+          mismaUnidadMedica(e.unidadOrigen, unidad) ||
+          mismaUnidadMedica(ownerUnidad, unidad) ||
+          (ownerIds.length > 0 && ownerIds.includes(e.usuarioId))
+        );
+      });
+
+      const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
+      const conUltimoRechazo = await Promise.all(
+        filtradas.map(async (e) => {
+          let ultimoRechazo: { comentario: string | null; fecha: Date } | null = null;
+          if (e.estado === 'rechazado') {
+            const rechazo = await bitacoraRepo.findOne({
+              where: { expedienteId: e.id, tipo: 'rechazo' },
+              order: { fecha: 'DESC' },
+            });
+            if (rechazo) {
+              ultimoRechazo = { comentario: rechazo.comentario, fecha: rechazo.fecha };
+            }
+          }
+          return { ...e, ultimoRechazo };
+        })
+      );
+
+      res.json(conUltimoRechazo);
+    } catch (err: any) {
+      console.error('Error al obtener expedientes de la unidad:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener los expedientes de la unidad.' });
+    }
+  }
+);
 
 // Enviar expediente a revisión (solo creador con crear-expediente)
 expedientesRouter.post('/:id/enviar-revision', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['crear-expediente']), async (req: Request, res: Response) => {
@@ -384,7 +502,8 @@ expedientesRouter.get('/:id', verifyToken, async (req: Request, res: Response) =
     const esPropietario = exp.usuarioId === userId;
     const esAnalistaDAF = userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental');
     const puedeRevisar = esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado');
-    if (!esPropietario && !puedeRevisar) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
+    const puedeUnidad = await puedeLeerExpedienteComoUnidad(req, exp);
+    if (!esPropietario && !puedeRevisar && !puedeUnidad) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
     let ultimoRechazo: any = null;
     const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
     const bitacoraRechazo = await bitacoraRepo.findOne({
@@ -451,7 +570,11 @@ expedientesRouter.get('/:id/bitacora', verifyToken, async (req: Request, res: Re
     if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
     const esPropietario = exp.usuarioId === userId;
     const esAnalistaDAF = userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental');
-    const puedeVerBitacora = esPropietario || (esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado'));
+    const puedeUnidad = await puedeLeerExpedienteComoUnidad(req, exp);
+    const puedeVerBitacora =
+      esPropietario ||
+      (esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado')) ||
+      puedeUnidad;
     if (!puedeVerBitacora) return res.status(403).json({ message: 'No tiene acceso a la bitácora de este expediente.' });
     const bitacoraRepo = AppDataSource.getRepository(ExpedienteBitacora);
     // Incluir todos los tipos: rechazo, aprobacion, correccion (reemplazo de documento)
@@ -674,7 +797,7 @@ expedientesRouter.post('/:id/documentos/:docId/categorizar', verifyToken, async 
       const safeTipo = s.tipoDocumento.replace(/[^\w\-áéíóúÁÉÍÓÚñÑ ]+/gi, '').slice(0, 60) || 'documento';
       const nombreOriginal = `${safeTipo}-p${s.paginaInicio}-${s.paginaFin}.pdf`;
       const pdfInfo = await fileStorageService.saveExpedienteDocument(slice, exp.numeroExpediente, nombreOriginal);
-      const descRango = `Páginas ${s.paginaInicio}–${s.paginaFin} del paquete original.`;
+      const descRango = `Páginas ${s.paginaInicio}–${s.paginaFin}.`;
       const doc = docRepo.create({
         expedienteId: exp.id,
         expediente: exp,
@@ -819,6 +942,193 @@ expedientesRouter.post('/:id/documentos/:docId/reemplazar', verifyToken, uploadM
   }
 });
 
+/**
+ * Reemplaza el PDF completo (paquete), elimina los documentos categorizados previos
+ * y deja el expediente listo para re-categorizar. Solo en abierto o rechazado.
+ */
+expedientesRouter.post(
+  '/:id/reemplazar-paquete',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador'], ['crear-expediente']),
+  uploadMemory.single('archivo'),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) return res.status(401).json({ message: 'Usuario no identificado.' });
+      const expedienteId = parseInt(req.params.id);
+      if (isNaN(expedienteId)) return res.status(400).json({ message: 'ID de expediente inválido.' });
+      const file = (req as any).file;
+      if (!file || !file.buffer) return res.status(400).json({ message: 'Debe enviar el PDF completo (campo "archivo").' });
+
+      const mime = String(file.mimetype || '').toLowerCase();
+      const name = String(file.originalname || '').toLowerCase();
+      if (!mime.includes('pdf') && !name.endsWith('.pdf')) {
+        return res.status(400).json({ message: 'El expediente completo debe ser un archivo PDF.' });
+      }
+
+      const expRepo = AppDataSource.getRepository(Expediente);
+      const exp = await expRepo.findOne({ where: { id: expedienteId } });
+      if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
+      if (exp.usuarioId !== userId) {
+        return res.status(403).json({ message: 'Solo el creador puede reemplazar el PDF completo.' });
+      }
+      if (exp.estado !== 'abierto' && exp.estado !== 'rechazado') {
+        return res.status(400).json({
+          message:
+            exp.estado === 'en_proceso'
+              ? 'No puede reemplazar el PDF mientras el expediente está en revisión. Espere el rechazo de DAF.'
+              : 'No se puede reemplazar el PDF de un expediente cerrado o aprobado.',
+        });
+      }
+
+      const userRepo = AppDataSource.getRepository(User);
+      const user = await userRepo.findOneBy({ id: userId });
+      if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
+
+      const docRepo = AppDataSource.getRepository(ExpedienteDocumento);
+      const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
+      const todos = await docRepo.find({ where: { expedienteId } });
+      let paquete = todos.find((d) => d.tipoDocumento === TIPO_DOCUMENTO_PAQUETE) || null;
+      const categorizados = todos.filter((d) => d.tipoDocumento !== TIPO_DOCUMENTO_PAQUETE);
+
+      for (const doc of categorizados) {
+        try {
+          await fileStorageService.deleteExpedienteDocument(doc.rutaArchivo);
+        } catch {
+          /* archivo ya ausente */
+        }
+        const versiones = await versionRepo.find({ where: { expedienteDocumentoId: doc.id } });
+        for (const v of versiones) {
+          if (v.rutaArchivo && v.rutaArchivo !== doc.rutaArchivo) {
+            try {
+              await fileStorageService.deleteExpedienteDocument(v.rutaArchivo);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+        await docRepo.remove(doc);
+      }
+
+      const nombreOriginal = file.originalname || `expediente-completo-${Date.now()}.pdf`;
+      const pdfInfo = await fileStorageService.saveExpedienteDocument(file.buffer, exp.numeroExpediente, nombreOriginal);
+
+      if (!paquete) {
+        paquete = docRepo.create({
+          expedienteId: exp.id,
+          expediente: exp,
+          tipoDocumento: TIPO_DOCUMENTO_PAQUETE,
+          nombreArchivo: nombreOriginal,
+          rutaArchivo: pdfInfo.filePath,
+          mimeType: file.mimetype || 'application/pdf',
+          tamanioBytes: pdfInfo.size,
+          hashArchivo: pdfInfo.hash,
+          subidoPorId: userId,
+          subidoPor: user,
+          descripcion: 'PDF completo del expediente (origen para categorización por páginas).',
+        });
+        await docRepo.save(paquete);
+        await versionRepo.save(
+          versionRepo.create({
+            expedienteDocumentoId: paquete.id,
+            expedienteDocumento: paquete,
+            numeroVersion: 1,
+            esActual: true,
+            nombreArchivo: nombreOriginal,
+            rutaArchivo: pdfInfo.filePath,
+            hashArchivo: pdfInfo.hash,
+            tamanioBytes: pdfInfo.size,
+            mimeType: file.mimetype || 'application/pdf',
+            subidoPorId: userId,
+            subidoPor: user,
+          })
+        );
+      } else {
+        const versionesExistentes = await versionRepo.find({
+          where: { expedienteDocumentoId: paquete.id },
+          order: { numeroVersion: 'DESC' },
+        });
+        let versionActual = versionesExistentes.find((v) => v.esActual) || versionesExistentes[0] || null;
+        const siguienteVersion = (versionesExistentes[0]?.numeroVersion ?? 0) + 1;
+        const nombreAnterior = paquete.nombreArchivo;
+        if (versionActual) {
+          versionActual.esActual = false;
+          await versionRepo.save(versionActual);
+        }
+        paquete.nombreArchivo = nombreOriginal;
+        paquete.rutaArchivo = pdfInfo.filePath;
+        paquete.hashArchivo = pdfInfo.hash;
+        paquete.tamanioBytes = pdfInfo.size;
+        paquete.mimeType = file.mimetype || 'application/pdf';
+        paquete.subidoPorId = userId;
+        paquete.subidoPor = user;
+        paquete.descripcion =
+          paquete.descripcion || 'PDF completo del expediente (origen para categorización por páginas).';
+        await docRepo.save(paquete);
+        const versionNueva = await versionRepo.save(
+          versionRepo.create({
+            expedienteDocumentoId: paquete.id,
+            expedienteDocumento: paquete,
+            numeroVersion: siguienteVersion,
+            esActual: true,
+            nombreArchivo: nombreOriginal,
+            rutaArchivo: pdfInfo.filePath,
+            hashArchivo: pdfInfo.hash,
+            tamanioBytes: pdfInfo.size,
+            mimeType: file.mimetype || 'application/pdf',
+            subidoPorId: userId,
+            subidoPor: user,
+          })
+        );
+        await AppDataSource.getRepository(ExpedienteBitacora).save(
+          AppDataSource.getRepository(ExpedienteBitacora).create({
+            expedienteId,
+            tipo: 'correccion',
+            usuarioId: userId,
+            usuario: user,
+            comentario: `PDF completo reemplazado (v${versionActual?.numeroVersion ?? '—'} «${nombreAnterior}» → v${versionNueva.numeroVersion} «${nombreOriginal}»). Se eliminaron ${categorizados.length} documento(s) categorizados para re-categorizar.`,
+            expedienteDocumentoId: paquete.id,
+            expedienteDocumentoVersionId: versionActual?.id ?? null,
+          })
+        );
+      }
+
+      if (categorizados.length > 0 && paquete) {
+        // Si el paquete era nuevo (sin bitácora de corrección arriba), deja traza del borrado.
+        const yaRegistro =
+          (await AppDataSource.getRepository(ExpedienteBitacora).count({
+            where: { expedienteId, tipo: 'correccion', expedienteDocumentoId: paquete.id },
+          })) > 0;
+        if (!yaRegistro) {
+          await AppDataSource.getRepository(ExpedienteBitacora).save(
+            AppDataSource.getRepository(ExpedienteBitacora).create({
+              expedienteId,
+              tipo: 'correccion',
+              usuarioId: userId,
+              usuario: user,
+              comentario: `PDF completo nuevo. Se eliminaron ${categorizados.length} documento(s) categorizados previos para re-categorizar.`,
+              expedienteDocumentoId: paquete.id,
+              expedienteDocumentoVersionId: null,
+            })
+          );
+        }
+      }
+
+      res.json({
+        paquete,
+        eliminados: categorizados.length,
+        message:
+          categorizados.length > 0
+            ? `PDF reemplazado. Se eliminaron ${categorizados.length} documento(s) categorizados. Categorice de nuevo.`
+            : 'PDF reemplazado. Categorice las páginas del expediente.',
+      });
+    } catch (err: any) {
+      console.error('Error al reemplazar paquete PDF:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al reemplazar el PDF completo.' });
+    }
+  }
+);
+
 // Listar versiones de un documento (respaldo de cada subida/reemplazo)
 expedientesRouter.get('/:id/documentos/:docId/versiones', verifyToken, async (req: Request, res: Response) => {
   try {
@@ -834,7 +1144,8 @@ expedientesRouter.get('/:id/documentos/:docId/versiones', verifyToken, async (re
     if (!exp) return res.status(404).json({ message: 'Expediente no encontrado.' });
     const esPropietario = exp.usuarioId === userId;
     const puedeRevisar = (userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental')) && exp.estado === 'en_proceso';
-    if (!esPropietario && !puedeRevisar) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
+    const puedeUnidad = await puedeLeerExpedienteComoUnidad(req, exp);
+    if (!esPropietario && !puedeRevisar && !puedeUnidad) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
     const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
     const versiones = await versionRepo.find({
       where: { expedienteDocumentoId: docId },
@@ -897,7 +1208,8 @@ expedientesRouter.get('/:id/documentos/:docId/versiones/:versionId/archivo', ver
     const esPropietario = exp.usuarioId === userId;
     const esAnalistaDAF = userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental');
     const puedeRevisar = esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado');
-    if (!esPropietario && !puedeRevisar) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
+    const puedeUnidad = await puedeLeerExpedienteComoUnidad(req, exp);
+    if (!esPropietario && !puedeRevisar && !puedeUnidad) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
     const versionRepo = AppDataSource.getRepository(ExpedienteDocumentoVersion);
     const version = await versionRepo.findOne({ where: { id: versionId, expedienteDocumentoId: docId } });
     if (!version) return res.status(404).json({ message: 'Versión no encontrada.' });
@@ -929,7 +1241,8 @@ expedientesRouter.get('/:id/documentos/:docId/archivo', verifyToken, async (req:
     const esPropietario = exp.usuarioId === userId;
     const esAnalistaDAF = userPermissions.includes('revisar-expediente-direccion-departamental') || userRoles.includes('revisar-siaf-direccion-departamental');
     const puedeRevisar = esAnalistaDAF && (exp.estado === 'en_proceso' || exp.estado === 'rechazado' || exp.estado === 'cerrado');
-    if (!esPropietario && !puedeRevisar) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
+    const puedeUnidad = await puedeLeerExpedienteComoUnidad(req, exp);
+    if (!esPropietario && !puedeRevisar && !puedeUnidad) return res.status(403).json({ message: 'No tiene acceso a este expediente.' });
     const docRepo = AppDataSource.getRepository(ExpedienteDocumento);
     const doc = await docRepo.findOne({ where: { id: docId, expedienteId } });
     if (!doc) return res.status(404).json({ message: 'Documento no encontrado.' });

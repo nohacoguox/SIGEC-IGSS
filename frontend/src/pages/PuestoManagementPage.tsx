@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -19,8 +19,9 @@ import {
   Chip,
   Switch,
   FormControlLabel,
+  InputAdornment,
 } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
+import { Add, Edit, Delete, Search, Clear } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
@@ -35,12 +36,19 @@ const PuestoManagementPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [puestos, setPuestos] = useState<Puesto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPuesto, setEditingPuesto] = useState<Puesto | null>(null);
   const [formData, setFormData] = useState({
     nombre: '',
     activo: true,
   });
+
+  const puestosFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return puestos;
+    return puestos.filter((puesto) => puesto.nombre.toLowerCase().includes(q));
+  }, [puestos, busqueda]);
 
   useEffect(() => {
     fetchPuestos();
@@ -115,9 +123,9 @@ const PuestoManagementPage: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5" fontWeight="bold">
-          Lista de Puestos ({puestos.length})
+          Lista de Puestos ({busqueda.trim() ? `${puestosFiltrados.length} de ${puestos.length}` : puestos.length})
         </Typography>
         <Button
           variant="contained"
@@ -128,6 +136,29 @@ const PuestoManagementPage: React.FC = () => {
           Nuevo Puesto
         </Button>
       </Box>
+
+      <TextField
+        fullWidth
+        size="small"
+        placeholder="Buscar por nombre del puesto…"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        sx={{ mb: 2, maxWidth: 520 }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <Search fontSize="small" color="action" />
+            </InputAdornment>
+          ),
+          endAdornment: busqueda ? (
+            <InputAdornment position="end">
+              <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => setBusqueda('')}>
+                <Clear fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ) : null,
+        }}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -150,7 +181,7 @@ const PuestoManagementPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {puestos.map((puesto) => (
+              {puestosFiltrados.map((puesto) => (
                 <TableRow key={puesto.id} hover>
                   <TableCell>{puesto.nombre}</TableCell>
                   <TableCell align="center">
@@ -178,11 +209,13 @@ const PuestoManagementPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {puestos.length === 0 && !loading && (
+              {puestosFiltrados.length === 0 && !loading && (
                 <TableRow>
                   <TableCell colSpan={3} align="center">
                     <Typography color="text.secondary">
-                      No hay puestos registrados
+                      {busqueda.trim()
+                        ? 'No se encontraron puestos con esa búsqueda'
+                        : 'No hay puestos registrados'}
                     </Typography>
                   </TableCell>
                 </TableRow>

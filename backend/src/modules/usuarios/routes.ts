@@ -12,7 +12,7 @@ import { verifyToken, authorizeRoles } from '../../middleware/auth';
 // salvo las consultas de director y personal médico que usa el formulario SIAF.
 export const usuariosRouter = Router();
 
-usuariosRouter.get('/', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios']), async (req: Request, res: Response) => {
+usuariosRouter.get('/', verifyToken, authorizeRoles(['super administrador', 'gestionar-usuarios', 'gestionar-roles']), async (req: Request, res: Response) => {
   try {
     const userRepository = AppDataSource.getRepository(User);
     const users = await userRepository.find({

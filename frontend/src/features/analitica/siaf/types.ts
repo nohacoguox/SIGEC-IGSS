@@ -27,10 +27,14 @@ export type SiafAnalytics = {
       correccionHoras: number | null;
       respuestaTrasReenvioHoras: number | null;
       cicloCompletoHoras: number | null;
+      pendienteRevisionDafHoras?: number | null;
+      pendienteRevisionDafAbiertaHoras?: number | null;
       muestraPrimeraRespuesta: number;
       muestraCorreccion: number;
       muestraRespuestaTrasReenvio: number;
       muestraCicloCompleto: number;
+      muestraPendienteRevisionDaf?: number;
+      muestraPendienteRevisionDafAbierta?: number;
     };
     ciclos: Array<{ etiqueta: string; cantidad: number }>;
     motivos: Array<{ motivo: string; cantidad: number }>;
@@ -42,6 +46,13 @@ export type SiafAnalytics = {
       devoluciones: number;
       correcciones: number;
       aprobado: boolean;
+      horasPendienteRevisionDaf?: number | null;
+      esperaRevisionDaf?: {
+        horas: number | null;
+        abierta: boolean;
+        desde: string | null;
+        hasta: string | null;
+      } | null;
     }>;
     trazabilidad: Array<{
       rechazoNumero: number;
@@ -54,6 +65,12 @@ export type SiafAnalytics = {
       horasCorreccion: number | null;
       horasRespuestaTrasReenvio: number | null;
     }>;
+    esperaRevisionDaf?: {
+      horas: number | null;
+      abierta: boolean;
+      desde: string | null;
+      hasta: string | null;
+    } | null;
   };
   resumen?: {
     total: number;

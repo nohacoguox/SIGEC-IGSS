@@ -28,12 +28,37 @@ export const FALLBACK_APP_SCREENS: AppScreenDefinition[] = [
   { key: 'gestionar-correlativos', permission: 'gestionar-correlativos', label: 'Correlativos', panel: 'admin', group: 'Gestiones', description: 'Configurar secuencia de correlativos SIAF y ver reservas en uso' },
   { key: 'listado-siaf', permission: 'listado-siaf', label: 'Listado de SIAF', panel: 'colaborador', group: 'Libro SIAF', description: 'Consultar el listado de solicitudes SIAF' },
   { key: 'crear-siaf', permission: 'crear-siaf', label: 'Crear SIAF', panel: 'colaborador', group: 'Libro SIAF', description: 'Crear y corregir solicitudes SIAF' },
-  { key: 'autorizar-siaf', permission: 'autorizar-siaf', label: 'Autorizar SIAF', panel: 'colaborador', description: 'Autorizar solicitudes SIAF pendientes' },
+  {
+    key: 'listado-siaf-unidad-finalizados',
+    permission: 'listado-siaf-unidad-finalizados',
+    label: 'SIAF de mi unidad',
+    panel: 'colaborador',
+    group: 'Libro SIAF',
+    description:
+      'Director / Administrador: ver SIAF de su unidad en En revisión, Rechazado o Finalizado (solo lectura)',
+  },
   { key: 'revisar-siaf-direccion-departamental', permission: 'revisar-siaf-direccion-departamental', label: 'Bandeja de Revisiones DAF — SIAF', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisión y aprobación de SIAF por el analista DAF' },
   { key: 'actualizar-codigos-productos', permission: 'actualizar-codigos-productos', label: 'Actualización de Códigos y Productos', panel: 'colaborador', description: 'Actualizar catálogo de códigos y productos (Excel)' },
-  { key: 'estadisticas-tiempos', permission: 'estadisticas-tiempos', label: 'Análisis SIAF', panel: 'colaborador', group: 'Estadísticas', description: 'Análisis SIAF: cierre mensual, trazabilidad y motivos de rechazo' },
-  { key: 'ver-estadisticas-unidad', permission: 'ver-estadisticas-unidad', label: 'Estadísticas de mi unidad', panel: 'colaborador', group: 'Estadísticas', description: 'Directores y jefes: actividad de toda la unidad y filtro por colaborador' },
-  { key: 'crear-expediente', permission: 'crear-expediente', label: 'Expedientes de Compras', panel: 'colaborador', description: 'Crear y administrar expedientes de compras' },
+  { key: 'estadisticas-tiempos', permission: 'estadisticas-tiempos', label: 'Mis estadísticas', panel: 'colaborador', group: 'Estadísticas', description: 'Colaborador común: Análisis SIAF/Expedientes solo de sus propios trámites' },
+  { key: 'ver-estadisticas-unidad', permission: 'ver-estadisticas-unidad', label: 'Estadísticas de mi unidad', panel: 'colaborador', group: 'Estadísticas', description: 'Jefe / Administrador C: análisis limitado a su unidad médica' },
+  { key: 'estadisticas-analista-daf', permission: 'estadisticas-analista-daf', label: 'Mis tiempos DAF', panel: 'colaborador', group: 'Estadísticas', description: 'Analista DAF: tiempos de revisión propios, clasificados por unidad médica' },
+  {
+    key: 'crear-expediente',
+    permission: 'crear-expediente',
+    label: 'Expedientes de Compras',
+    panel: 'colaborador',
+    group: 'Expedientes',
+    description: 'Crear y administrar expedientes de compras',
+  },
+  {
+    key: 'listado-expedientes-unidad',
+    permission: 'listado-expedientes-unidad',
+    label: 'Expedientes de mi unidad',
+    panel: 'colaborador',
+    group: 'Expedientes',
+    description:
+      'Director / Administrador: ver expedientes de su unidad en En revisión, Rechazado o Cerrado (solo lectura)',
+  },
   { key: 'revisar-expediente-direccion-departamental', permission: 'revisar-expediente-direccion-departamental', label: 'Bandeja de Revisiones DAF — Expedientes', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisar, aprobar o rechazar expedientes como analista DAF' },
 ];
 
@@ -42,8 +67,7 @@ export const APP_SCREENS = FALLBACK_APP_SCREENS;
 
 export const FALLBACK_PERMISSION_ALIASES: Record<string, string[]> = {
   'listado-siaf': ['crear-siaf'],
-  'estadisticas-tiempos': ['ver-estadisticas'],
-  'estadisticas-motivos': ['ver-estadisticas'],
+  'estadisticas-tiempos': ['ver-estadisticas', 'estadisticas-motivos'],
   'gestionar-unidades-medicas': ['gestionar-areas'],
 };
 
@@ -85,6 +109,8 @@ export function groupScreensByGroup(screens: AppScreenDefinition[]): Record<stri
 }
 
 export function getScreenLabelForPermission(permissionName: string): string {
-  const screen = runtimeScreens.find((s) => s.permission === permissionName);
+  const screen =
+    runtimeScreens.find((s) => s.permission === permissionName) ||
+    FALLBACK_APP_SCREENS.find((s) => s.permission === permissionName);
   return screen?.label ?? permissionName;
 }

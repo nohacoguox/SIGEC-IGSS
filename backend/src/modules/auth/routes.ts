@@ -160,6 +160,7 @@ authRouter.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
     const userRepository = AppDataSource.getRepository(User);
+    const credentialRepository = AppDataSource.getRepository(Credential);
 
     const user = await userRepository.findOne({
       where: { id: userId },
@@ -170,7 +171,34 @@ authRouter.get('/me', verifyToken, async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    res.json(user);
+    // Renovar JWT con roles/permisos actuales (evita 403 tras asignar roles sin re-login)
+    const roleNames = (user.roles ?? []).map((r) => r.name);
+    const allPermissions = new Set<string>();
+    (user.roles ?? []).forEach((r) => r.permissions?.forEach((p) => allPermissions.add(p.name)));
+    const credential = await credentialRepository.findOne({ where: { userId: user.id } });
+    const codigoEmpleado = credential?.codigoEmpleado || user.codigoEmpleado;
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        codigoEmpleado,
+        roles: roleNames,
+        permissions: Array.from(allPermissions),
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      id: user.id,
+      nombres: user.nombres,
+      apellidos: user.apellidos,
+      codigoEmpleado: user.codigoEmpleado,
+      unidadMedica: user.unidadMedica,
+      puesto: user.puesto,
+      roles: user.roles,
+      token,
+      permissions: Array.from(allPermissions),
+    });
   } catch (error) {
     console.error('Error al obtener datos del usuario logueado:', error);
     res.status(500).json({ message: 'Error en el servidor' });

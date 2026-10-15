@@ -37,13 +37,22 @@ import {
   AdminPanelSettings as AdminPanelSettingsIcon,
   Update as UpdateIcon,
   Inbox as InboxIcon,
+  TaskAlt as TaskAltIcon,
 } from '@mui/icons-material';
 import { useThemeMode } from '../context/ThemeContext';
 import { usePermissions } from '../hooks/usePermissions';
 import BandejaRevisionesDaf, { BandejaRevisionesTab } from '../components/BandejaRevisionesDaf';
 import AnaliticaExpedientes from '../components/AnaliticaExpedientes';
 import AnaliticaDaf from '../components/AnaliticaDaf';
+import AnaliticaAnalistaDaf from '../components/AnaliticaAnalistaDaf';
 import logoIgss from '../assets/images/logo-igss.png';
+
+type CollaboratorView =
+  | 'dashboard'
+  | 'bandeja-revisiones-daf'
+  | 'estadisticas-daf'
+  | 'estadisticas-piloto-pg2'
+  | 'estadisticas-analista-daf';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Panel de Control', subtitle: 'Bienvenido al panel de control del colaborador' },
@@ -51,8 +60,12 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
     title: 'Bandeja de Revisiones DAF',
     subtitle: 'Revise solicitudes SIAF y expedientes de compras pendientes de su departamento',
   },
-  'estadisticas-daf': { title: 'Análisis SIAF', subtitle: 'Cierre mensual, trazabilidad y motivos de rechazo' },
-  'estadisticas-piloto-pg2': { title: 'Análisis de expedientes', subtitle: 'Cierre mensual, trazabilidad y motivos de rechazo' },
+  'estadisticas-daf': { title: 'Resultados SIAF', subtitle: 'Vista general, rankings, motivos y detalle de un caso' },
+  'estadisticas-piloto-pg2': { title: 'Resultados de expedientes', subtitle: 'Vista general, rankings, motivos y detalle de un caso' },
+  'estadisticas-analista-daf': {
+    title: 'Mis tiempos DAF',
+    subtitle: 'Sus revisiones como analista, clasificadas por unidad médica',
+  },
 };
 
 // --- Main Component ---
@@ -61,17 +74,21 @@ const CollaboratorDashboard: React.FC = () => {
   const location = useLocation();
   const { hasPermission, hasAnyPermission } = usePermissions();
   const { mode, toggleTheme, nextModeLabel } = useThemeMode();
-  const [selectedView, setSelectedView] = useState<'dashboard' | 'bandeja-revisiones-daf' | 'estadisticas-daf' | 'estadisticas-piloto-pg2'>('dashboard');
+  const [selectedView, setSelectedView] = useState<CollaboratorView>('dashboard');
   const [bandejaTab, setBandejaTab] = useState<BandejaRevisionesTab>('siaf');
   const [estadisticasOpen, setEstadisticasOpen] = useState(false);
   const [libroSiafOpen, setLibroSiafOpen] = useState(false);
+  const [expedientesOpen, setExpedientesOpen] = useState(false);
   const [bandejaOpen, setBandejaOpen] = useState(false);
 
   const puedeBandejaDaf =
     hasPermission('revisar-siaf-direccion-departamental') ||
     hasPermission('revisar-expediente-direccion-departamental');
+  // Mis estadísticas (personal) o Estadísticas de mi unidad (jefe/Admin C)
   const puedeEstadisticas =
-    hasPermission('estadisticas-tiempos') || hasPermission('estadisticas-motivos') || hasPermission('ver-estadisticas');
+    hasPermission('estadisticas-tiempos') || hasPermission('ver-estadisticas-unidad');
+  const puedeTiemposDaf = hasPermission('estadisticas-analista-daf');
+  const muestraMenuEstadisticas = puedeEstadisticas || puedeTiemposDaf;
 
   const abrirBandeja = (tab: BandejaRevisionesTab) => {
     setBandejaTab(tab);
@@ -81,30 +98,46 @@ const CollaboratorDashboard: React.FC = () => {
 
   const isSiafListRoute = location.pathname === '/siaf-book' || location.pathname.startsWith('/siaf-book/corregir');
   const isSiafCreateRoute = location.pathname === '/siaf-book/crear';
+  const isSiafUnitFinalizadosRoute = location.pathname === '/siaf-book/unidad-finalizados';
+  const isExpedientesListRoute = location.pathname === '/expedientes';
+  const isExpedientesUnidadRoute = location.pathname === '/expedientes/unidad';
 
   // Si tenía estadísticas seleccionado pero no tiene permiso, volver al dashboard
   useEffect(() => {
     if ((selectedView === 'estadisticas-daf' || selectedView === 'estadisticas-piloto-pg2') && !puedeEstadisticas) {
       setSelectedView('dashboard');
     }
+    if (selectedView === 'estadisticas-analista-daf' && !puedeTiemposDaf) {
+      setSelectedView('dashboard');
+    }
     if (selectedView === 'bandeja-revisiones-daf' && !puedeBandejaDaf) {
       setSelectedView('dashboard');
     }
-  }, [selectedView, puedeEstadisticas, puedeBandejaDaf]);
+  }, [selectedView, puedeEstadisticas, puedeTiemposDaf, puedeBandejaDaf]);
 
   // Mantener abierta la sección Estadísticas cuando una de sus vistas está seleccionada
   useEffect(() => {
-    if (selectedView === 'estadisticas-daf' || selectedView === 'estadisticas-piloto-pg2') {
+    if (
+      selectedView === 'estadisticas-daf' ||
+      selectedView === 'estadisticas-piloto-pg2' ||
+      selectedView === 'estadisticas-analista-daf'
+    ) {
       setEstadisticasOpen(true);
     }
   }, [selectedView]);
 
   // Mantener abierta la sección Libro SIAF cuando se está en rutas SIAF
   useEffect(() => {
-    if (isSiafListRoute || isSiafCreateRoute) {
+    if (isSiafListRoute || isSiafCreateRoute || isSiafUnitFinalizadosRoute) {
       setLibroSiafOpen(true);
     }
-  }, [isSiafListRoute, isSiafCreateRoute]);
+  }, [isSiafListRoute, isSiafCreateRoute, isSiafUnitFinalizadosRoute]);
+
+  useEffect(() => {
+    if (isExpedientesListRoute || isExpedientesUnidadRoute) {
+      setExpedientesOpen(true);
+    }
+  }, [isExpedientesListRoute, isExpedientesUnidadRoute]);
 
   // Mantener abierta la Bandeja DAF cuando está seleccionada
   useEffect(() => {
@@ -202,7 +235,7 @@ const CollaboratorDashboard: React.FC = () => {
           </motion.div>
 
           {/* Libro SIAF */}
-          {hasAnyPermission(['listado-siaf', 'crear-siaf']) && (
+          {hasAnyPermission(['listado-siaf', 'crear-siaf', 'listado-siaf-unidad-finalizados']) && (
             <>
               <motion.div
                 initial={{ opacity: 0, x: -50 }}
@@ -211,7 +244,7 @@ const CollaboratorDashboard: React.FC = () => {
               >
                 <ListItemButton
                   onClick={() => setLibroSiafOpen(!libroSiafOpen)}
-                  sx={navItemSx(libroSiafOpen || isSiafListRoute || isSiafCreateRoute)}
+                  sx={navItemSx(libroSiafOpen || isSiafListRoute || isSiafCreateRoute || isSiafUnitFinalizadosRoute)}
                 >
                   <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
                     <BookIcon />
@@ -264,34 +297,95 @@ const CollaboratorDashboard: React.FC = () => {
                     />
                   </ListItemButton>
                   )}
+                  {hasPermission('listado-siaf-unidad-finalizados') && (
+                  <ListItemButton
+                    onClick={() => navigate('/siaf-book/unidad-finalizados')}
+                    selected={isSiafUnitFinalizadosRoute}
+                    sx={{ ...navItemSx(isSiafUnitFinalizadosRoute), pl: 4, py: 1.2 }}
+                  >
+                    <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                      <TaskAltIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                          SIAF de mi unidad
+                        </Typography>
+                      }
+                    />
+                  </ListItemButton>
+                  )}
                 </List>
               </Collapse>
             </>
           )}
 
-          {/* Expedientes de Compras */}
-          {hasPermission('crear-expediente') && (
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.35 }}
-            >
-              <ListItemButton
-                onClick={() => navigate('/expedientes')}
-                sx={navItemSx(location.pathname === '/expedientes')}
+          {/* Expedientes */}
+          {hasAnyPermission(['crear-expediente', 'listado-expedientes-unidad']) && (
+            <>
+              <motion.div
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.35 }}
               >
-                <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
-                  <DescriptionIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Typography fontWeight="600" sx={{ color: 'white' }}>
-                      Expedientes de Compras
-                    </Typography>
-                  }
-                />
-              </ListItemButton>
-            </motion.div>
+                <ListItemButton
+                  onClick={() => setExpedientesOpen(!expedientesOpen)}
+                  sx={navItemSx(expedientesOpen || isExpedientesListRoute || isExpedientesUnidadRoute)}
+                >
+                  <ListItemIcon sx={{ color: 'white', minWidth: '40px' }}>
+                    <DescriptionIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography fontWeight="600" sx={{ color: 'white' }}>
+                        Expedientes
+                      </Typography>
+                    }
+                  />
+                  {expedientesOpen ? <ExpandLessIcon sx={{ color: 'white' }} /> : <ExpandMoreIcon sx={{ color: 'white' }} />}
+                </ListItemButton>
+              </motion.div>
+              <Collapse in={expedientesOpen} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                  {hasPermission('crear-expediente') && (
+                    <ListItemButton
+                      onClick={() => navigate('/expedientes')}
+                      selected={isExpedientesListRoute}
+                      sx={{ ...navItemSx(isExpedientesListRoute), pl: 4, py: 1.2 }}
+                    >
+                      <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                        <FormatListBulletedIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                            Expedientes de Compras
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  )}
+                  {hasPermission('listado-expedientes-unidad') && (
+                    <ListItemButton
+                      onClick={() => navigate('/expedientes/unidad')}
+                      selected={isExpedientesUnidadRoute}
+                      sx={{ ...navItemSx(isExpedientesUnidadRoute), pl: 4, py: 1.2 }}
+                    >
+                      <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                        <TaskAltIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                            Expedientes de mi unidad
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  )}
+                </List>
+              </Collapse>
+            </>
           )}
 
           {/* Bandeja de Revisiones DAF */}
@@ -387,8 +481,8 @@ const CollaboratorDashboard: React.FC = () => {
             </motion.div>
           )}
 
-          {/* Estadísticas: solo Análisis SIAF y Análisis de expedientes */}
-          {puedeEstadisticas && (
+          {/* Estadísticas: resultados (creador/unidad) y/o tiempos del analista DAF */}
+          {muestraMenuEstadisticas && (
             <>
               <motion.div
                 initial={{ opacity: 0, x: -50 }}
@@ -414,40 +508,67 @@ const CollaboratorDashboard: React.FC = () => {
               </motion.div>
               <Collapse in={estadisticasOpen} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  <ListItemButton
-                    onClick={() => setSelectedView('estadisticas-daf')}
-                    selected={selectedView === 'estadisticas-daf'}
-                    sx={{ ...navItemSx(selectedView === 'estadisticas-daf'), pl: 4, py: 1.2 }}
-                  >
-                    <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
-                      <BarChartIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={<Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>Análisis SIAF</Typography>}
-                      secondary={<Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>Cierre mensual y motivos</Typography>}
-                    />
-                  </ListItemButton>
-                  <ListItemButton
-                    onClick={() => setSelectedView('estadisticas-piloto-pg2')}
-                    selected={selectedView === 'estadisticas-piloto-pg2'}
-                    sx={{ ...navItemSx(selectedView === 'estadisticas-piloto-pg2'), pl: 4, py: 1.2 }}
-                  >
-                    <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
-                      <BarChartIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
-                          Análisis de expedientes
-                        </Typography>
-                      }
-                      secondary={
-                        <Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>
-                          Cierre mensual y motivos
-                        </Typography>
-                      }
-                    />
-                  </ListItemButton>
+                  {puedeEstadisticas && (
+                    <ListItemButton
+                      onClick={() => setSelectedView('estadisticas-daf')}
+                      selected={selectedView === 'estadisticas-daf'}
+                      sx={{ ...navItemSx(selectedView === 'estadisticas-daf'), pl: 4, py: 1.2 }}
+                    >
+                      <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                        <BarChartIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={<Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>Resultados SIAF</Typography>}
+                        secondary={<Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>Cierre mensual y motivos</Typography>}
+                      />
+                    </ListItemButton>
+                  )}
+                  {puedeEstadisticas && (
+                    <ListItemButton
+                      onClick={() => setSelectedView('estadisticas-piloto-pg2')}
+                      selected={selectedView === 'estadisticas-piloto-pg2'}
+                      sx={{ ...navItemSx(selectedView === 'estadisticas-piloto-pg2'), pl: 4, py: 1.2 }}
+                    >
+                      <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                        <BarChartIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                            Resultados de expedientes
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>
+                            Cierre mensual y motivos
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  )}
+                  {puedeTiemposDaf && (
+                    <ListItemButton
+                      onClick={() => setSelectedView('estadisticas-analista-daf')}
+                      selected={selectedView === 'estadisticas-analista-daf'}
+                      sx={{ ...navItemSx(selectedView === 'estadisticas-analista-daf'), pl: 4, py: 1.2 }}
+                    >
+                      <ListItemIcon sx={{ color: 'white', minWidth: '36px' }}>
+                        <TaskAltIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography fontSize="0.9rem" fontWeight="500" sx={{ color: 'white' }}>
+                            Mis tiempos DAF
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography variant="caption" sx={{ color: IGSS_COLORS.gris }}>
+                            Por unidad médica
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  )}
                 </List>
               </Collapse>
             </>
@@ -548,6 +669,18 @@ const CollaboratorDashboard: React.FC = () => {
                   />
                 </Grid>
               )}
+              {hasPermission('listado-siaf-unidad-finalizados') && (
+                <Grid item xs={12} md={6} lg={4}>
+                  <ActionCard
+                    title="SIAF de mi unidad"
+                    description="Director / Administrador: En revisión, Rechazado y Finalizado de su unidad"
+                    icon={<TaskAltIcon />}
+                    accent={IGSS_COLORS.verdeOscuro}
+                    onClick={() => navigate('/siaf-book/unidad-finalizados')}
+                    delay={0.09}
+                  />
+                </Grid>
+              )}
               {hasPermission('crear-expediente') && (
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
@@ -557,6 +690,18 @@ const CollaboratorDashboard: React.FC = () => {
                     accent={IGSS_COLORS.azul}
                     onClick={() => navigate('/expedientes')}
                     delay={0.1}
+                  />
+                </Grid>
+              )}
+              {hasPermission('listado-expedientes-unidad') && (
+                <Grid item xs={12} md={6} lg={4}>
+                  <ActionCard
+                    title="Expedientes de mi unidad"
+                    description="Director / Administrador: En revisión, Rechazado y Cerrado de su unidad"
+                    icon={<TaskAltIcon />}
+                    accent={IGSS_COLORS.verdeOscuro}
+                    onClick={() => navigate('/expedientes/unidad')}
+                    delay={0.11}
                   />
                 </Grid>
               )}
@@ -591,8 +736,8 @@ const CollaboratorDashboard: React.FC = () => {
               {puedeEstadisticas && (
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
-                    title="Análisis SIAF"
-                    description="Cierre mensual, pendientes de corrección y motivos de rechazo"
+                    title="Resultados SIAF"
+                    description="Vista general, rankings de aprobados/rechazos, motivos y detalle de un caso"
                     icon={<BarChartIcon />}
                     accent={IGSS_COLORS.verde}
                     onClick={() => setSelectedView('estadisticas-daf')}
@@ -603,12 +748,24 @@ const CollaboratorDashboard: React.FC = () => {
               {puedeEstadisticas && (
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
-                    title="Análisis de expedientes"
-                    description="Cierre mensual, pendientes de corrección y motivos de rechazo"
+                    title="Resultados de expedientes"
+                    description="Vista general, rankings de aprobados/rechazos, motivos y detalle de un caso"
                     icon={<BarChartIcon />}
                     accent={IGSS_COLORS.verdeOscuro}
                     onClick={() => setSelectedView('estadisticas-piloto-pg2')}
                     delay={0.25}
+                  />
+                </Grid>
+              )}
+              {puedeTiemposDaf && (
+                <Grid item xs={12} md={6} lg={4}>
+                  <ActionCard
+                    title="Mis tiempos DAF"
+                    description="Sus revisiones como analista, clasificadas por unidad médica de Escuintla"
+                    icon={<TaskAltIcon />}
+                    accent={IGSS_COLORS.azulOscuro}
+                    onClick={() => setSelectedView('estadisticas-analista-daf')}
+                    delay={0.3}
                   />
                 </Grid>
               )}
@@ -620,11 +777,15 @@ const CollaboratorDashboard: React.FC = () => {
           )}
           {selectedView === 'estadisticas-daf' && puedeEstadisticas && <AnaliticaDaf />}
           {selectedView === 'estadisticas-piloto-pg2' && puedeEstadisticas && <AnaliticaExpedientes />}
+          {selectedView === 'estadisticas-analista-daf' && puedeTiemposDaf && <AnaliticaAnalistaDaf />}
           {selectedView === 'estadisticas-daf' && !puedeEstadisticas && (
             <Typography color="text.secondary">No tiene permiso para ver el análisis SIAF.</Typography>
           )}
           {selectedView === 'estadisticas-piloto-pg2' && !puedeEstadisticas && (
             <Typography color="text.secondary">No tiene permiso para ver el análisis de expedientes.</Typography>
+          )}
+          {selectedView === 'estadisticas-analista-daf' && !puedeTiemposDaf && (
+            <Typography color="text.secondary">No tiene permiso para ver sus tiempos DAF.</Typography>
           )}
           </Box>
         </AnimatePresence>

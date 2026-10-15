@@ -20,7 +20,7 @@ const DashboardBackground: React.FC<{ children: React.ReactNode }> = ({ children
         boxSizing: 'border-box',
       }}
     >
-      <Box sx={{ position: 'relative', zIndex: 1, minWidth: 0, maxWidth: '100%' }}>{children}</Box>
+      <Box sx={{ position: 'relative', zIndex: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>{children}</Box>
     </Box>
   );
 };

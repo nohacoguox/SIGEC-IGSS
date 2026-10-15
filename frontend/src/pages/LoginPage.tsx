@@ -151,12 +151,14 @@ function LoginPage() {
       const canAccessColaborador =
         hasScreenAccess(perms, 'listado-siaf') ||
         hasScreenAccess(perms, 'crear-siaf') ||
-        perms.includes('autorizar-siaf') ||
+        perms.includes('listado-siaf-unidad-finalizados') ||
         perms.includes('revisar-siaf-direccion-departamental') ||
         perms.includes('crear-expediente') ||
+        perms.includes('listado-expedientes-unidad') ||
         perms.includes('revisar-expediente-direccion-departamental') ||
         hasScreenAccess(perms, 'estadisticas-tiempos') ||
-        hasScreenAccess(perms, 'estadisticas-motivos') ||
+        perms.includes('ver-estadisticas-unidad') ||
+        hasScreenAccess(perms, 'estadisticas-analista-daf') ||
         perms.includes('actualizar-codigos-productos') ||
         rolesArr.includes('revisar-siaf-direccion-departamental');
 

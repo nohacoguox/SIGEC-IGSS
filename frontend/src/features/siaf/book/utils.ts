@@ -3,6 +3,7 @@ import type {
   UnidadMedicaCatalogo,
   ValidationFormState,
 } from './types';
+import { getPdfItemsCapacity, PDF_ITEMS_FULL_MESSAGE } from './pdfContentCapacity';
 
 export function departamentoUnidad(u: {
   departamento?: string | null;
@@ -97,6 +98,13 @@ export function getValidationError(state: ValidationFormState): string | null {
     return 'Seleccione el catálogo MINFIN o SIBOFA antes de ingresar códigos.';
   }
 
+  if (items.some((i) => Number(i.cantidad) < 0)) {
+    return 'Las cantidades de bienes/servicios no pueden ser negativas.';
+  }
+  if (subproductos.some((s) => Number(s.cantidad) < 0)) {
+    return 'Las cantidades de subproductos no pueden ser negativas.';
+  }
+
   const validItems = items.filter(
     (i) => (i.codigo?.trim() ?? '') !== '' && (i.descripcion?.trim() ?? '') !== '' && Number(i.cantidad) > 0,
   );
@@ -114,6 +122,9 @@ export function getValidationError(state: ValidationFormState): string | null {
   if (sumaSubs > sumaItems) {
     return `La suma de cantidades de subproductos (${sumaSubs}) no puede exceder el total de bienes/servicios (${sumaItems}).`;
   }
+  if (sumaSubs < sumaItems) {
+    return `Debe distribuir la totalidad de bienes/servicios en subproductos. Asignado: ${sumaSubs} de ${sumaItems} (Disponible: ${sumaItems - sumaSubs}). El disponible debe quedar en 0.`;
+  }
 
   if (!nombreSolicitante?.trim()) return 'El nombre del solicitante es obligatorio.';
   if (!puestoSolicitante?.trim()) return 'El puesto del solicitante es obligatorio.';
@@ -126,6 +137,16 @@ export function getValidationError(state: ValidationFormState): string | null {
 
   if (showConsistentField && !consistentItem?.trim())
     return 'Si agregó "Consistente", debe completar el campo.';
+
+  if (
+    getPdfItemsCapacity({
+      items,
+      showConsistentField,
+      consistentItem,
+    }).isOverflow
+  ) {
+    return PDF_ITEMS_FULL_MESSAGE;
+  }
 
   return null;
 }

@@ -11,12 +11,14 @@ import {
   clasificarAlCorte,
   construirCierresMensuales,
   construirTrazabilidad,
+  medirEsperaRevisionDaf,
   promediarTiemposDesdeHistoriales,
 } from '../../services/expedienteAnalytics';
 import {
   clasificarSiafAlCorte,
   construirCierresMensualesSiaf,
   construirTrazabilidadSiaf,
+  medirEsperaRevisionDafSiaf,
   promediarTiemposSiaf,
   unificarEventosSiaf,
 } from '../../services/siafAnalytics';
@@ -25,6 +27,8 @@ import {
   construirRankingSiaf,
   destacarRanking,
 } from '../../services/colaboradorRanking';
+import { construirAnaliticaAnalistaDaf } from '../../services/analistaDafAnalytics';
+import { resolveDepartamentoDireccion } from '../../services/departamentoDireccion';
 
 // El router se monta en /api/estadisticas.
 export const estadisticasRouter = Router();
@@ -629,8 +633,10 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
       eventosPorExpediente.set(evento.expedienteId, lista);
     });
 
+    // Espera DAF abierta: hasta el fin del período (o ahora si el período llega a hoy).
+    const refEspera = new Date(Math.min(Date.now(), hasta.getTime()));
     const cierresMensuales = construirCierresMensuales(ids, eventosPorExpediente, desde, hasta);
-    const tiempos = promediarTiemposDesdeHistoriales(eventosPorExpediente);
+    const tiempos = promediarTiemposDesdeHistoriales(eventosPorExpediente, refEspera);
 
     const motivos = new Map<string, number>();
     const distribucionCiclos = [0, 0, 0, 0];
@@ -667,6 +673,7 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
       if (clase.resultado === 'rechazado_al_cierre') rechazadosAlCierreAhora += 1;
       if (clase.resultado === 'pendiente_revision_daf') pendientesRevisionDafAhora += 1;
 
+      const esperaRevisionDaf = medirEsperaRevisionDaf(historial, refEspera);
       return {
         id: exp.id,
         numeroExpediente: exp.numeroExpediente,
@@ -677,6 +684,8 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
         correcciones: correcciones.length,
         aprobado: !!aprobacion,
         fechaAprobacion: aprobacion?.fecha ? new Date(aprobacion.fecha).toISOString() : null,
+        esperaRevisionDaf,
+        horasPendienteRevisionDaf: esperaRevisionDaf.horas,
         trazabilidad: construirTrazabilidad(historial),
       };
     });
@@ -684,6 +693,9 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
     const trazabilidadSeleccionada = filtrarExpediente
       ? (listaPorExpediente[0]?.trazabilidad ?? [])
       : [];
+    const esperaSeleccionada = filtrarExpediente
+      ? (listaPorExpediente[0]?.esperaRevisionDaf ?? null)
+      : null;
 
     const ultimoCierre = cierresMensuales[cierresMensuales.length - 1] ?? null;
 
@@ -733,6 +745,7 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
         motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
         casos: filtrarExpediente ? listaPorExpediente : listaPorExpediente.slice(0, 50),
         trazabilidad: trazabilidadSeleccionada,
+        esperaRevisionDaf: esperaSeleccionada,
         totalesEventos: {
           dictamenesRechazo: dictamenesRechazoTotal,
           correcciones: correccionesTotales,
@@ -761,10 +774,14 @@ estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPe
         correccionHoras: tiempos.correccionHoras,
         cicloCompletoHoras: tiempos.cicloCompletoHoras,
         respuestaTrasReenvioHoras: tiempos.respuestaTrasReenvioHoras,
+        pendienteRevisionDafHoras: tiempos.pendienteRevisionDafHoras,
+        pendienteRevisionDafAbiertaHoras: tiempos.pendienteRevisionDafAbiertaHoras,
         muestraPrimeraRespuesta: tiempos.muestraPrimeraRespuesta,
         muestraCorreccion: tiempos.muestraCorreccion,
         muestraCicloCompleto: tiempos.muestraCicloCompleto,
         muestraRespuestaTrasReenvio: tiempos.muestraRespuestaTrasReenvio,
+        muestraPendienteRevisionDaf: tiempos.muestraPendienteRevisionDaf,
+        muestraPendienteRevisionDafAbierta: tiempos.muestraPendienteRevisionDafAbierta,
       },
       ciclos: [
         { etiqueta: 'Sin devolución', cantidad: distribucionCiclos[0] },
@@ -899,8 +916,9 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
     const createdAtPorSiaf = new Map<number, Date>();
     siafs.forEach((s) => createdAtPorSiaf.set(s.id, new Date(s.createdAt)));
     const porSiaf = unificarEventosSiaf(autorizaciones, bitacora, createdAtPorSiaf);
+    const refEspera = new Date(Math.min(Date.now(), hasta.getTime()));
     const cierresMensuales = construirCierresMensualesSiaf(ids, porSiaf, desde, hasta);
-    const tiempos = promediarTiemposSiaf(porSiaf);
+    const tiempos = promediarTiemposSiaf(porSiaf, refEspera);
 
     const motivos = new Map<string, number>();
     const distribucionCiclos = [0, 0, 0, 0];
@@ -930,6 +948,7 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
       if (clase.resultado === 'rechazado_al_cierre') rechazadosAlCierreAhora += 1;
       if (clase.resultado === 'pendiente_revision_daf') pendientesRevisionDafAhora += 1;
 
+      const esperaRevisionDaf = medirEsperaRevisionDafSiaf(historial, refEspera);
       return {
         id: siaf.id,
         correlativo: siaf.correlativo,
@@ -939,6 +958,8 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
         correcciones: correcciones.length,
         aprobado: !!aprobacion,
         fechaAprobacion: aprobacion?.fecha ? new Date(aprobacion.fecha).toISOString() : null,
+        esperaRevisionDaf,
+        horasPendienteRevisionDaf: esperaRevisionDaf.horas,
         trazabilidad: construirTrazabilidadSiaf(historial),
       };
     });
@@ -976,7 +997,9 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
         motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
         casos: filtrarSiaf ? listaPorSiaf : listaPorSiaf.slice(0, 50),
         trazabilidad: filtrarSiaf ? (listaPorSiaf[0]?.trazabilidad ?? []) : [],
+        esperaRevisionDaf: filtrarSiaf ? (listaPorSiaf[0]?.esperaRevisionDaf ?? null) : null,
       },
+      tiempos,
       cierreMensual: cierresMensuales,
       motivos: [...motivos.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
       trazabilidad: filtrarSiaf ? (listaPorSiaf[0]?.trazabilidad ?? []) : [],
@@ -988,6 +1011,93 @@ estadisticasRouter.get('/daf-analitica', verifyToken, authorizeRolesOrPermission
 });
 
 /**
+ * Tiempos del analista DAF logueado (revisor), con clasificación por unidad médica.
+ */
+estadisticasRouter.get(
+  '/analista-daf',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador'], ['estadisticas-analista-daf']),
+  async (req: Request, res: Response) => {
+    try {
+      const analistaId = (req as any).user?.userId as number | undefined;
+      if (!analistaId) return res.status(401).json({ message: 'Usuario no identificado.' });
+
+      const userRepo = AppDataSource.getRepository(User);
+      const analista = await userRepo.findOne({
+        where: { id: analistaId },
+        relations: ['departamentoDireccionEntidad'],
+      });
+      if (!analista) return res.status(404).json({ message: 'Usuario no encontrado.' });
+
+      const departamento = await resolveDepartamentoDireccion(analista);
+      const unidadRepo = AppDataSource.getRepository(UnidadMedica);
+      const todasUnidades = await unidadRepo.find({ relations: ['municipio', 'municipio.departamento'] });
+      const unidadesDepartamento = departamento
+        ? todasUnidades
+            .filter(
+              (u) =>
+                u.departamento === departamento ||
+                u.municipio?.departamento?.nombre === departamento,
+            )
+            .map((u) => u.nombre)
+            .sort((a, b) => a.localeCompare(b, 'es'))
+        : [];
+
+      if (!departamento) {
+        return res.status(400).json({
+          message:
+            'No tiene departamento de Dirección asignado. Asigne una Unidad Médica de tipo Dirección Departamental (ej. Escuintla).',
+        });
+      }
+
+      const dias = Math.min(365, Math.max(1, parseInt(String(req.query.dias || 90), 10) || 90));
+      let desde: Date;
+      let hasta: Date;
+      if (req.query.desde && req.query.hasta) {
+        desde = new Date(String(req.query.desde));
+        hasta = new Date(String(req.query.hasta));
+        desde.setHours(0, 0, 0, 0);
+        hasta.setHours(23, 59, 59, 999);
+      } else {
+        hasta = new Date();
+        hasta.setHours(23, 59, 59, 999);
+        desde = new Date();
+        desde.setDate(desde.getDate() - dias);
+        desde.setHours(0, 0, 0, 0);
+      }
+
+      const unidadFiltro =
+        typeof req.query.unidad === 'string' && req.query.unidad.trim()
+          ? req.query.unidad.trim()
+          : null;
+
+      const data = await construirAnaliticaAnalistaDaf(
+        {
+          analistaId,
+          desde,
+          hasta,
+          unidadFiltro,
+          ahora: new Date(),
+          departamento,
+          unidadesDepartamento,
+        },
+        {
+          siafRepo: AppDataSource.getRepository(SiafSolicitud),
+          autRepo: AppDataSource.getRepository(SiafAutorizacion),
+          siafBitacoraRepo: AppDataSource.getRepository(SiafBitacora),
+          expRepo: AppDataSource.getRepository(Expediente),
+          expBitacoraRepo: AppDataSource.getRepository(ExpedienteBitacora),
+        },
+      );
+      res.json(data);
+    } catch (err: any) {
+      console.error('Error analítica analista DAF:', err?.message || err);
+      res.status(500).json({ message: err?.message || 'Error al obtener tiempos del analista DAF.' });
+    }
+  },
+);
+
+/**
  * Ranking de colaboradores (unidad): casos, aprobados, rechazos e histórico mes a mes.
  * Pensado para directores/jefes/admin con alcance de unidad.
  */
@@ -996,7 +1106,7 @@ estadisticasRouter.get(
   verifyToken,
   authorizeRolesOrPermissions(
     ['super administrador'],
-    ['ver-estadisticas-unidad', 'ver-estadisticas', 'estadisticas-tiempos', 'estadisticas-motivos']
+    ['ver-estadisticas-unidad', 'estadisticas-tiempos', 'ver-estadisticas', 'estadisticas-motivos']
   ),
   async (req: Request, res: Response) => {
     try {
@@ -1007,7 +1117,8 @@ estadisticasRouter.get(
 
       if (!scope.canViewUnidad) {
         return res.status(403).json({
-          message: 'Para ver el ranking por colaborador necesita el permiso de estadísticas de unidad.',
+          message:
+            'Para ver el ranking por colaborador necesita el rol «Estadísticas de mi unidad» (jefes / Administrador C).',
         });
       }
 

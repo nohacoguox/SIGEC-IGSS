@@ -33,7 +33,7 @@ import type {
   VerDetalleData,
 } from './types';
 import {
-  mapDocEnDetalle,
+  mapDocsRevision,
   mapExpedienteRevision,
   mapExpedienteRevisado,
 } from './utils';
@@ -301,8 +301,7 @@ const RevisarExpedientesDD: React.FC = () => {
     setDocEnVistaId(null);
     api.get(`/expedientes/${expIdRechazar}`)
       .then((res) => {
-        const docs = (res.data.documentos || []).map((d: any) => mapDocEnDetalle(d));
-        setRechazarDocumentos(docs);
+        setRechazarDocumentos(mapDocsRevision(res.data.documentos));
       })
       .catch(() => setRechazarDocumentos([]))
       .finally(() => setRechazarLoading(false));
@@ -388,13 +387,7 @@ const RevisarExpedientesDD: React.FC = () => {
         titulo: e.titulo ?? '',
         descripcion: e.descripcion ?? null,
         numeroOrdenCompra: e.numeroOrdenCompra ?? null,
-        documentos: (e.documentos || []).map((d: any) => ({
-          id: d.id,
-          tipoDocumento: d.tipoDocumento ?? '',
-          nombreArchivo: d.nombreArchivo ?? '',
-          mimeType: d.mimeType ?? 'application/octet-stream',
-          enUltimoRechazo: !!d.enUltimoRechazo,
-        })),
+        documentos: mapDocsRevision(e.documentos),
       });
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al cargar detalle.');

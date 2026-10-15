@@ -29,8 +29,8 @@ export default function TabMotivos({ motivos, gradId }: Props) {
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <SectionBlock
-        title="1. Indicadores de motivos"
-        description="Cuántos rechazos se documentaron y cuál es el motivo dominante."
+        title="Resumen de motivos"
+        description="Cuántos rechazos se documentaron y cuál es el motivo más frecuente."
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} sm={4}>
@@ -53,8 +53,8 @@ export default function TabMotivos({ motivos, gradId }: Props) {
       </SectionBlock>
 
       <SectionBlock
-        title="2. Ranking visual"
-        description="Barras ordenadas por frecuencia. La tabla numérica es opcional para no duplicar la misma información."
+        title="Ranking de motivos"
+        description="Gráfica ordenada por frecuencia. La tabla es opcional si necesita el detalle numérico."
         action={
           motivos.length > 0 ? (
             <Button

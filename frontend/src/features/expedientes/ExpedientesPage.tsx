@@ -40,7 +40,13 @@ import {
   primaryButtonSx,
 } from '../../theme/institutionalStyles';
 import { IGSS_COLORS } from '../../theme/institutionalColors';
-import { ARCHIVOS_ACEPTADOS, TIPO_DOCUMENTO_PAQUETE, TITULOS_OPCIONES, estadoConfig } from './constants';
+import {
+  ARCHIVOS_ACEPTADOS,
+  TIPO_DOCUMENTO_PAQUETE,
+  TITULOS_OPCIONES,
+  estadoConfig,
+  esDocumentoPaquete,
+} from './constants';
 import type {
   BitacoraEntry,
   DocumentoRow,
@@ -58,6 +64,7 @@ import ExpedienteCrearDialog from './components/ExpedienteCrearDialog';
 import ExpedienteDetalleDrawer from './components/ExpedienteDetalleDrawer';
 import ExpedienteEditarDialog from './components/ExpedienteEditarDialog';
 import ReemplazarDocumentoDialog from './components/ReemplazarDocumentoDialog';
+import ReemplazarPaqueteDialog from './components/ReemplazarPaqueteDialog';
 import VerMarcaDialog, { type VerMarcaRequest } from './components/VerMarcaDialog';
 import VersionesDocumentoDialog from './components/VersionesDocumentoDialog';
 
@@ -124,6 +131,10 @@ const ExpedientesPage: React.FC = () => {
   const [replaceDocFile, setReplaceDocFile] = useState<File | null>(null);
   const [replacePreviewUrl, setReplacePreviewUrl] = useState<string | null>(null);
   const [reemplazandoDoc, setReemplazandoDoc] = useState(false);
+
+  const [reemplazarPaqueteOpen, setReemplazarPaqueteOpen] = useState(false);
+  const [reemplazarPaqueteFile, setReemplazarPaqueteFile] = useState<File | null>(null);
+  const [reemplazandoPaquete, setReemplazandoPaquete] = useState(false);
 
   const [versionesOpen, setVersionesOpen] = useState(false);
   const [versionesTarget, setVersionesTarget] = useState<{ docId: number; nombre: string } | null>(null);
@@ -480,6 +491,49 @@ const ExpedientesPage: React.FC = () => {
     }
   };
 
+  const handleReemplazarPaquete = async () => {
+    if (!expedienteDetalle || !reemplazarPaqueteFile) return;
+    if (!/\.pdf$/i.test(reemplazarPaqueteFile.name) && reemplazarPaqueteFile.type !== 'application/pdf') {
+      showError('El expediente completo debe ser un archivo PDF.');
+      return;
+    }
+    setReemplazandoPaquete(true);
+    try {
+      const form = new FormData();
+      form.append('archivo', reemplazarPaqueteFile);
+      const { data } = await api.post(`/expedientes/${expedienteDetalle.id}/reemplazar-paquete`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const eliminados = Number(data?.eliminados ?? 0);
+      showSuccess(
+        data?.message ||
+          (eliminados > 0
+            ? `PDF reemplazado. Se eliminaron ${eliminados} documento(s). Categorice de nuevo.`
+            : 'PDF reemplazado. Categorice las páginas.'),
+      );
+      setReemplazarPaqueteOpen(false);
+      setReemplazarPaqueteFile(null);
+      await openDetalle(expedienteDetalle.id);
+      const paquete = data?.paquete;
+      if (paquete?.id) {
+        const docRow: DocumentoRow = {
+          id: paquete.id,
+          tipoDocumento: paquete.tipoDocumento || TIPO_DOCUMENTO_PAQUETE,
+          nombreArchivo: paquete.nombreArchivo || reemplazarPaqueteFile.name,
+          descripcion: paquete.descripcion ?? null,
+          fechaSubida: paquete.fechaSubida || new Date().toISOString(),
+          tamanioBytes: paquete.tamanioBytes || reemplazarPaqueteFile.size,
+          mimeType: paquete.mimeType || 'application/pdf',
+        };
+        await abrirCategorizarPaquete(expedienteDetalle.id, docRow, expedienteDetalle.numeroExpediente);
+      }
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'Error al reemplazar el PDF completo.');
+    } finally {
+      setReemplazandoPaquete(false);
+    }
+  };
+
   const abrirVersiones = async (doc: DocumentoRow) => {
     if (!expedienteDetalle) return;
     setVersionesTarget({ docId: doc.id, nombre: doc.nombreArchivo || doc.tipoDocumento });
@@ -535,14 +589,27 @@ const ExpedientesPage: React.FC = () => {
     });
   };
 
-  const handleVerDocumento = (expedienteId: number, docId: number, nombre: string, mimeType: string) => {
+  const handleVerDocumento = (
+    expedienteId: number,
+    docId: number,
+    nombre: string,
+    mimeType: string,
+    observaciones?: Array<{ comentario: string; pagina?: number | null; tieneMarca?: boolean }>,
+  ) => {
     setViewerDocLoading(true);
     setViewingDoc(null);
     api.get(`/expedientes/${expedienteId}/documentos/${docId}/archivo`, { responseType: 'blob' })
       .then((res) => {
         const blob = new Blob([res.data], { type: mimeType || 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
-        setViewingDoc({ url, nombreOriginal: nombre, mimeType: mimeType || '', expedienteId, docId });
+        setViewingDoc({
+          url,
+          nombreOriginal: nombre,
+          mimeType: mimeType || '',
+          expedienteId,
+          docId,
+          observaciones: observaciones?.length ? observaciones : undefined,
+        });
         setViewerDocLoading(false);
       })
       .catch((err) => {
@@ -624,7 +691,10 @@ const ExpedientesPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth={drawerOpen ? false : 'lg'} sx={{ py: 4, px: drawerOpen ? { xs: 2, sm: 3, md: 4 } : undefined }}>
+    <Container
+      maxWidth={drawerOpen ? false : 'lg'}
+      sx={{ py: { xs: 2.5, md: 4 }, px: drawerOpen ? { xs: 1.5, sm: 2, md: 3 } : undefined }}
+    >
       <input
         ref={replaceFileInputRef}
         type="file"
@@ -639,23 +709,48 @@ const ExpedientesPage: React.FC = () => {
         <Box
           sx={{
             mb: 3,
-            p: { xs: 2.5, md: 3.5 },
-            borderRadius: 3,
+            p: { xs: 2, sm: 2.5, md: 3.5 },
+            borderRadius: { xs: 2, md: 3 },
             color: '#fff',
             background: `linear-gradient(135deg, ${IGSS_COLORS.azulOscuro} 0%, ${IGSS_COLORS.azulClaro} 100%)`,
             boxShadow: `0 10px 30px ${alpha(IGSS_COLORS.azulOscuro, 0.28)}`,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap' }}>
-            <Box sx={{ minWidth: 260 }}>
-              <Typography variant="h4" component="h1" sx={{ ...pageTitleSx, color: '#fff', mb: 0.5 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'flex-start' },
+              justifyContent: 'space-between',
+              gap: 2,
+            }}
+          >
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="h4"
+                component="h1"
+                sx={{
+                  ...pageTitleSx,
+                  color: '#fff',
+                  mb: 0.5,
+                  fontSize: { xs: '1.35rem', sm: '1.75rem', md: '2rem' },
+                }}
+              >
                 Expedientes de Compras
               </Typography>
-              <Typography variant="body1" sx={{ color: alpha('#fff', 0.85), maxWidth: 580 }}>
+              <Typography variant="body1" sx={{ color: alpha('#fff', 0.85), maxWidth: 580, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
                 Cree y administre expedientes de compras. Agregue los documentos que conforman cada expediente y envíelo a revisión cuando esté listo.
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                flexWrap: 'wrap',
+                gap: 1.25,
+                alignItems: { xs: 'stretch', sm: 'center' },
+              }}
+            >
             <Button
               variant="outlined"
               startIcon={<ArrowBackIcon />}
@@ -663,6 +758,7 @@ const ExpedientesPage: React.FC = () => {
               sx={{
                 borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#fff',
                 borderColor: alpha('#fff', 0.6),
+                width: { xs: '100%', sm: 'auto' },
                 '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
               }}
             >
@@ -676,6 +772,7 @@ const ExpedientesPage: React.FC = () => {
               sx={{
                 borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#fff',
                 borderColor: alpha('#fff', 0.6),
+                width: { xs: '100%', sm: 'auto' },
                 '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.12) },
               }}
             >
@@ -691,6 +788,7 @@ const ExpedientesPage: React.FC = () => {
                   ...primaryButtonSx,
                   bgcolor: '#fff',
                   color: IGSS_COLORS.azulOscuro,
+                  width: { xs: '100%', sm: 'auto' },
                   '&:hover': { bgcolor: alpha('#fff', 0.88) },
                 }}
               >
@@ -761,16 +859,16 @@ const ExpedientesPage: React.FC = () => {
             </Typography>
           </Box>
           <CardContent sx={{ p: 0 }}>
-            <TableContainer sx={{ overflowX: 'auto' }}>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <Table sx={{ minWidth: { xs: 560, md: 800 } }}>
                 <TableHead>
                   <TableRow style={headerRowStyle}>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Número</TableCell>
-                    <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>O.C.</TableCell>
+                    <TableCell align="left" sx={{ ...headerCellSx, display: { xs: 'none', sm: 'table-cell' } }} style={headerCellStyle}>O.C.</TableCell>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Título</TableCell>
-                    <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Descripción</TableCell>
+                    <TableCell align="left" sx={{ ...headerCellSx, display: { xs: 'none', md: 'table-cell' } }} style={headerCellStyle}>Descripción</TableCell>
                     <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Estado</TableCell>
-                    <TableCell align="left" sx={headerCellSx} style={headerCellStyle}>Fecha apertura</TableCell>
+                    <TableCell align="left" sx={{ ...headerCellSx, display: { xs: 'none', lg: 'table-cell' } }} style={headerCellStyle}>Fecha apertura</TableCell>
                     <TableCell align="center" sx={{ ...headerCellSx, textAlign: 'center' }} style={headerCellStyle}>Acciones</TableCell>
                   </TableRow>
                 </TableHead>
@@ -804,10 +902,12 @@ const ExpedientesPage: React.FC = () => {
                           '& td': { py: 1.75, borderColor: 'divider' },
                         }}
                       >
-                        <TableCell sx={{ fontWeight: 700, color: IGSS_COLORS.azulOscuro }}>{e.numeroExpediente}</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{e.numeroOrdenCompra || '—'}</TableCell>
-                        <TableCell>{e.titulo}</TableCell>
-                        <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descripcion || undefined}>{e.descripcion || '—'}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: IGSS_COLORS.azulOscuro, whiteSpace: 'nowrap' }}>{e.numeroExpediente}</TableCell>
+                        <TableCell sx={{ fontWeight: 600, display: { xs: 'none', sm: 'table-cell' } }}>{e.numeroOrdenCompra || '—'}</TableCell>
+                        <TableCell sx={{ maxWidth: 160 }}>
+                          <Typography variant="body2" noWrap title={e.titulo}>{e.titulo}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 280, display: { xs: 'none', md: 'table-cell' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descripcion || undefined}>{e.descripcion || '—'}</TableCell>
                         <TableCell>
                           {(() => {
                             const config = estadoConfig[e.estado] ?? estadoConfig.abierto;
@@ -825,10 +925,10 @@ const ExpedientesPage: React.FC = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, whiteSpace: 'nowrap' }}>
                           {typeof e.fechaApertura === 'string' ? e.fechaApertura.split('T')[0] : String(e.fechaApertura)}
                         </TableCell>
-                        <TableCell align="center">
+                        <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                           {(e.estado === 'abierto' || e.estado === 'rechazado') && puedeCrear && (
                             <Tooltip title="Enviar a revisión (lo verá el analista DAF)">
                               <span>
@@ -903,6 +1003,10 @@ const ExpedientesPage: React.FC = () => {
           onCategorizarPaquete={(doc) => {
             if (expedienteDetalle?.id) abrirCategorizarPaquete(expedienteDetalle.id, doc, expedienteDetalle.numeroExpediente);
           }}
+          onReemplazarPaquete={() => {
+            setReemplazarPaqueteFile(null);
+            setReemplazarPaqueteOpen(true);
+          }}
           onEnviarRevision={enviarARevision}
           onVerDocumento={handleVerDocumento}
           onReemplazarDoc={abrirReemplazarDoc}
@@ -911,6 +1015,21 @@ const ExpedientesPage: React.FC = () => {
           onVerMarca={openVerMarca}
         />
       )}
+
+      <ReemplazarPaqueteDialog
+        open={reemplazarPaqueteOpen}
+        cargando={reemplazandoPaquete}
+        file={reemplazarPaqueteFile}
+        tieneCategorizados={documentos.some((d) => !esDocumentoPaquete(d.tipoDocumento))}
+        onClose={() => {
+          if (!reemplazandoPaquete) {
+            setReemplazarPaqueteOpen(false);
+            setReemplazarPaqueteFile(null);
+          }
+        }}
+        onSubmit={handleReemplazarPaquete}
+        onFileChange={setReemplazarPaqueteFile}
+      />
 
       <CategorizarPaqueteDialog
         open={categorizarOpen}

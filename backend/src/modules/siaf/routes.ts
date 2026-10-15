@@ -14,7 +14,7 @@ import {
   SiafDocumentoAdjunto,
   SiafBitacora,
 } from '../../entity/SiafSolicitud';
-import { verifyToken, authorizeRoles } from '../../middleware/auth';
+import { verifyToken, authorizeRoles, authorizeRolesOrPermissions } from '../../middleware/auth';
 import { uploadMemory } from '../../middleware/upload';
 import { resolveDepartamentoDireccion } from '../../services/departamentoDireccion';
 import { pdfGeneratorService } from '../../services/PdfGeneratorService';
@@ -26,7 +26,9 @@ import {
   buildDetalleCorreccion,
   loadBitacoraBySiafId,
   resolverItemsSiafDesdeCatalogo,
+  validarTotalesSubproductos,
 } from './helpers';
+import { mismaUnidadMedica } from '../../services/unidadMedicaMatch';
 
 // El router se monta en /api/siaf. El orden de declaración importa: las rutas
 // específicas (rechazadas, adjuntos, para-direccion-departamental) deben quedar
@@ -65,6 +67,107 @@ siafRouter.get('/', verifyToken, async (req: Request, res: Response) => {
   }
 });
 
+
+/**
+ * Director / Administrador de unidad: SIAF de su unidad en
+ * En revisión / Rechazado / Finalizado (no borradores). Solo lectura.
+ */
+siafRouter.get(
+  '/finalizados-unidad',
+  verifyToken,
+  authorizeRolesOrPermissions(
+    ['super administrador', 'SIAF finalizados de mi unidad', 'SIAF de mi unidad'],
+    ['listado-siaf-unidad-finalizados']
+  ),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.userId as number;
+      const userRepo = AppDataSource.getRepository(User);
+      const viewer = await userRepo.findOne({ where: { id: userId } });
+      if (!viewer) return res.status(404).json({ message: 'Usuario no encontrado.' });
+
+      const roles: string[] = (req as any).user?.roles ?? [];
+      const isSuper = roles.some((r) => String(r || '').toLowerCase() === 'super administrador');
+      let unidad = (viewer.unidadMedica || '').trim();
+      if (isSuper && typeof req.query.unidad === 'string' && req.query.unidad.trim()) {
+        unidad = req.query.unidad.trim();
+      }
+      if (!unidad) {
+        return res.status(400).json({
+          message: 'Su usuario no tiene unidad médica asignada. Asígnele una unidad en Gestión de Usuarios.',
+        });
+      }
+
+      const todosUsuarios = await userRepo.find({ select: ['id', 'unidadMedica'] });
+      const ownerIds = todosUsuarios
+        .filter((u) => mismaUnidadMedica(u.unidadMedica, unidad))
+        .map((u) => u.id);
+
+      const siafRepository = AppDataSource.getRepository(SiafSolicitud);
+      const estadosUnidad = ['pendiente', 'finalizado', 'rechazado'];
+      const qb = siafRepository
+        .createQueryBuilder('solicitud')
+        .leftJoinAndSelect('solicitud.usuarioSolicitante', 'solicitante')
+        .leftJoinAndSelect('solicitud.area', 'area')
+        .leftJoinAndSelect('solicitud.items', 'items')
+        .leftJoinAndSelect('solicitud.subproductos', 'subproductos')
+        .leftJoinAndSelect('solicitud.documentosAdjuntos', 'documentosAdjuntos')
+        .leftJoinAndSelect('solicitud.autorizaciones', 'autorizaciones')
+        .where('solicitud.estado IN (:...estados)', { estados: estadosUnidad })
+        .orderBy('solicitud.createdAt', 'DESC');
+
+      if (ownerIds.length > 0) {
+        qb.andWhere(
+          `(solicitante.id IN (:...ownerIds)
+            OR solicitud.unidadSolicitante ILIKE :unidadLike
+            OR solicitud.nombreUnidad ILIKE :unidadLike)`,
+          { ownerIds, unidadLike: `%${unidad}%` }
+        );
+      } else {
+        qb.andWhere(
+          `(solicitud.unidadSolicitante ILIKE :unidadLike OR solicitud.nombreUnidad ILIKE :unidadLike)`,
+          { unidadLike: `%${unidad}%` }
+        );
+      }
+
+      const solicitudes = await qb.getMany();
+
+      // Refuerzo en memoria por variantes de nombre de unidad (código + nombre, etc.)
+      const filtradas = solicitudes.filter((s) => {
+        const solUnidad = (s as any).usuarioSolicitante?.unidadMedica;
+        return (
+          mismaUnidadMedica(solUnidad, unidad) ||
+          mismaUnidadMedica(s.unidadSolicitante, unidad) ||
+          mismaUnidadMedica(s.nombreUnidad, unidad) ||
+          (ownerIds.length > 0 && ownerIds.includes((s as any).usuarioSolicitante?.id))
+        );
+      });
+
+      const mapped = filtradas.map((s) => {
+        const rechazos = (s.autorizaciones || [])
+          .filter((a: any) => a.accion === 'rechazado')
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.fechaAutorizacion).getTime() - new Date(a.fechaAutorizacion).getTime()
+          );
+        const ultimoRechazo = rechazos[0]
+          ? { comentario: rechazos[0].comentario, fecha: rechazos[0].fechaAutorizacion }
+          : null;
+        return {
+          ...s,
+          ultimoRechazo,
+          aprobadoDireccionDepartamental: !!(s as any).aprobadoDireccionDepartamental,
+        };
+      });
+
+      res.json(mapped);
+    } catch (error) {
+      console.error('Error al obtener SIAF de la unidad:', error);
+      res.status(500).json({ message: 'Error al obtener los SIAF de la unidad' });
+    }
+  }
+);
+
 // Crear una nueva solicitud SIAF (correlativo automático vía reserva)
 siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
   try {
@@ -80,6 +183,11 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
       return res.status(400).json({ message: itemsResueltos.error });
     }
     siafData.items = itemsResueltos.items;
+
+    const errorTotales = validarTotalesSubproductos(siafData.items, siafData.subproductos);
+    if (errorTotales) {
+      return res.status(400).json({ message: errorTotales });
+    }
 
     // 1. Validar reserva de correlativo (se consume solo tras guardar)
     const reservaId = Number(siafData.reservaId);
@@ -715,6 +823,23 @@ siafRouter.put('/:id', verifyToken, async (req: Request, res: Response) => {
         return res.status(400).json({ message: itemsResueltos.error });
       }
       body.items = itemsResueltos.items;
+    }
+
+    const itemsParaValidar = Array.isArray(body.items)
+      ? body.items
+      : (solicitud.items || []).map((i: any) => ({
+          codigo: i.codigo ?? '',
+          cantidad: Number(i.cantidad ?? 0),
+        }));
+    const subsParaValidar = Array.isArray(body.subproductos)
+      ? body.subproductos
+      : (solicitud.subproductos || []).map((s: any) => ({
+          codigo: s.codigo ?? '',
+          cantidad: Number(s.cantidad ?? 0),
+        }));
+    const errorTotalesPut = validarTotalesSubproductos(itemsParaValidar, subsParaValidar);
+    if (errorTotalesPut) {
+      return res.status(400).json({ message: errorTotalesPut });
     }
 
     // Si ya había salido de borrador, se registra el cambio para que una revisión

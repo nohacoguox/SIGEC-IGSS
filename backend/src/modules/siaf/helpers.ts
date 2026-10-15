@@ -15,6 +15,27 @@ export const ETIQUETAS_MOTIVO: Record<string, string> = {
 
 export const MOTIVOS_VALIDOS = ['falta_documento', 'ortografia', 'mal_explicado', 'datos_incorrectos', 'otro'];
 
+/** Las cantidades de subproductos deben sumar exactamente el total de bienes/servicios. */
+export function validarTotalesSubproductos(
+  items: Array<{ codigo?: string; cantidad?: number }> | undefined,
+  subproductos: Array<{ codigo?: string; cantidad?: number }> | undefined,
+): string | null {
+  const sumaItems = (items || [])
+    .filter((i) => String(i?.codigo ?? '').trim() !== '' && Number(i?.cantidad) > 0)
+    .reduce((sum, i) => sum + Number(i.cantidad || 0), 0);
+  const sumaSubs = (subproductos || [])
+    .filter((s) => String(s?.codigo ?? '').trim() !== '' && Number(s?.cantidad) > 0)
+    .reduce((sum, s) => sum + Number(s.cantidad || 0), 0);
+  if (sumaItems <= 0) return null;
+  if (sumaSubs > sumaItems) {
+    return `La suma de cantidades de subproductos (${sumaSubs}) no puede exceder el total de bienes/servicios (${sumaItems}).`;
+  }
+  if (sumaSubs < sumaItems) {
+    return `Debe distribuir la totalidad de bienes/servicios en subproductos. Asignado: ${sumaSubs} de ${sumaItems} (Disponible: ${sumaItems - sumaSubs}). El disponible debe quedar en 0.`;
+  }
+  return null;
+}
+
 export const resolverItemsSiafDesdeCatalogo = async (items: any[]) => {
   const productoCatalogoRepository = AppDataSource.getRepository(ProductoCatalogo);
   const resolved: any[] = [];

@@ -1,4 +1,10 @@
+import { esDocumentoPaquete } from '../constants';
 import type { DocEnDetalle, ExpedienteRevision } from './types';
+
+/** Documentos visibles para DAF / revisión: sin el PDF de origen. */
+export function filtrarDocsRevision<T extends { tipoDocumento?: string | null }>(docs: T[]): T[] {
+  return (docs || []).filter((d) => !esDocumentoPaquete(d.tipoDocumento));
+}
 
 export function nombreSolicitante(e: ExpedienteRevision): string {
   const u = e.usuario;
@@ -42,4 +48,8 @@ export function mapDocEnDetalle(d: any): DocEnDetalle {
     versionActualId: d.versionActualId ?? null,
     enUltimoRechazo: !!d.enUltimoRechazo,
   };
+}
+
+export function mapDocsRevision(documentos: any[] | undefined | null): DocEnDetalle[] {
+  return filtrarDocsRevision(documentos || []).map(mapDocEnDetalle);
 }

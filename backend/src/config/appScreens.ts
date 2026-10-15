@@ -88,11 +88,13 @@ export const APP_SCREENS: AppScreenDefinition[] = [
     description: 'Crear y corregir solicitudes SIAF',
   },
   {
-    key: 'autorizar-siaf',
-    permission: 'autorizar-siaf',
-    label: 'Autorizar SIAF',
+    key: 'listado-siaf-unidad-finalizados',
+    permission: 'listado-siaf-unidad-finalizados',
+    label: 'SIAF de mi unidad',
     panel: 'colaborador',
-    description: 'Autorizar solicitudes SIAF pendientes',
+    group: 'Libro SIAF',
+    description:
+      'Director / Administrador de unidad: consulta en solo lectura los SIAF de su unidad en En revisión, Rechazado o Finalizado (sin borradores)',
   },
   {
     key: 'revisar-siaf-direccion-departamental',
@@ -112,10 +114,11 @@ export const APP_SCREENS: AppScreenDefinition[] = [
   {
     key: 'estadisticas-tiempos',
     permission: 'estadisticas-tiempos',
-    label: 'Análisis SIAF',
+    label: 'Mis estadísticas',
     panel: 'colaborador',
     group: 'Estadísticas',
-    description: 'Análisis SIAF: cierre mensual, trazabilidad y motivos de rechazo',
+    description:
+      'Colaborador común: abre Análisis SIAF y Análisis de expedientes solo con sus propios trámites',
   },
   {
     key: 'ver-estadisticas-unidad',
@@ -123,14 +126,34 @@ export const APP_SCREENS: AppScreenDefinition[] = [
     label: 'Estadísticas de mi unidad',
     panel: 'colaborador',
     group: 'Estadísticas',
-    description: 'Permite a directores y jefes ver la actividad de toda su unidad y filtrar por colaborador',
+    description:
+      'Jefe / Administrador C: mismo análisis, limitado a la unidad médica del usuario (no ve otras unidades)',
+  },
+  {
+    key: 'estadisticas-analista-daf',
+    permission: 'estadisticas-analista-daf',
+    label: 'Mis tiempos DAF',
+    panel: 'colaborador',
+    group: 'Estadísticas',
+    description:
+      'Analista DAF: tiempos de revisión propios (SIAF y expedientes), con clasificación por unidad médica de Escuintla',
   },
   {
     key: 'crear-expediente',
     permission: 'crear-expediente',
     label: 'Expedientes de Compras',
     panel: 'colaborador',
+    group: 'Expedientes',
     description: 'Crear y administrar expedientes de compras',
+  },
+  {
+    key: 'listado-expedientes-unidad',
+    permission: 'listado-expedientes-unidad',
+    label: 'Expedientes de mi unidad',
+    panel: 'colaborador',
+    group: 'Expedientes',
+    description:
+      'Director / Administrador de unidad: consulta en solo lectura los expedientes de su unidad en En revisión, Rechazado o Cerrado (sin abiertos/borradores)',
   },
   {
     key: 'revisar-expediente-direccion-departamental',
@@ -142,11 +165,14 @@ export const APP_SCREENS: AppScreenDefinition[] = [
   },
 ];
 
-/** Permisos legacy que otorgan acceso a pantallas nuevas (compatibilidad) */
+/**
+ * Permisos legacy → pantallas actuales.
+ * ver-estadisticas y estadisticas-motivos solo equivalen a "Mis estadísticas" (personal),
+ * nunca a vista de unidad.
+ */
 export const PERMISSION_ALIASES: Record<string, string[]> = {
   'listado-siaf': ['crear-siaf'],
-  'estadisticas-tiempos': ['ver-estadisticas'],
-  'estadisticas-motivos': ['ver-estadisticas'],
+  'estadisticas-tiempos': ['ver-estadisticas', 'estadisticas-motivos'],
   'gestionar-unidades-medicas': ['gestionar-areas'],
 };
 

@@ -70,6 +70,14 @@ import {
   getValidationError,
   labelUnidadMedica,
 } from './utils';
+import {
+  canAddConsistente,
+  canAddItemRow,
+  canFitItemDescription,
+  getPdfItemsCapacity,
+  PDF_CONSISTENTE_FULL_MESSAGE,
+  PDF_ITEMS_FULL_MESSAGE,
+} from './pdfContentCapacity';
 import SiafOrtografiaDialog from './components/SiafOrtografiaDialog';
 import SiafPreviewDialog from './components/SiafPreviewDialog';
 import SiafMarcasViewerDialog from './components/SiafMarcasViewerDialog';
@@ -160,6 +168,7 @@ const SiafBook: React.FC = () => {
         setAreas(areasActivas);
       } catch (error) {
         console.error('Error al cargar áreas:', error);
+        setAreas([]);
       }
     };
     const fetchUnidades = async () => {
@@ -502,7 +511,26 @@ const SiafBook: React.FC = () => {
   const handleItemChange = (index: number, field: keyof Item, value: string | number) => {
     const newItems = [...items];
     if (!newItems[index]) return;
-    (newItems[index] as any)[field] = value;
+    if (field === 'descripcion' && typeof value === 'string') {
+      if (
+        !canFitItemDescription(
+          items,
+          index,
+          value,
+          showConsistentField,
+          consistentItem,
+        )
+      ) {
+        showWarning(PDF_ITEMS_FULL_MESSAGE);
+        return;
+      }
+    }
+    let nextValue = value;
+    if (field === 'cantidad') {
+      const n = Number(value);
+      nextValue = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    }
+    (newItems[index] as any)[field] = nextValue;
     // Al cambiar el código de un bien, limpiar descripción hasta consultar el catálogo
     if (field === 'codigo' && newItems[index].tipo === 'bien') {
       newItems[index].descripcion = '';
@@ -536,6 +564,15 @@ const SiafBook: React.FC = () => {
   };
 
   const aplicarCodigoSeleccionado = (index: number, option: CatalogoSugerencia | null, inputValue?: string) => {
+    if (option) {
+      const desc = option.descripcion ?? '';
+      if (
+        !canFitItemDescription(items, index, desc, showConsistentField, consistentItem)
+      ) {
+        showWarning(PDF_ITEMS_FULL_MESSAGE);
+        return;
+      }
+    }
     setItems((prev) => {
       const newItems = [...prev];
       if (!newItems[index]) return prev;
@@ -592,11 +629,18 @@ const SiafBook: React.FC = () => {
         params: { origen },
       });
       if (res.data?.descripcion != null) {
+        const desc = String(res.data.descripcion);
+        if (
+          !canFitItemDescription(items, index, desc, showConsistentField, consistentItem)
+        ) {
+          showWarning(PDF_ITEMS_FULL_MESSAGE);
+          return;
+        }
         const newItems = [...items];
         if (newItems[index]) {
           newItems[index] = {
             ...newItems[index],
-            descripcion: res.data.descripcion,
+            descripcion: desc,
             cantidad: Number(newItems[index].cantidad) > 0 ? newItems[index].cantidad : 1,
           };
         }
@@ -648,6 +692,16 @@ const SiafBook: React.FC = () => {
   };
 
   const handleAddItem = () => {
+    if (
+      !canAddItemRow({
+        items,
+        showConsistentField,
+        consistentItem,
+      })
+    ) {
+      showWarning(PDF_ITEMS_FULL_MESSAGE);
+      return;
+    }
     setItems([
       ...items,
       {
@@ -658,6 +712,24 @@ const SiafBook: React.FC = () => {
         catalogoOrigen: catalogoSeleccionado,
       },
     ]);
+  };
+
+  const handleAddConsistente = () => {
+    if (
+      !canAddConsistente({
+        items,
+        consistentItem: consistentItem || '',
+      })
+    ) {
+      showWarning(PDF_CONSISTENTE_FULL_MESSAGE);
+      return;
+    }
+    setShowConsistentField(true);
+  };
+
+  const handleRemoveConsistente = () => {
+    setConsistentItem('');
+    setShowConsistentField(false);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -732,7 +804,7 @@ const SiafBook: React.FC = () => {
   const totalSubproductoCantidad = subproductos.reduce((sum, s) => sum + Number(s.cantidad || 0), 0);
 
   const setCantidadSubproductoFila = (index: number, raw: string) => {
-    const n = Math.max(0, Number(raw) || 0);
+    const n = Math.max(0, Math.floor(Number(raw) || 0));
     setSubproductos((prev) => {
       const otherSum = prev
         .filter((_, i) => i !== index)
@@ -1249,7 +1321,7 @@ const SiafBook: React.FC = () => {
                               </FormControl>
                               {!id && (
                                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                  Se carga automáticamente según la unidad ligada a su usuario. Solo elija el área.
+                                  La unidad se carga según el perfil del usuario. El área se elige del catálogo institucional (Gestión de Áreas).
                                 </Typography>
                               )}
                               {!id && unidadUsuarioLigada && !nombreUnidad && unidadesMedicas.length > 0 && (
@@ -1275,6 +1347,11 @@ const SiafBook: React.FC = () => {
                                     ))}
                                 </Select>
                             </FormControl>
+                            {areas.length === 0 && (
+                              <Alert severity="warning" sx={{ mt: 1, py: 0.5 }}>
+                                No se cargaron áreas. Reinicie el backend si acaba de actualizar permisos, o verifique que existan áreas activas en Gestión de Áreas.
+                              </Alert>
+                            )}
                           </Grid>
                           {textoUnidadEjecutora ? (
                             <Grid item xs={12}>
@@ -1458,7 +1535,19 @@ const SiafBook: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', verticalAlign: 'top' }}>
-                          <TextField variant="standard" size="small" type="number" value={item.cantidad} onChange={(e) => handleItemChange(index, 'cantidad', Number(e.target.value))} />
+                          <TextField
+                            variant="standard"
+                            size="small"
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => handleItemChange(index, 'cantidad', e.target.value === '' ? 0 : Number(e.target.value))}
+                            inputProps={{ min: 0, step: 1 }}
+                            onKeyDown={(e) => {
+                              if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                                e.preventDefault();
+                              }
+                            }}
+                          />
                         </TableCell>
                         <TableCell sx={{ verticalAlign: 'top' }}>
                           <IconButton color="error" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}>
@@ -1470,16 +1559,78 @@ const SiafBook: React.FC = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
-              <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={handleAddItem} sx={{ mt: 2, mr: 2 }}>
-                Añadir Fila
-              </Button>
-              <Button variant="outlined" onClick={() => setShowConsistentField(true)} sx={{ mt: 2 }}>
-                Agregar Consistente
-              </Button>
+              {(() => {
+                const allowAddRow = canAddItemRow({
+                  items,
+                  showConsistentField,
+                  consistentItem,
+                });
+                const allowConsistente =
+                  showConsistentField ||
+                  canAddConsistente({ items, consistentItem: consistentItem || '' });
+                return (
+                  <>
+                    {(!allowAddRow || (!showConsistentField && !allowConsistente)) && (
+                      <Alert severity="warning" sx={{ mt: 2, mb: 0 }}>
+                        El área de bienes/servicios del PDF llegó al tope. No puede añadir más filas
+                        {!showConsistentField && !allowConsistente ? ' ni Consistente' : ''}{' '}
+                        hasta acortar o eliminar alguna descripción.
+                      </Alert>
+                    )}
+                    <Button
+                      variant="outlined"
+                      startIcon={<AddCircleOutlineIcon />}
+                      onClick={handleAddItem}
+                      disabled={!allowAddRow}
+                      sx={{ mt: 2, mr: 2 }}
+                    >
+                      Añadir Fila
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={handleAddConsistente}
+                      disabled={showConsistentField || !allowConsistente}
+                      sx={{ mt: 2 }}
+                    >
+                      Agregar Consistente
+                    </Button>
+                  </>
+                );
+              })()}
               {showConsistentField && (
                 <Box sx={{ mt: 2 }}>
-                  <Typography variant="body1" gutterBottom>Consistente:</Typography>
-                  <TextField fullWidth multiline rows={2} value={consistentItem} onChange={(e) => setConsistentItem(e.target.value)} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body1">Consistente:</Typography>
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="text"
+                      startIcon={<DeleteOutlineIcon />}
+                      onClick={handleRemoveConsistente}
+                    >
+                      Quitar Consistente
+                    </Button>
+                  </Box>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={2}
+                    value={consistentItem}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (
+                        getPdfItemsCapacity({
+                          items,
+                          showConsistentField: true,
+                          consistentItem: next,
+                        }).isOverflow
+                      ) {
+                        showWarning(PDF_CONSISTENTE_FULL_MESSAGE);
+                        return;
+                      }
+                      setConsistentItem(next);
+                    }}
+                  />
                 </Box>
               )}
               </Box>
@@ -1488,19 +1639,33 @@ const SiafBook: React.FC = () => {
               <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Detalle por Subproducto *</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Elija el subproducto desde el listado (combobox) e indique la cantidad. La suma no puede
-                  exceder el total de bienes/servicios (<strong>{totalItemCantidad}</strong>).
+                  Elija el subproducto desde el listado (combobox) e indique la cantidad. Debe distribuir
+                  la totalidad del total de bienes/servicios (<strong>{totalItemCantidad}</strong>) en una
+                  o varias filas; el <strong>Disponible</strong> debe quedar en <strong>0</strong> para
+                  poder crear el SIAF.
                 </Typography>
 
                 <Alert
-                  severity={totalSubproductoCantidad > totalItemCantidad ? 'error' : 'info'}
+                  severity={
+                    totalSubproductoCantidad > totalItemCantidad
+                      ? 'error'
+                      : totalItemCantidad > 0 && totalSubproductoCantidad !== totalItemCantidad
+                        ? 'warning'
+                        : totalItemCantidad > 0
+                          ? 'success'
+                          : 'info'
+                  }
                   sx={{ mb: 1.5 }}
                 >
                   Total bienes/servicios: <strong>{totalItemCantidad}</strong>
                   {' · '}
                   Asignado a subproductos: <strong>{totalSubproductoCantidad}</strong>
                   {' · '}
-                  Disponible: <strong>{Math.max(0, totalItemCantidad - totalSubproductoCantidad)}</strong>
+                  Disponible:{' '}
+                  <strong>{Math.max(0, totalItemCantidad - totalSubproductoCantidad)}</strong>
+                  {totalItemCantidad > 0 && totalSubproductoCantidad !== totalItemCantidad
+                    ? ' — Debe quedar en 0 para guardar el SIAF.'
+                    : null}
                 </Alert>
 
                 <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
@@ -1599,6 +1764,11 @@ const SiafBook: React.FC = () => {
                                 value={sub.cantidad || ''}
                                 onChange={(e) => setCantidadSubproductoFila(index, e.target.value)}
                                 inputProps={{ min: 0, step: 1, style: { textAlign: 'right' } }}
+                                onKeyDown={(e) => {
+                                  if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                                    e.preventDefault();
+                                  }
+                                }}
                                 disabled={!sub.codigo}
                               />
                             </TableCell>

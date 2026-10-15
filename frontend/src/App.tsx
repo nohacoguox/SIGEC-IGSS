@@ -7,7 +7,9 @@ import AdminDashboard from './pages/AdminDashboard';
 import CollaboratorDashboard from './pages/CollaboratorDashboard';
 import ActualizarCodigosProductosPage from './pages/ActualizarCodigosProductosPage';
 import SiafManagement from './pages/SiafManagement';
+import SiafUnitFinalizadosPage from './pages/SiafUnitFinalizadosPage';
 import ExpedientesPage from './pages/ExpedientesPage';
+import ExpedientesUnidadPage from './pages/ExpedientesUnidadPage';
 import { SiafProvider } from './context/SiafContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -44,7 +46,9 @@ function App() {
               <Route path="/siaf-book" element={<SiafManagement />} />
               <Route path="/siaf-book/crear" element={<SiafBook />} />
               <Route path="/siaf-book/corregir/:id" element={<SiafBook />} />
+              <Route path="/siaf-book/unidad-finalizados" element={<SiafUnitFinalizadosPage />} />
               <Route path="/expedientes" element={<ExpedientesPage />} />
+              <Route path="/expedientes/unidad" element={<ExpedientesUnidadPage />} />
             </Route>
 
             {/* Redirección por defecto para cualquier ruta no encontrada */}

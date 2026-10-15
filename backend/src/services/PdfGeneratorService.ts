@@ -21,12 +21,12 @@ const FONT_SIGN_LABEL = 8;
 const LOGO_HEIGHT = 38;
 const ROW_HEIGHT = 16;
 const TABLE_RADIUS = 8;
-const CONTENT_BLOCK_HEIGHT = 280; // Área de ítems más alta para bajar firmas y justificación
-const SUBPRODUCT_CONTENT_HEIGHT = 48;
+const CONTENT_BLOCK_HEIGHT = 292; // Área de ítems (tope antes de subproductos); alineado con SiafPdfDocument
+const SUBPRODUCT_CONTENT_HEIGHT = 56; // Alineado con SiafPdfDocument (incluye fila Total)
 
 // Alturas fijas de recuadros
 const JUSTIFICACION_BOX_HEIGHT = 52;
-const FIRMA_BOX_HEIGHT = 48;
+const FIRMA_BOX_HEIGHT = 62; // Espacio superior para firma manuscrita; texto abajo
 const FIRMA_BOX_WIDTH = CONTENT_WIDTH * 0.48;
 const GAP_BETWEEN_SECTIONS = 10;
 
@@ -146,7 +146,7 @@ export class PdfGeneratorService {
         const colDesc = 0.65 * CONTENT_WIDTH;
         const colCant = 0.20 * CONTENT_WIDTH;
         const subproductos = siaf.subproductos || [];
-        const TOTAL_ROW_HEIGHT = 14; // Fila fina para Total dentro del bloque de subproductos
+        const TOTAL_ROW_HEIGHT = 16; // Fila Total; alineado con SiafPdfDocument
         const tableTotalHeight = ROW_HEIGHT + CONTENT_BLOCK_HEIGHT + ROW_HEIGHT + ROW_HEIGHT + SUBPRODUCT_CONTENT_HEIGHT;
         const tableTop = y;
 
@@ -171,72 +171,137 @@ export class PdfGeneratorService {
         doc.moveTo(left + colCodigo + colDesc, contentTop).lineTo(left + colCodigo + colDesc, contentTop + CONTENT_BLOCK_HEIGHT).stroke();
         const contentPadding = 4;
         let contentY = contentTop + contentPadding;
-        const lineSpacing = 12;
+        const contentBottom = contentTop + CONTENT_BLOCK_HEIGHT - contentPadding;
+        const rowGap = 5;
         const items = siaf.items || [];
         items.forEach((item) => {
           doc.fontSize(FONT_TABLE).font('Helvetica');
-          doc.text(String(item.codigo), left + 2, contentY, { width: colCodigo - 4, align: 'center' });
-          doc.text(String(item.descripcion || ''), left + colCodigo + 2, contentY, { width: colDesc - 4 });
-          doc.text(String(item.cantidad), left + colCodigo + colDesc + 2, contentY, { width: colCant - 4, align: 'center' });
-          contentY += lineSpacing;
+          const desc = String(item.descripcion || '');
+          const descHeight = Math.max(
+            FONT_TABLE + 2,
+            doc.heightOfString(desc, { width: colDesc - 4 })
+          );
+          if (contentY + descHeight > contentBottom) return;
+          // Misma Y para código, descripción y cantidad → fila alineada
+          doc.text(String(item.codigo ?? ''), left + 2, contentY, {
+            width: colCodigo - 4,
+            align: 'center',
+            lineBreak: false,
+          });
+          doc.text(desc, left + colCodigo + 2, contentY, { width: colDesc - 4 });
+          doc.text(String(item.cantidad ?? ''), left + colCodigo + colDesc + 2, contentY, {
+            width: colCant - 4,
+            align: 'center',
+            lineBreak: false,
+          });
+          contentY += descHeight + rowGap;
         });
         if (siaf.consistenteItem) {
           doc.fontSize(FONT_TABLE).font('Helvetica');
-          doc.text(`Consiste en: ${siaf.consistenteItem}`, left + colCodigo + 2, contentY, { width: colDesc - 4 });
-          contentY += lineSpacing;
+          const consistente = `Consiste en: ${siaf.consistenteItem}`;
+          const h = Math.max(
+            FONT_TABLE + 2,
+            doc.heightOfString(consistente, { width: colDesc - 4 })
+          );
+          if (contentY + h <= contentBottom) {
+            doc.text(consistente, left + colCodigo + 2, contentY, { width: colDesc - 4 });
+            contentY += h + rowGap;
+          }
         }
         y += CONTENT_BLOCK_HEIGHT;
 
-        // Línea horizontal que separa contenido de subproductos
-        doc.moveTo(left, y).lineTo(right, y).stroke();
-
-        // Subproductos: encabezado (Código de Subproducto | Cantidad por Subproducto)
-        doc.rect(left, y, colCodigo + colDesc, ROW_HEIGHT).fill('#f5f5f5');
-        doc.rect(left + colCodigo + colDesc, y, colCant, ROW_HEIGHT).fill('#f5f5f5');
-        doc.rect(left, y, colCodigo + colDesc, ROW_HEIGHT).stroke();
-        doc.rect(left + colCodigo + colDesc, y, colCant, ROW_HEIGHT).stroke();
-        doc.fillColor('#000').fontSize(FONT_TABLE).font('Helvetica-Bold');
-        doc.text('Código de Subproducto', left + 2, y + 5, { width: (colCodigo + colDesc) - 4, align: 'center' });
-        doc.text('Cantidad por Subproducto', left + colCodigo + colDesc + 2, y + 5, { width: colCant - 4, align: 'center' });
-        y += ROW_HEIGHT;
-
-        // Área de contenido de subproductos: como en la imagen. Izq: celda única con "Total" al fondo. Der: línea horizontal que separa zona de cantidades de la fila fina del total.
-        const subproductContentTop = y;
+        // Subproductos: 50% | 50% (Total sin línea izq.; línea solo en cantidad)
+        const subColW = CONTENT_WIDTH / 2;
+        const midX = left + subColW;
+        const subHeaderTop = y;
         const tableBottom = tableTop + tableTotalHeight;
+
+        // Fondo gris del encabezado
+        doc.save();
+        doc.fillColor('#f5f5f5').rect(left, subHeaderTop, CONTENT_WIDTH, ROW_HEIGHT).fill();
+        doc.restore();
+
+        doc.fillColor('#000').fontSize(FONT_TABLE).font('Helvetica-Bold');
+        doc.text('Código de Subproducto', left + 2, subHeaderTop + 5, { width: subColW - 4, align: 'center' });
+        doc.text('Cantidad por Subproducto', midX + 2, subHeaderTop + 5, { width: subColW - 4, align: 'center' });
+        y = subHeaderTop + ROW_HEIGHT;
+
+        const subproductContentTop = y;
         const subTotalY = subproductContentTop + SUBPRODUCT_CONTENT_HEIGHT - TOTAL_ROW_HEIGHT;
-        // Vertical: inicio +0.5pt para que el grosor del trazo no sobresalga por encima de la línea horizontal del encabezado; fin -0.5pt para quedar al ras con el borde inferior
-        doc.moveTo(left + colCodigo + colDesc, subproductContentTop + 0.5).lineTo(left + colCodigo + colDesc, tableBottom - 0.5).stroke();
-        // Línea horizontal solo en la columna derecha: inicio +1 para que el grosor del trazo no invada la columna izquierda
-        doc.moveTo(left + colCodigo + colDesc + 1, subTotalY).lineTo(right, subTotalY).stroke();
+
         const subContentPadding = 4;
         let subContentY = subproductContentTop + subContentPadding;
         subproductos.forEach((sub) => {
+          if (subContentY + 11 > subTotalY) return;
           doc.fontSize(FONT_TABLE).font('Helvetica');
-          doc.text(String(sub.codigo), left + 2, subContentY, { width: (colCodigo + colDesc) - 4, align: 'center' });
-          doc.text(String(sub.cantidad), left + colCodigo + colDesc + 2, subContentY, { width: colCant - 4, align: 'center' });
-          subContentY += 12;
+          doc.text(String(sub.codigo), left + 2, subContentY, { width: subColW - 4, align: 'center' });
+          doc.text(String(sub.cantidad), midX + 2, subContentY, { width: subColW - 4, align: 'center' });
+          subContentY += 11;
         });
         const totalCant = subproductos.reduce((s, sp) => s + Number(sp.cantidad || 0), 0);
-        doc.fontSize(FONT_TABLE).font('Helvetica');
-        doc.text('Total', left + 2, subTotalY + (TOTAL_ROW_HEIGHT - 8) / 2, { width: (colCodigo + colDesc) - 4, align: 'center' });
-        doc.text(String(totalCant), left + colCodigo + colDesc + 2, subTotalY + (TOTAL_ROW_HEIGHT - 8) / 2, { width: colCant - 4, align: 'center' });
+        doc.fontSize(FONT_TABLE).font('Helvetica-Bold');
+        doc.text('Total', left + 2, subTotalY + (TOTAL_ROW_HEIGHT - 8) / 2, {
+          width: subColW - 8,
+          align: 'right',
+        });
+        doc.text(String(totalCant), midX + 2, subTotalY + (TOTAL_ROW_HEIGHT - 8) / 2, {
+          width: subColW - 4,
+          align: 'center',
+        });
+
+        // Trazos AL FINAL (encima del gris/texto): vertical del TOPE del encabezado al fondo
+        doc.save();
+        doc.strokeColor('#000').lineWidth(1);
+        doc.moveTo(left, subHeaderTop).lineTo(right, subHeaderTop).stroke();
+        doc.moveTo(left, subHeaderTop + ROW_HEIGHT).lineTo(right, subHeaderTop + ROW_HEIGHT).stroke();
+        doc.moveTo(midX, subHeaderTop).lineTo(midX, tableBottom).stroke();
+        doc.moveTo(midX, subTotalY).lineTo(right, subTotalY).stroke();
+        doc.restore();
+
         y += SUBPRODUCT_CONTENT_HEIGHT + GAP_BETWEEN_SECTIONS;
 
-        // ----- 5. FIRMAS: primero (como en la imagen de referencia) -----
+        // ----- 5. FIRMAS: texto abajo; espacio libre arriba para firmar -----
         const gap = CONTENT_WIDTH - FIRMA_BOX_WIDTH * 2;
         doc.roundedRect(left, y, FIRMA_BOX_WIDTH, FIRMA_BOX_HEIGHT, TABLE_RADIUS).stroke();
         doc.roundedRect(left + FIRMA_BOX_WIDTH + gap, y, FIRMA_BOX_WIDTH, FIRMA_BOX_HEIGHT, TABLE_RADIUS).stroke();
 
-        doc.fontSize(FONT_TABLE).font('Helvetica');
-        doc.text(String(siaf.nombreSolicitante || ''), left, y + 6, { width: FIRMA_BOX_WIDTH, align: 'center' });
-        doc.text(String(siaf.puestoSolicitante || ''), left, y + 14, { width: FIRMA_BOX_WIDTH, align: 'center' });
-        doc.text(String(siaf.unidadSolicitante || ''), left, y + 22, { width: FIRMA_BOX_WIDTH, align: 'center' });
+        const firmaFontSize = 7.5;
+        const firmaLineH = 9;
+        const firmaTextBottomPad = 5;
+        const firmaTextStartY = y + FIRMA_BOX_HEIGHT - firmaTextBottomPad - firmaLineH * 3;
+        doc.fontSize(firmaFontSize).font('Helvetica');
+        doc.text(String(siaf.nombreSolicitante || ''), left, firmaTextStartY, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.text(String(siaf.puestoSolicitante || ''), left, firmaTextStartY + firmaLineH, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.text(String(siaf.unidadSolicitante || ''), left, firmaTextStartY + firmaLineH * 2, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
 
         const rightFirmaX = left + FIRMA_BOX_WIDTH + gap;
-        doc.fontSize(FONT_TABLE).font('Helvetica');
-        doc.text(String(siaf.nombreAutoridad || ''), rightFirmaX, y + 6, { width: FIRMA_BOX_WIDTH, align: 'center' });
-        doc.text(String(siaf.puestoAutoridad || ''), rightFirmaX, y + 14, { width: FIRMA_BOX_WIDTH, align: 'center' });
-        doc.text(String(siaf.unidadAutoridad || ''), rightFirmaX, y + 22, { width: FIRMA_BOX_WIDTH, align: 'center' });
+        doc.text(String(siaf.nombreAutoridad || ''), rightFirmaX, firmaTextStartY, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.text(String(siaf.puestoAutoridad || ''), rightFirmaX, firmaTextStartY + firmaLineH, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.text(String(siaf.unidadAutoridad || ''), rightFirmaX, firmaTextStartY + firmaLineH * 2, {
+          width: FIRMA_BOX_WIDTH,
+          align: 'center',
+          lineBreak: false,
+        });
 
         y += FIRMA_BOX_HEIGHT + GAP_BETWEEN_SECTIONS;
 

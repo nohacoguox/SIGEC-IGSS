@@ -1,17 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Autocomplete, Box, Button, Checkbox, Chip, Dialog, DialogActions,
-  DialogContent, DialogTitle, Divider, FormControlLabel, Grid, IconButton,
+  Alert, Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions,
+  DialogContent, DialogTitle, Divider, FormControlLabel, Grid, IconButton, InputAdornment,
   Paper, Snackbar, Tab, Table, TableBody, TableCell, TableContainer, TableHead,
-  TablePagination, TableRow, TableSortLabel, Tabs, TextField, Tooltip, Typography,
+  TablePagination, TableRow, TableSortLabel, Tabs, TextField, ToggleButton, ToggleButtonGroup,
+  Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import BadgeIcon from '@mui/icons-material/Badge';
+import ClearIcon from '@mui/icons-material/Clear';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
+import SearchIcon from '@mui/icons-material/Search';
 import SecurityIcon from '@mui/icons-material/Security';
 import api from '../api';
 import {
@@ -42,8 +46,11 @@ interface UserOption {
   nombres: string;
   apellidos: string;
   codigoEmpleado: string;
+  puesto?: { id: number; nombre: string } | null;
   roles?: Role[];
 }
+
+type AssignMode = 'por-colaborador' | 'por-rol';
 
 interface AppScreenApi extends AppScreenDefinition {
   permissionId: number | null;
@@ -76,6 +83,12 @@ const RoleManagementPage: React.FC = () => {
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [savedRoleIds, setSavedRoleIds] = useState<number[]>([]);
   const [loadingUserRoles, setLoadingUserRoles] = useState(false);
+  const [assignMode, setAssignMode] = useState<AssignMode>('por-colaborador');
+  const [selectedAssignRole, setSelectedAssignRole] = useState<Role | null>(null);
+  const [roleMemberIds, setRoleMemberIds] = useState<number[]>([]);
+  const [savedRoleMemberIds, setSavedRoleMemberIds] = useState<number[]>([]);
+  const [userFilterForRole, setUserFilterForRole] = useState('');
+  const [savingRoleMembers, setSavingRoleMembers] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
@@ -131,6 +144,97 @@ const RoleManagementPage: React.FC = () => {
     const b = [...savedRoleIds].sort();
     return a.some((id, i) => id !== b[i]);
   }, [selectedUser, selectedRoleIds, savedRoleIds]);
+
+  const roleMembersDirty = useMemo(() => {
+    if (!selectedAssignRole) return false;
+    if (roleMemberIds.length !== savedRoleMemberIds.length) return true;
+    const a = [...roleMemberIds].sort((x, y) => x - y);
+    const b = [...savedRoleMemberIds].sort((x, y) => x - y);
+    return a.some((id, i) => id !== b[i]);
+  }, [selectedAssignRole, roleMemberIds, savedRoleMemberIds]);
+
+  const usersForRoleAssignment = useMemo(() => {
+    const q = userFilterForRole.trim().toLowerCase();
+    const sorted = [...users].sort((a, b) =>
+      `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, 'es')
+    );
+    if (!q) return sorted;
+    return sorted.filter((u) => {
+      const haystack = [
+        u.nombres,
+        u.apellidos,
+        u.codigoEmpleado,
+        u.puesto?.nombre ?? '',
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [users, userFilterForRole]);
+
+  const userOptionLabel = (opt: UserOption) => {
+    const puesto = opt.puesto?.nombre ? ` · ${opt.puesto.nombre}` : '';
+    return `${opt.nombres} ${opt.apellidos} (${opt.codigoEmpleado})${puesto}`;
+  };
+
+  const handleAssignModeChange = (_: React.MouseEvent<HTMLElement>, next: AssignMode | null) => {
+    if (!next) return;
+    setAssignMode(next);
+  };
+
+  const handleAssignRoleSelect = (role: Role | null) => {
+    setSelectedAssignRole(role);
+    setUserFilterForRole('');
+    if (!role) {
+      setRoleMemberIds([]);
+      setSavedRoleMemberIds([]);
+      return;
+    }
+    const ids = users
+      .filter((u) => u.roles?.some((r) => r.id === role.id))
+      .map((u) => u.id);
+    setRoleMemberIds(ids);
+    setSavedRoleMemberIds(ids);
+  };
+
+  const handleRoleMemberToggle = (userId: number) => {
+    setRoleMemberIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSaveRoleMembers = async () => {
+    if (!selectedAssignRole) return;
+    const roleId = selectedAssignRole.id;
+    const toAdd = roleMemberIds.filter((id) => !savedRoleMemberIds.includes(id));
+    const toRemove = savedRoleMemberIds.filter((id) => !roleMemberIds.includes(id));
+    if (toAdd.length === 0 && toRemove.length === 0) return;
+
+    setSavingRoleMembers(true);
+    try {
+      const updates = [...toAdd, ...toRemove].map(async (userId) => {
+        const user = users.find((u) => u.id === userId);
+        const currentIds = (user?.roles ?? []).map((r) => r.id);
+        const nextIds = toAdd.includes(userId)
+          ? Array.from(new Set([...currentIds, roleId]))
+          : currentIds.filter((id) => id !== roleId);
+        await api.put(`/users/${userId}/roles`, { roleIds: nextIds });
+      });
+      await Promise.all(updates);
+      setSavedRoleMemberIds([...roleMemberIds]);
+      await fetchUsers();
+      if (selectedUser && [...toAdd, ...toRemove].includes(selectedUser.id)) {
+        await handleUserSelect(selectedUser);
+      }
+      setSnackbar({
+        open: true,
+        message: `Rol «${selectedAssignRole.name}» actualizado (${toAdd.length} agregado(s), ${toRemove.length} quitado(s))`,
+        severity: 'success',
+      });
+    } catch {
+      setSnackbar({ open: true, message: 'Error al guardar la asignación del rol', severity: 'error' });
+    } finally {
+      setSavingRoleMembers(false);
+    }
+  };
 
   const handleOpenDialog = (role: Role | null) => {
     setEditingRole(role);
@@ -414,7 +518,7 @@ const RoleManagementPage: React.FC = () => {
         </Typography>
         <Typography variant="body2">
           Un <strong>rol</strong> es un paquete de pantallas. Primero cree o edite roles (paso 1),
-          luego asígnelos a cada colaborador (paso 2). El menú que ve cada persona depende de los roles que tenga.
+          luego asígnelos (paso 2) por colaborador o por rol. El menú de cada persona es la unión de sus roles.
         </Typography>
       </Alert>
 
@@ -553,14 +657,39 @@ const RoleManagementPage: React.FC = () => {
 
         {mainTab === 1 && (
           <Box sx={{ p: { xs: 2, sm: 3 } }}>
-            <Box sx={{ mb: 2.5, maxWidth: 720 }}>
+            <Box sx={{ mb: 2, maxWidth: 760 }}>
               <Typography variant="h6" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PersonSearchIcon /> Asignar roles a un colaborador
+                <AssignmentIndIcon /> Asignar roles
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                Busque a la persona y marque los roles que debe tener. Puede combinar varios roles; el acceso es la unión de sus pantallas.
+                Elija cómo quiere trabajar: persona por persona, o un rol y varios colaboradores a la vez.
               </Typography>
             </Box>
+
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={assignMode}
+              onChange={handleAssignModeChange}
+              sx={{
+                mb: 2.5,
+                flexWrap: 'wrap',
+                '& .MuiToggleButton-root': {
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  px: 1.75,
+                },
+              }}
+            >
+              <ToggleButton value="por-colaborador">
+                <PersonSearchIcon fontSize="small" sx={{ mr: 0.75 }} />
+                Por colaborador
+              </ToggleButton>
+              <ToggleButton value="por-rol">
+                <GroupWorkIcon fontSize="small" sx={{ mr: 0.75 }} />
+                Por rol
+              </ToggleButton>
+            </ToggleButtonGroup>
 
             {roles.length === 0 && (
               <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
@@ -571,122 +700,292 @@ const RoleManagementPage: React.FC = () => {
               </Alert>
             )}
 
-            <Autocomplete
-              options={users}
-              getOptionLabel={(opt) => `${opt.nombres} ${opt.apellidos} (${opt.codigoEmpleado})`}
-              value={selectedUser}
-              onChange={(_, val) => handleUserSelect(val)}
-              loading={loadingUserRoles}
-              disabled={roles.length === 0}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Buscar colaborador"
-                  placeholder="Nombre o código de empleado"
-                  helperText={selectedUser ? 'Marque o desmarque roles y pulse Guardar' : 'Seleccione un colaborador para continuar'}
-                />
-              )}
-              isOptionEqualToValue={(a, b) => a.id === b.id}
-              sx={{ maxWidth: 520, mb: 2.5 }}
-            />
-
-            {selectedUser && (
+            {assignMode === 'por-colaborador' && (
               <>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 1.75,
-                    mb: 2,
-                    borderRadius: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                    flexWrap: 'wrap',
-                    bgcolor: 'rgba(0,91,145,0.04)',
-                  }}
-                >
-                  <BadgeIcon sx={{ color: IGSS_COLORS.azul }} />
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography fontWeight={800}>
-                      {selectedUser.nombres} {selectedUser.apellidos}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Código {selectedUser.codigoEmpleado} · {selectedRoleIds.length} rol(es) seleccionados
-                      {assignmentDirty ? ' · cambios sin guardar' : ''}
-                    </Typography>
-                  </Box>
-                  {assignmentDirty && (
-                    <Chip size="small" color="warning" label="Sin guardar" sx={{ fontWeight: 700 }} />
-                  )}
-                </Paper>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 640 }}>
+                  Busque a la persona y marque los roles que debe tener. Puede combinar varios; el acceso es la unión de sus pantallas.
+                </Typography>
 
-                <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-                  {roles.map((role) => {
-                    const checked = selectedRoleIds.includes(role.id);
-                    return (
-                      <Grid item xs={12} sm={6} md={4} key={role.id}>
-                        <Paper
-                          variant="outlined"
-                          onClick={() => handleUserRoleToggle(role.id)}
-                          sx={{
-                            p: 1.5,
-                            height: '100%',
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            borderColor: checked ? IGSS_COLORS.azul : 'divider',
-                            borderWidth: checked ? 2 : 1,
-                            bgcolor: checked ? 'action.selected' : 'background.paper',
-                            transition: 'border-color .15s ease, background-color .15s ease',
-                            '&:hover': { borderColor: IGSS_COLORS.azulClaro },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
-                            <Checkbox checked={checked} tabIndex={-1} sx={{ p: 0.5, mt: -0.25 }} />
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography fontWeight={800} sx={{ lineHeight: 1.25 }}>{role.name}</Typography>
-                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                                {screenCountLabel(role)}
-                              </Typography>
-                              {role.permissions?.length > 0 && (
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{
-                                    mt: 0.75,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  {role.permissions.map((p) => getScreenLabelForPermission(p.name)).join(' · ')}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        </Paper>
-                      </Grid>
+                <Autocomplete
+                  options={users}
+                  getOptionLabel={userOptionLabel}
+                  value={selectedUser}
+                  onChange={(_, val) => handleUserSelect(val)}
+                  loading={loadingUserRoles}
+                  disabled={roles.length === 0}
+                  filterOptions={(options, state) => {
+                    const q = state.inputValue.trim().toLowerCase();
+                    if (!q) return options;
+                    return options.filter((u) =>
+                      [u.nombres, u.apellidos, u.codigoEmpleado, u.puesto?.nombre ?? '']
+                        .join(' ')
+                        .toLowerCase()
+                        .includes(q)
                     );
-                  })}
-                </Grid>
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Buscar colaborador"
+                      placeholder="Nombre, código o puesto"
+                      helperText={selectedUser ? 'Marque o desmarque roles y pulse Guardar' : 'Seleccione un colaborador para continuar'}
+                    />
+                  )}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  sx={{ maxWidth: 560, mb: 2.5 }}
+                />
 
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button
-                    variant="contained"
-                    onClick={handleSaveUserRoles}
-                    disabled={!assignmentDirty}
-                  >
-                    Guardar roles del colaborador
-                  </Button>
-                  <Button
-                    variant="text"
-                    color="inherit"
-                    disabled={!assignmentDirty}
-                    onClick={() => setSelectedRoleIds([...savedRoleIds])}
-                  >
-                    Descartar cambios
-                  </Button>
-                </Box>
+                {selectedUser && (
+                  <>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.75,
+                        mb: 2,
+                        borderRadius: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        flexWrap: 'wrap',
+                        bgcolor: 'rgba(0,91,145,0.04)',
+                      }}
+                    >
+                      <BadgeIcon sx={{ color: IGSS_COLORS.azul }} />
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography fontWeight={800}>
+                          {selectedUser.nombres} {selectedUser.apellidos}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Código {selectedUser.codigoEmpleado}
+                          {selectedUser.puesto?.nombre ? ` · ${selectedUser.puesto.nombre}` : ''}
+                          {' · '}{selectedRoleIds.length} rol(es) seleccionados
+                          {assignmentDirty ? ' · cambios sin guardar' : ''}
+                        </Typography>
+                      </Box>
+                      {assignmentDirty && (
+                        <Chip size="small" color="warning" label="Sin guardar" sx={{ fontWeight: 700 }} />
+                      )}
+                    </Paper>
+
+                    <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
+                      {roles.map((role) => {
+                        const checked = selectedRoleIds.includes(role.id);
+                        return (
+                          <Grid item xs={12} sm={6} md={4} key={role.id}>
+                            <Paper
+                              variant="outlined"
+                              onClick={() => handleUserRoleToggle(role.id)}
+                              sx={{
+                                p: 1.5,
+                                height: '100%',
+                                borderRadius: 2,
+                                cursor: 'pointer',
+                                borderColor: checked ? IGSS_COLORS.azul : 'divider',
+                                borderWidth: checked ? 2 : 1,
+                                bgcolor: checked ? 'action.selected' : 'background.paper',
+                                transition: 'border-color .15s ease, background-color .15s ease',
+                                '&:hover': { borderColor: IGSS_COLORS.azulClaro },
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                                <Checkbox checked={checked} tabIndex={-1} sx={{ p: 0.5, mt: -0.25 }} />
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography fontWeight={800} sx={{ lineHeight: 1.25 }}>{role.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                    {screenCountLabel(role)}
+                                  </Typography>
+                                  {role.permissions?.length > 0 && (
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                      sx={{
+                                        mt: 0.75,
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                      }}
+                                    >
+                                      {role.permissions.map((p) => getScreenLabelForPermission(p.name)).join(' · ')}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            </Paper>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleSaveUserRoles}
+                        disabled={!assignmentDirty}
+                      >
+                        Guardar roles del colaborador
+                      </Button>
+                      <Button
+                        variant="text"
+                        color="inherit"
+                        disabled={!assignmentDirty}
+                        onClick={() => setSelectedRoleIds([...savedRoleIds])}
+                      >
+                        Descartar cambios
+                      </Button>
+                    </Box>
+                  </>
+                )}
+              </>
+            )}
+
+            {assignMode === 'por-rol' && (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 720 }}>
+                  Elija un rol y marque a quiénes se lo asigna. Ideal para dar el mismo acceso a varias personas sin entrar una por una.
+                </Typography>
+
+                <Autocomplete
+                  options={roles}
+                  getOptionLabel={(opt) => opt.name}
+                  value={selectedAssignRole}
+                  onChange={(_, val) => handleAssignRoleSelect(val)}
+                  disabled={roles.length === 0}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Seleccionar rol"
+                      placeholder="Nombre del rol"
+                      helperText={
+                        selectedAssignRole
+                          ? `${roleMemberIds.length} colaborador(es) con este rol${roleMembersDirty ? ' · cambios sin guardar' : ''}`
+                          : 'Seleccione el rol que desea asignar'
+                      }
+                    />
+                  )}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  sx={{ maxWidth: 560, mb: 2 }}
+                />
+
+                {selectedAssignRole && (
+                  <>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.75,
+                        mb: 2,
+                        borderRadius: 2,
+                        bgcolor: 'rgba(0,91,145,0.04)',
+                      }}
+                    >
+                      <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                        {selectedAssignRole.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {screenCountLabel(selectedAssignRole)}
+                        {selectedAssignRole.permissions?.length
+                          ? ` · ${selectedAssignRole.permissions.map((p) => getScreenLabelForPermission(p.name)).join(' · ')}`
+                          : ''}
+                      </Typography>
+                    </Paper>
+
+                    <TextField
+                      size="small"
+                      fullWidth
+                      placeholder="Filtrar colaboradores por nombre, código o puesto…"
+                      value={userFilterForRole}
+                      onChange={(e) => setUserFilterForRole(e.target.value)}
+                      sx={{ mb: 1.5, maxWidth: 560 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon fontSize="small" color="action" />
+                          </InputAdornment>
+                        ),
+                        endAdornment: userFilterForRole ? (
+                          <InputAdornment position="end">
+                            <IconButton size="small" aria-label="Limpiar filtro" onClick={() => setUserFilterForRole('')}>
+                              <ClearIcon fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        ) : null,
+                      }}
+                    />
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Mostrando {usersForRoleAssignment.length} de {users.length} colaborador(es)
+                      {roleMembersDirty && (
+                        <Chip size="small" color="warning" label="Sin guardar" sx={{ ml: 1, fontWeight: 700 }} />
+                      )}
+                    </Typography>
+
+                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: 420, borderRadius: 2 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell padding="checkbox" sx={{ fontWeight: 800 }}>Asignar</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>Colaborador</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>Código</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>Puesto</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {usersForRoleAssignment.map((user) => {
+                            const checked = roleMemberIds.includes(user.id);
+                            return (
+                              <TableRow
+                                key={user.id}
+                                hover
+                                selected={checked}
+                                onClick={() => handleRoleMemberToggle(user.id)}
+                                sx={{ cursor: 'pointer' }}
+                              >
+                                <TableCell padding="checkbox">
+                                  <Checkbox checked={checked} tabIndex={-1} />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography fontWeight={700} variant="body2">
+                                    {user.nombres} {user.apellidos}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>{user.codigoEmpleado}</TableCell>
+                                <TableCell>{user.puesto?.nombre || '—'}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {usersForRoleAssignment.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} align="center">
+                                <Typography color="text.secondary" sx={{ py: 2 }}>
+                                  No hay colaboradores con ese filtro
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleSaveRoleMembers}
+                        disabled={!roleMembersDirty || savingRoleMembers}
+                        startIcon={savingRoleMembers ? <CircularProgress size={16} color="inherit" /> : undefined}
+                      >
+                        Guardar asignación del rol
+                      </Button>
+                      <Button
+                        variant="text"
+                        color="inherit"
+                        disabled={!roleMembersDirty || savingRoleMembers}
+                        onClick={() => setRoleMemberIds([...savedRoleMemberIds])}
+                      >
+                        Descartar cambios
+                      </Button>
+                    </Box>
+                  </>
+                )}
               </>
             )}
           </Box>

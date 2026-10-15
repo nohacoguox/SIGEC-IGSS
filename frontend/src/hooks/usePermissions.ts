@@ -30,22 +30,28 @@ export const usePermissions = () => {
     setPermissions(getStoredPermissions());
     setSuperAdmin(isSuperAdmin());
 
-    // Refrescar permisos desde el servidor (roles recién asignados)
+    // Refrescar permisos + JWT desde el servidor (roles recién asignados)
     const refresh = async () => {
       try {
         const res = await api.get('/auth/me');
         const roles = res.data?.roles ?? [];
         const roleNames: string[] = roles.map((r: { name?: string }) => r.name).filter(Boolean);
-        const perms = new Set<string>();
+        const fromRoles = new Set<string>();
         roles.forEach((r: { permissions?: Array<{ name: string }> }) => {
-          r.permissions?.forEach((p) => perms.add(p.name));
+          r.permissions?.forEach((p) => fromRoles.add(p.name));
         });
-        const list = Array.from(perms);
+        const fromPayload = Array.isArray(res.data?.permissions) ? res.data.permissions : [];
+        fromPayload.forEach((p: string) => fromRoles.add(p));
+        const list = Array.from(fromRoles);
         localStorage.setItem('permissions', JSON.stringify(list));
         if (roleNames[0]) localStorage.setItem('userRole', roleNames[0]);
         localStorage.setItem('userRoles', JSON.stringify(roleNames));
+        if (typeof res.data?.token === 'string' && res.data.token) {
+          localStorage.setItem('token', res.data.token);
+        }
         setPermissions(list);
         setSuperAdmin(roleNames.some((r) => r.toLowerCase() === 'super administrador'));
+        window.dispatchEvent(new CustomEvent('sigec:permissions-refreshed'));
       } catch {
         /* sin sesión o sin red */
       }

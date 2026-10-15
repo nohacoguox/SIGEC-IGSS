@@ -1,12 +1,12 @@
 import React from 'react';
 import { Box, Grid, Paper, Typography } from '@mui/material';
-import { AssignmentTurnedIn, FactCheck, HourglassEmpty, WarningAmber } from '@mui/icons-material';
+import { AccessTime, AssignmentTurnedIn, Autorenew, FactCheck, HourglassEmpty, WarningAmber } from '@mui/icons-material';
 import {
-  Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { IGSS_COLORS } from '../../../theme/institutionalColors';
-import { axisTick, ChartTooltip, gridStroke, panelSx } from './charts';
+import { axisTick, ChartTooltip, formatTime, gridStroke, panelSx } from './charts';
 import { KpiCard, SectionBlock } from './ui';
 
 type Resumen = {
@@ -25,19 +25,47 @@ type CierreMes = {
   pendientesRevisionDaf: number;
 };
 
+type Tiempos = {
+  primeraRespuestaHoras: number | null;
+  correccionHoras: number | null;
+  respuestaTrasReenvioHoras?: number | null;
+  cicloCompletoHoras: number | null;
+  pendienteRevisionDafHoras?: number | null;
+  pendienteRevisionDafAbiertaHoras?: number | null;
+  muestraPrimeraRespuesta: number;
+  muestraCorreccion: number;
+  muestraRespuestaTrasReenvio?: number;
+  muestraCicloCompleto: number;
+  muestraPendienteRevisionDaf?: number;
+  muestraPendienteRevisionDafAbierta?: number;
+} | null | undefined;
+
 type Props = {
   casoLabel: string;
   resumen: Resumen;
   cierre: CierreMes[];
   gradId: string;
+  /** Promedios del período (antes estaban mezclados en «Un caso»). */
+  tiempos?: Tiempos;
 };
 
-export default function TabGenerales({ casoLabel, resumen, cierre, gradId }: Props) {
+export default function TabGenerales({ casoLabel, resumen, cierre, gradId, tiempos }: Props) {
+  const tiemposSerie = tiempos
+    ? [
+        { etapa: 'Cola DAF (abierta)', horas: tiempos.pendienteRevisionDafAbiertaHoras ?? 0 },
+        { etapa: 'Espera DAF', horas: tiempos.pendienteRevisionDafHoras ?? tiempos.primeraRespuestaHoras ?? 0 },
+        { etapa: 'Respuesta DAF', horas: tiempos.primeraRespuestaHoras ?? 0 },
+        { etapa: 'Corrección', horas: tiempos.correccionHoras ?? 0 },
+        { etapa: 'Tras reenvío', horas: tiempos.respuestaTrasReenvioHoras ?? 0 },
+        { etapa: 'Ciclo completo', horas: tiempos.cicloCompletoHoras ?? 0 },
+      ]
+    : [];
+
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <SectionBlock
-        title="1. Resumen del período"
-        description={`Totales de ${casoLabel.toLowerCase()} en el rango filtrado. Use esta sección para una lectura rápida del volumen.`}
+        title="Números del período"
+        description={`Lectura rápida de ${casoLabel.toLowerCase()}: total, aprobados, rechazos y pendientes.`}
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} sm={6} lg={3}>
@@ -63,8 +91,8 @@ export default function TabGenerales({ casoLabel, resumen, cierre, gradId }: Pro
       </SectionBlock>
 
       <SectionBlock
-        title="2. Evolución mensual"
-        description="Resultado al corte de cada mes: aprobados, rechazos, pendientes y los que siguen en revisión DAF."
+        title="Evolución mes a mes"
+        description="Gráfica de cómo terminaron los casos cada mes: aprobados, rechazos, pendientes y revisión DAF."
       >
         <Paper elevation={0} sx={panelSx}>
           {cierre.length === 0 ? (
@@ -98,6 +126,104 @@ export default function TabGenerales({ casoLabel, resumen, cierre, gradId }: Pro
           )}
         </Paper>
       </SectionBlock>
+
+      {tiempos && (
+        <SectionBlock
+          title="Tiempos promedio del período"
+          description="Cuánto tardan, en promedio, las etapas del ciclo en todos los casos del filtro (no de un caso solo)."
+        >
+          <Grid container spacing={2.25}>
+            <Grid item xs={12} sm={6} md={4}>
+              <KpiCard
+                label="Pendiente revisión DAF"
+                value={formatTime(tiempos.pendienteRevisionDafAbiertaHoras ?? tiempos.pendienteRevisionDafHoras)}
+                note={
+                  tiempos.muestraPendienteRevisionDafAbierta
+                    ? `${tiempos.muestraPendienteRevisionDafAbierta} en cola ahora`
+                    : `${tiempos.muestraPendienteRevisionDaf ?? 0} medidos`
+                }
+                icon={<HourglassEmpty />}
+                color={IGSS_COLORS.azul}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <KpiCard
+                label="Respuesta DAF"
+                value={formatTime(tiempos.primeraRespuestaHoras)}
+                note={`${tiempos.muestraPrimeraRespuesta} casos`}
+                icon={<AccessTime />}
+                color={IGSS_COLORS.azulOscuro}
+                delay={0.04}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <KpiCard
+                label="Corrección"
+                value={formatTime(tiempos.correccionHoras)}
+                note={`${tiempos.muestraCorreccion} casos`}
+                icon={<Autorenew />}
+                color="#C47A20"
+                delay={0.08}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <KpiCard
+                label="Tras reenvío"
+                value={formatTime(tiempos.respuestaTrasReenvioHoras)}
+                note={`${tiempos.muestraRespuestaTrasReenvio ?? 0} casos`}
+                icon={<AccessTime />}
+                color="#5B7C99"
+                delay={0.12}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <KpiCard
+                label="Ciclo completo"
+                value={formatTime(tiempos.cicloCompletoHoras)}
+                note={`${tiempos.muestraCicloCompleto} casos`}
+                icon={<AssignmentTurnedIn />}
+                color={IGSS_COLORS.verdeOscuro}
+                delay={0.16}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Paper elevation={0} sx={panelSx}>
+                <Typography fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, mb: 0.25 }}>
+                  Comparativo de etapas
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Misma información de los indicadores, en gráfico
+                </Typography>
+                <Box sx={{ height: 240, mt: 1.5 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={tiemposSerie} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id={`${gradId}Tiempos`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={IGSS_COLORS.azul} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={IGSS_COLORS.azul} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
+                      <XAxis dataKey="etapa" tick={axisTick} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={(v) => `${v} h`} tick={axisTick} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area type="monotone" dataKey="horas" name="Horas" stroke="none" fill={`url(#${gradId}Tiempos)`} />
+                      <Line
+                        type="monotone"
+                        dataKey="horas"
+                        name="Promedio"
+                        stroke={IGSS_COLORS.azul}
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: IGSS_COLORS.azulOscuro, strokeWidth: 0 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        </SectionBlock>
+      )}
     </motion.div>
   );
 }
