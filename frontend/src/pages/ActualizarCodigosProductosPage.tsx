@@ -51,6 +51,13 @@ type CatalogoItem = {
   datosOriginales: Record<string, string>;
 };
 
+type CambioPresentacion = {
+  codigo: string;
+  nombre: string;
+  anterior: string;
+  nuevo: string;
+};
+
 const CATALOGOS: { key: CatalogoOrigen; label: string; ayuda: string }[] = [
   {
     key: 'MINFIN',
@@ -60,7 +67,8 @@ const CATALOGOS: { key: CatalogoOrigen; label: string; ayuda: string }[] = [
   {
     key: 'SIBOFA',
     label: 'SIBOFA',
-    ayuda: 'Catálogo de códigos y productos SIBOFA.',
+    ayuda:
+      'Listado básico de medicamentos. Se carga con el PDF de Farmacoterapia. La primera carga puede vaciar SIBOFA; las siguientes solo agregan códigos nuevos y avisan si cambió la forma, concentración y presentación.',
   },
   {
     key: 'SUBPRODUCTOS',
@@ -97,7 +105,7 @@ const buildDescriptionPreview = (data: Record<string, string>, columns: string[]
 const ActualizarCodigosProductosPage: React.FC = () => {
   const navigate = useNavigate();
   const { mode } = useThemeMode();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [tab, setTab] = useState<CatalogoOrigen>('MINFIN');
   const [uploading, setUploading] = useState(false);
   const [statsByOrigen, setStatsByOrigen] = useState<Record<CatalogoOrigen, CatalogoStats>>(emptyStats);
@@ -115,6 +123,8 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   const [savingConfig, setSavingConfig] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMessage, setUploadMessage] = useState('');
+  const [reemplazarSibofa, setReemplazarSibofa] = useState(true);
+  const [cambiosPresentacion, setCambiosPresentacion] = useState<CambioPresentacion[]>([]);
   const [configProgress, setConfigProgress] = useState(0);
   const [configMessage, setConfigMessage] = useState('');
   const inputFileRef = useRef<HTMLInputElement>(null);
@@ -230,9 +240,22 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const esPdf = file.name.toLowerCase().endsWith('.pdf');
+    if (tab === 'SIBOFA' && !esPdf) {
+      showError('SIBOFA se actualiza con el PDF del listado básico de medicamentos.');
+      e.target.value = '';
+      return;
+    }
+    if (tab !== 'SIBOFA' && esPdf) {
+      showError('MINFIN y Subproductos se actualizan con un archivo Excel.');
+      e.target.value = '';
+      return;
+    }
     const formData = new FormData();
     formData.append('archivo', file);
     formData.append('origen', tab);
+    if (tab === 'SIBOFA' && reemplazarSibofa) formData.append('reemplazar', 'true');
+    setCambiosPresentacion([]);
     setUploading(true);
     setUploadProgress(1);
     setUploadMessage('Preparando carga...');
@@ -253,7 +276,13 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       });
       setUploadProgress(100);
       setUploadMessage(res.data?.message || 'Carga completada.');
-      showSuccess(res.data?.message || `Catálogo ${tab} actualizado: ${res.data?.total ?? 0} registros.`);
+      const cambios = (res.data?.cambios ?? []) as CambioPresentacion[];
+      setCambiosPresentacion(cambios);
+      if (tab === 'SIBOFA' && reemplazarSibofa) setReemplazarSibofa(false);
+      if (cambios.length > 0) {
+        showWarning(`${cambios.length} códigos de SIBOFA cambiaron en Forma, concentración y presentación.`);
+      }
+      showSuccess(res.data?.message || `Catálogo ${tab} actualizado.`);
       await loadStats();
       await loadList();
       await loadConfig(tab);
@@ -313,9 +342,9 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
         Gestione de forma independiente los catálogos <strong>MINFIN</strong>, <strong>SIBOFA</strong> y{' '}
-        <strong>Subproductos</strong>. Cada carga guarda todas las columnas del archivo y agrega únicamente códigos
-        nuevos; los existentes se omiten. Después podrá elegir o cambiar las columnas que aparecerán en la descripción
-        del SIAF.
+        <strong>Subproductos</strong>. MINFIN y Subproductos se cargan con Excel. SIBOFA se carga con el PDF del
+        listado básico de medicamentos: la primera vez puede reemplazar todo el catálogo y, en las siguientes, solo
+        agrega códigos nuevos y avisa si cambió la forma, concentración y presentación.
       </Typography>
 
       <Tabs
@@ -364,10 +393,27 @@ const ActualizarCodigosProductosPage: React.FC = () => {
         }}
       >
         <CardContent sx={{ p: 3 }}>
+          {tab === 'SIBOFA' && (
+            <FormControlLabel
+              sx={{ mb: 1, alignItems: 'flex-start' }}
+              control={
+                <Checkbox
+                  checked={reemplazarSibofa}
+                  onChange={(event) => setReemplazarSibofa(event.target.checked)}
+                  disabled={uploading}
+                />
+              }
+              label="Primera carga: borrar todo SIBOFA y cargar este PDF completo. Déjela sin marcar en las siguientes cargas."
+            />
+          )}
           <input
             ref={inputFileRef}
             type="file"
-            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            accept={
+              tab === 'SIBOFA'
+                ? '.pdf,application/pdf'
+                : '.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
+            }
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
@@ -383,7 +429,11 @@ const ActualizarCodigosProductosPage: React.FC = () => {
               '&:hover': { bgcolor: IGSS_COLORS.azulOscuro },
             }}
           >
-            {uploading ? `Cargando toda la información de ${tab}...` : `Cargar Excel completo para ${tab}`}
+            {uploading
+              ? `Cargando ${tab}...`
+              : tab === 'SIBOFA'
+                ? 'Cargar PDF del listado básico'
+                : `Cargar Excel completo para ${tab}`}
           </Button>
           {uploadProgress > 0 && (
             <Box sx={{ mt: 2 }}>
@@ -396,6 +446,37 @@ const ActualizarCodigosProductosPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {tab === 'SIBOFA' && cambiosPresentacion.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
+            {cambiosPresentacion.length} códigos cambiaron en Forma, concentración y presentación. El catálogo
+            conserva el texto anterior; aquí solo se avisa el cambio.
+          </Typography>
+          <TableContainer sx={{ maxHeight: 280 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Código</TableCell>
+                  <TableCell>Nombre</TableCell>
+                  <TableCell>Presentación en SIBOFA</TableCell>
+                  <TableCell>Presentación en el PDF</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {cambiosPresentacion.map((cambio) => (
+                  <TableRow key={cambio.codigo}>
+                    <TableCell sx={{ fontFamily: 'monospace' }}>{cambio.codigo}</TableCell>
+                    <TableCell>{cambio.nombre}</TableCell>
+                    <TableCell>{cambio.anterior}</TableCell>
+                    <TableCell>{cambio.nuevo}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Alert>
+      )}
 
       {headers.length > 0 && (
         <Card variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>

@@ -725,7 +725,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Actualización de Códigos y Productos"
-                    description="Actualiza el catálogo de códigos y descripciones desde el Excel oficial"
+                    description="Actualiza MINFIN y subproductos desde Excel, y SIBOFA desde el PDF del listado básico"
                     icon={<UpdateIcon />}
                     accent={IGSS_COLORS.azulClaro}
                     onClick={() => navigate('/actualizar-codigos-productos')}

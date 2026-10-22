@@ -38,7 +38,7 @@ export const FALLBACK_APP_SCREENS: AppScreenDefinition[] = [
       'Director / Administrador: ver SIAF de su unidad en En revisión, Rechazado o Finalizado (solo lectura)',
   },
   { key: 'revisar-siaf-direccion-departamental', permission: 'revisar-siaf-direccion-departamental', label: 'Bandeja de Revisiones DAF — SIAF', panel: 'colaborador', group: 'Bandeja de Revisiones DAF', description: 'Revisión y aprobación de SIAF por el analista DAF' },
-  { key: 'actualizar-codigos-productos', permission: 'actualizar-codigos-productos', label: 'Actualización de Códigos y Productos', panel: 'colaborador', description: 'Actualizar catálogo de códigos y productos (Excel)' },
+  { key: 'actualizar-codigos-productos', permission: 'actualizar-codigos-productos', label: 'Actualización de Códigos y Productos', panel: 'colaborador', description: 'Actualizar catálogos: Excel para MINFIN y subproductos, PDF para SIBOFA' },
   { key: 'estadisticas-tiempos', permission: 'estadisticas-tiempos', label: 'Mis estadísticas', panel: 'colaborador', group: 'Estadísticas', description: 'Colaborador común: Análisis SIAF/Expedientes solo de sus propios trámites' },
   { key: 'ver-estadisticas-unidad', permission: 'ver-estadisticas-unidad', label: 'Estadísticas de mi unidad', panel: 'colaborador', group: 'Estadísticas', description: 'Jefe / Administrador C: análisis limitado a su unidad médica' },
   { key: 'estadisticas-analista-daf', permission: 'estadisticas-analista-daf', label: 'Mis tiempos DAF', panel: 'colaborador', group: 'Estadísticas', description: 'Analista DAF: tiempos de revisión propios, clasificados por unidad médica' },

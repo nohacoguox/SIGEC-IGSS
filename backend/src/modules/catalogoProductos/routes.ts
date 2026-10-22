@@ -6,6 +6,13 @@ import { ProductoCatalogoConfig } from '../../entity/ProductoCatalogoConfig';
 import { verifyToken, authorizeRoles } from '../../middleware/auth';
 import { uploadMemory } from '../../middleware/upload';
 import { parseOrigen, CatalogoOrigenApi } from '../../services/catalogoOrigen';
+import {
+  leerListadoMedicamentosPdf,
+  medicamentoToDatos,
+  SIBOFA_COLUMNAS,
+  SIBOFA_COLUMNAS_DESCRIPCION,
+  SIBOFA_ENCABEZADOS,
+} from '../../services/listadoMedicamentosPdf';
 
 let XLSX: any;
 try {
@@ -202,6 +209,112 @@ const buildCatalogDescription = (data: Record<string, string>, columns: string[]
   return parts.length ? `${parts.join('; ')};` : '';
 };
 
+const normalizarPresentacion = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
+
+const importarSibofaPdf = async (
+  buffer: Buffer,
+  reemplazar: boolean,
+  trabajoId: string | null,
+  res: Response
+) => {
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 30,
+    estado: 'PROCESANDO',
+    mensaje: 'Leyendo el PDF del listado básico de medicamentos...',
+  });
+  const medicamentos = await leerListadoMedicamentosPdf(buffer);
+  if (medicamentos.length < 100) {
+    const msg = 'El PDF no tiene el formato del listado básico de medicamentos. No se modificó SIBOFA.';
+    updateCatalogoTrabajo(trabajoId, { estado: 'ERROR', mensaje: msg });
+    return res.status(400).json({ message: msg });
+  }
+
+  const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
+  const previousConfig = await configRepository.findOne({ where: { origen: 'SIBOFA' } });
+  const descriptionColumns = (previousConfig?.columnasDescripcion ?? []).filter((column) =>
+    SIBOFA_ENCABEZADOS.includes(column)
+  );
+  const columnasDescripcion = descriptionColumns.length ? descriptionColumns : [...SIBOFA_COLUMNAS_DESCRIPCION];
+  const formaKey = SIBOFA_COLUMNAS.forma;
+
+  const existentes = reemplazar
+    ? []
+    : await getProductoCatalogoRepository().find({ where: { origen: 'SIBOFA' } });
+  const porCodigo = new Map(existentes.map((item) => [item.codigo, item]));
+  const nuevos: Array<{ codigo: string; descripcion: string; datosOriginales: Record<string, string> }> = [];
+  const cambios: Array<{ codigo: string; nombre: string; anterior: string; nuevo: string }> = [];
+  let omitidos = 0;
+
+  for (const item of medicamentos) {
+    const datosOriginales = medicamentoToDatos(item);
+    const previo = porCodigo.get(item.codigo);
+    if (!previo) {
+      nuevos.push({
+        codigo: item.codigo,
+        descripcion: buildCatalogDescription(datosOriginales, columnasDescripcion),
+        datosOriginales,
+      });
+      continue;
+    }
+    omitidos += 1;
+    const anterior = String(previo.datosOriginales?.[formaKey] ?? '').trim();
+    if (anterior && normalizarPresentacion(anterior) !== normalizarPresentacion(item.forma)) {
+      cambios.push({
+        codigo: item.codigo,
+        nombre: item.nombre,
+        anterior,
+        nuevo: item.forma,
+      });
+    }
+  }
+
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 60,
+    mensaje: reemplazar
+      ? `Reemplazando SIBOFA con ${nuevos.length.toLocaleString('es-GT')} códigos...`
+      : `${nuevos.length.toLocaleString('es-GT')} códigos nuevos; ${cambios.length.toLocaleString('es-GT')} con cambio de presentación.`,
+  });
+
+  await AppDataSource.transaction(async (manager) => {
+    const repo = manager.getRepository(ProductoCatalogo);
+    if (reemplazar) await repo.delete({ origen: 'SIBOFA' });
+    const CHUNK = 500;
+    for (let i = 0; i < nuevos.length; i += CHUNK) {
+      const chunk = nuevos.slice(i, i + CHUNK).map((row) => ({
+        origen: 'SIBOFA' as const,
+        codigo: row.codigo,
+        descripcion: row.descripcion,
+        datosOriginales: row.datosOriginales,
+        columnaCodigo: SIBOFA_COLUMNAS.codigo,
+        columnasDescripcion,
+      }));
+      await repo.createQueryBuilder().insert().values(chunk).orIgnore().execute();
+    }
+    await manager.getRepository(ProductoCatalogoConfig).save({
+      origen: 'SIBOFA',
+      encabezados: [...SIBOFA_ENCABEZADOS],
+      columnaCodigo: SIBOFA_COLUMNAS.codigo,
+      columnasDescripcion,
+    });
+  });
+
+  const message = reemplazar
+    ? `Catálogo SIBOFA reemplazado: ${nuevos.length.toLocaleString('es-GT')} códigos cargados desde el PDF.`
+    : `Catálogo SIBOFA: ${nuevos.length.toLocaleString('es-GT')} códigos nuevos y ${omitidos.toLocaleString('es-GT')} ya existentes. ${cambios.length.toLocaleString('es-GT')} cambiaron en Forma, concentración y presentación.`;
+  updateCatalogoTrabajo(trabajoId, { progreso: 100, estado: 'COMPLETADO', mensaje: message });
+  return res.json({
+    message,
+    origen: 'SIBOFA',
+    nuevos: nuevos.length,
+    omitidos: reemplazar ? 0 : omitidos,
+    cambios,
+    reemplazado: reemplazar,
+    columnaCodigo: SIBOFA_COLUMNAS.codigo,
+    encabezados: SIBOFA_ENCABEZADOS,
+    columnasDescripcion,
+  });
+};
+
 catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), uploadMemory.single('archivo'), async (req: Request, res: Response) => {
   const trabajoId = String(req.query.trabajoId ?? '') || null;
   const send500 = (msg: string) => {
@@ -209,6 +322,29 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
     try { res.status(500).json({ message: msg }); } catch (_) {}
   };
   try {
+    const origen = parseOrigen(req.body?.origen);
+    if (!origen) {
+      return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN, SIBOFA o SUBPRODUCTOS).' });
+    }
+    const file = (req as any).file;
+    const buffer = file?.buffer ?? file;
+    if (!file || !buffer || !Buffer.isBuffer(buffer)) {
+      return res.status(400).json({ message: 'Debe enviar un archivo (campo: archivo).' });
+    }
+    const nombreArchivo = String(file.originalname ?? '');
+    const esPdf = nombreArchivo.toLowerCase().endsWith('.pdf') || file.mimetype === 'application/pdf';
+    if (origen === 'SIBOFA') {
+      if (!esPdf) {
+        return res.status(400).json({
+          message: 'SIBOFA se actualiza con el PDF del listado básico de medicamentos, no con Excel.',
+        });
+      }
+      const reemplazar = String(req.body?.reemplazar ?? '').toLowerCase() === 'true';
+      return await importarSibofaPdf(buffer, reemplazar, trabajoId, res);
+    }
+    if (esPdf) {
+      return res.status(400).json({ message: 'Este catálogo se actualiza con un archivo Excel.' });
+    }
     updateCatalogoTrabajo(trabajoId, {
       progreso: 26,
       estado: 'PROCESANDO',
@@ -217,15 +353,6 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
     await new Promise<void>((resolve) => setImmediate(resolve));
     if (!XLSX?.read || !XLSX?.utils) {
       return send500('No se pudo cargar el paquete xlsx. Ejecute en backend: npm install xlsx');
-    }
-    const origen = parseOrigen(req.body?.origen);
-    if (!origen) {
-      return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN, SIBOFA o SUBPRODUCTOS).' });
-    }
-    const file = (req as any).file;
-    const buffer = file?.buffer ?? file;
-    if (!file || !buffer || !Buffer.isBuffer(buffer)) {
-      return res.status(400).json({ message: 'Debe enviar un archivo Excel (campo: archivo).' });
     }
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     updateCatalogoTrabajo(trabajoId, { progreso: 35, mensaje: 'Excel leído. Analizando filas...' });
