@@ -13,6 +13,13 @@ import {
   SIBOFA_COLUMNAS_DESCRIPCION,
   SIBOFA_ENCABEZADOS,
 } from '../../services/listadoMedicamentosPdf';
+import {
+  leerListadoSubproductosDocx,
+  subproductoToDatos,
+  SUBPRODUCTO_COLUMNAS,
+  SUBPRODUCTO_COLUMNAS_DESCRIPCION,
+  SUBPRODUCTO_ENCABEZADOS,
+} from '../../services/listadoSubproductosDocx';
 
 let XLSX: any;
 try {
@@ -206,7 +213,7 @@ const buildCatalogDescription = (data: Record<string, string>, columns: string[]
   const parts = columns
     .map((column) => String(data[column] ?? '').trim().replace(/(?:\s*;\s*)+$/g, ''))
     .filter(Boolean);
-  return parts.length ? `${parts.join('; ')};` : '';
+  return parts.length ? parts.join('; ') : '';
 };
 
 const normalizarPresentacion = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -315,6 +322,123 @@ const importarSibofaPdf = async (
   });
 };
 
+const importarSubproductosDocx = async (
+  buffer: Buffer,
+  reemplazar: boolean,
+  trabajoId: string | null,
+  res: Response
+) => {
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 30,
+    estado: 'PROCESANDO',
+    mensaje: 'Leyendo el Word del listado de subproductos...',
+  });
+  const subproductos = leerListadoSubproductosDocx(buffer);
+  if (subproductos.length < 5) {
+    const msg = 'El Word no tiene el formato del listado oficial de productos y subproductos. No se modificó el catálogo.';
+    updateCatalogoTrabajo(trabajoId, { estado: 'ERROR', mensaje: msg });
+    return res.status(400).json({ message: msg });
+  }
+
+  const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
+  const previousConfig = await configRepository.findOne({ where: { origen: 'SUBPRODUCTOS' } });
+  const descriptionColumns = (previousConfig?.columnasDescripcion ?? []).filter((column) =>
+    SUBPRODUCTO_ENCABEZADOS.includes(column)
+  );
+  const columnasDescripcion = descriptionColumns.length
+    ? descriptionColumns
+    : [...SUBPRODUCTO_COLUMNAS_DESCRIPCION];
+
+  const existentes = reemplazar
+    ? []
+    : await getProductoCatalogoRepository().find({ where: { origen: 'SUBPRODUCTOS' } });
+  const porCodigo = new Map(existentes.map((item) => [item.codigo, item]));
+  const nuevos: Array<{ codigo: string; descripcion: string; datosOriginales: Record<string, string> }> = [];
+  const actualizaciones: Array<{ id: number; codigo: string; descripcion: string; datosOriginales: Record<string, string> }> = [];
+  const cambios: Array<{ codigo: string; nombre: string; anterior: string; nuevo: string }> = [];
+  let sinCambio = 0;
+
+  for (const item of subproductos) {
+    const datosOriginales = subproductoToDatos(item);
+    const descripcion = buildCatalogDescription(datosOriginales, columnasDescripcion);
+    const previo = porCodigo.get(item.codigo);
+    if (!previo) {
+      nuevos.push({ codigo: item.codigo, descripcion, datosOriginales });
+      continue;
+    }
+    const anterior = String(previo.descripcion ?? '').trim();
+    if (anterior.replace(/\s+/g, ' ') !== descripcion.replace(/\s+/g, ' ')) {
+      cambios.push({
+        codigo: item.codigo,
+        nombre: item.servicio,
+        anterior,
+        nuevo: descripcion,
+      });
+      actualizaciones.push({ id: previo.id, codigo: item.codigo, descripcion, datosOriginales });
+      continue;
+    }
+    sinCambio += 1;
+  }
+
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 60,
+    mensaje: reemplazar
+      ? `Reemplazando subproductos con ${nuevos.length.toLocaleString('es-GT')} códigos...`
+      : `${nuevos.length.toLocaleString('es-GT')} códigos nuevos y ${actualizaciones.length.toLocaleString('es-GT')} descripciones por actualizar.`,
+  });
+
+  await AppDataSource.transaction(async (manager) => {
+    const repo = manager.getRepository(ProductoCatalogo);
+    if (reemplazar) await repo.delete({ origen: 'SUBPRODUCTOS' });
+    const CHUNK = 500;
+    for (let i = 0; i < nuevos.length; i += CHUNK) {
+      const chunk = nuevos.slice(i, i + CHUNK).map((row) => ({
+        origen: 'SUBPRODUCTOS' as const,
+        codigo: row.codigo,
+        descripcion: row.descripcion,
+        datosOriginales: row.datosOriginales,
+        columnaCodigo: SUBPRODUCTO_COLUMNAS.codigo,
+        columnasDescripcion,
+      }));
+      await repo.createQueryBuilder().insert().values(chunk).orIgnore().execute();
+    }
+    for (const row of actualizaciones) {
+      await repo.update(
+        { id: row.id },
+        {
+          descripcion: row.descripcion,
+          datosOriginales: row.datosOriginales,
+          columnaCodigo: SUBPRODUCTO_COLUMNAS.codigo,
+          columnasDescripcion,
+        }
+      );
+    }
+    await manager.getRepository(ProductoCatalogoConfig).save({
+      origen: 'SUBPRODUCTOS',
+      encabezados: [...SUBPRODUCTO_ENCABEZADOS],
+      columnaCodigo: SUBPRODUCTO_COLUMNAS.codigo,
+      columnasDescripcion,
+    });
+  });
+
+  const message = reemplazar
+    ? `Catálogo de subproductos reemplazado: ${subproductos.length.toLocaleString('es-GT')} códigos cargados desde el Word.`
+    : `Catálogo de subproductos: ${nuevos.length.toLocaleString('es-GT')} códigos nuevos, ${actualizaciones.length.toLocaleString('es-GT')} descripciones actualizadas y ${sinCambio.toLocaleString('es-GT')} sin cambio.`;
+  updateCatalogoTrabajo(trabajoId, { progreso: 100, estado: 'COMPLETADO', mensaje: message });
+  return res.json({
+    message,
+    origen: 'SUBPRODUCTOS',
+    nuevos: nuevos.length,
+    omitidos: sinCambio,
+    actualizados: actualizaciones.length,
+    cambios,
+    reemplazado: reemplazar,
+    columnaCodigo: SUBPRODUCTO_COLUMNAS.codigo,
+    encabezados: SUBPRODUCTO_ENCABEZADOS,
+    columnasDescripcion,
+  });
+};
+
 catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), uploadMemory.single('archivo'), async (req: Request, res: Response) => {
   const trabajoId = String(req.query.trabajoId ?? '') || null;
   const send500 = (msg: string) => {
@@ -342,7 +466,18 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
       const reemplazar = String(req.body?.reemplazar ?? '').toLowerCase() === 'true';
       return await importarSibofaPdf(buffer, reemplazar, trabajoId, res);
     }
-    if (esPdf) {
+    const esDocx = nombreArchivo.toLowerCase().endsWith('.docx')
+      || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (origen === 'SUBPRODUCTOS') {
+      if (!esDocx) {
+        return res.status(400).json({
+          message: 'Subproductos se actualizan con el Word del listado oficial, no con Excel.',
+        });
+      }
+      const reemplazar = String(req.body?.reemplazar ?? '').toLowerCase() === 'true';
+      return await importarSubproductosDocx(buffer, reemplazar, trabajoId, res);
+    }
+    if (esPdf || esDocx) {
       return res.status(400).json({ message: 'Este catálogo se actualiza con un archivo Excel.' });
     }
     updateCatalogoTrabajo(trabajoId, {
@@ -374,15 +509,9 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
     const headerRowIndex = detectCatalogHeaderRow(rows);
     const headers = buildUniqueHeaders(rows[headerRowIndex] || []);
     const normalizedHeaders = headers.map(normalizeCatalogHeader);
-    let codigoIdx = -1;
-    if (origen === 'SUBPRODUCTOS') {
-      codigoIdx = normalizedHeaders.findIndex(
-        (header) => header.includes('codigo') && header.includes('subproduct')
-      );
-    }
-    if (codigoIdx < 0) {
-      codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo') && header.includes('insumo'));
-    }
+    let codigoIdx = normalizedHeaders.findIndex(
+      (header) => header.includes('codigo') && header.includes('insumo')
+    );
     if (codigoIdx < 0) codigoIdx = normalizedHeaders.findIndex((header) => header.includes('codigo'));
     if (codigoIdx < 0) {
       return res.status(400).json({
@@ -392,14 +521,8 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
 
     const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
     const previousConfig = await configRepository.findOne({ where: { origen } });
-    let selectedDescriptionColumns = (previousConfig?.columnasDescripcion ?? [])
+    const selectedDescriptionColumns = (previousConfig?.columnasDescripcion ?? [])
       .filter((column) => headers.includes(column));
-    // Primera carga de subproductos: usar columna de descripción si existe
-    if (selectedDescriptionColumns.length === 0 && origen === 'SUBPRODUCTOS') {
-      selectedDescriptionColumns = headers.filter((h) =>
-        normalizeCatalogHeader(h).includes('descripcion')
-      );
-    }
 
     type RegistroImportado = {
       codigo: string;
@@ -558,7 +681,7 @@ catalogoProductosRouter.put('/config', verifyToken, authorizeRoles(['super admin
               SELECT string_agg(
                 regexp_replace(trim(p.datos_originales ->> c.nombre), '(\\s*;\\s*)+$', '', 'g'),
                 '; ' ORDER BY c.orden
-              ) || ';'
+              )
               FROM jsonb_array_elements_text($1::jsonb)
                 WITH ORDINALITY AS c(nombre, orden)
               WHERE NULLIF(trim(p.datos_originales ->> c.nombre), '') IS NOT NULL

@@ -180,8 +180,14 @@ export const medicamentoToDatos = (item: MedicamentoListado): Record<string, str
   [SIBOFA_COLUMNAS.comentarios]: item.comentarios,
 });
 
+// tsc con module commonjs convierte import() en require(). pdf.mjs es ESM y
+// Node rechaza ese require. new Function conserva el import() dinámico.
+const importarEsm = new Function('especificador', 'return import(especificador)') as (
+  especificador: string
+) => Promise<any>;
+
 export async function leerListadoMedicamentosPdf(buffer: Buffer): Promise<MedicamentoListado[]> {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjs = await importarEsm('pdfjs-dist/legacy/build/pdf.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
   const doc = await pdfjs
     .getDocument({
