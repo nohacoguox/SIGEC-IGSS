@@ -182,6 +182,17 @@ usuariosRouter.post('/', verifyToken, authorizeRoles(['super administrador', 'ge
     });
   } catch (error: any) {
     console.error('Error al crear usuario:', error);
+    const detail = String(error?.detail || error?.message || '');
+    if (error?.code === '23505' || /unique constraint|duplicate key/i.test(detail)) {
+      let campo = 'un dato único (DPI, NIT, correo o código de empleado)';
+      if (/codigoEmpleado|codigo_empleado/i.test(detail)) campo = 'el código de empleado';
+      else if (/correoInstitucional|correo_institucional/i.test(detail)) campo = 'el correo institucional';
+      else if (/\bdpi\b/i.test(detail)) campo = 'el DPI';
+      else if (/\bnit\b/i.test(detail)) campo = 'el NIT';
+      return res.status(409).json({
+        message: `Ya existe un usuario con ${campo}. Use valores distintos o edite el usuario existente.`,
+      });
+    }
     res.status(500).json({ message: error?.message || 'Error al crear usuario' });
   }
 });
