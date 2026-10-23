@@ -111,7 +111,7 @@ export class SiafItem {
   codigo: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true, name: 'catalogo_origen' })
-  catalogoOrigen: 'MINFIN' | 'SIBOFA' | null;
+  catalogoOrigen: 'MINFIN' | 'SIBOFA' | 'KORAX' | null;
 
   @Column({ type: 'text' })
   descripcion: string;

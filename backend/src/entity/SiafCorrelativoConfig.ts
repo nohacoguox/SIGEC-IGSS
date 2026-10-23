@@ -14,6 +14,18 @@ export class SiafCorrelativoConfig {
   @PrimaryGeneratedColumn()
   id: number;
 
+  /** Nombre visible en Gestión de Correlativos. */
+  @Column({ type: 'varchar', length: 120, default: 'General' })
+  nombre: string;
+
+  /** Letras opcionales. Vacío → 1/2026. */
+  @Column({ type: 'varchar', length: 12, default: '' })
+  prefijo: string;
+
+  /** antes → BF 1/2026. despues → 14568 SC/2026. */
+  @Column({ name: 'prefijo_posicion', type: 'varchar', length: 10, default: 'antes' })
+  prefijoPosicion: string;
+
   /** Próximo número candidato a asignar (se ajusta al liberar reservas) */
   @Column({ name: 'siguiente_numero', type: 'int', default: 1 })
   siguienteNumero: number;

@@ -15,6 +15,7 @@ import { Expediente, ExpedienteDocumento, ExpedienteBitacora, ExpedienteBitacora
 import { ProductoCatalogo } from './entity/ProductoCatalogo';
 import { ProductoCatalogoConfig } from './entity/ProductoCatalogoConfig';
 import { SiafCorrelativoConfig } from './entity/SiafCorrelativoConfig';
+import { SiafCorrelativoArea } from './entity/SiafCorrelativoArea';
 import { SiafCorrelativoReserva } from './entity/SiafCorrelativoReserva';
 import { ExpedienteCorrelativoConfig } from './entity/ExpedienteCorrelativoConfig';
 
@@ -58,6 +59,7 @@ export const AppDataSource = new DataSource({
     ProductoCatalogo,
     ProductoCatalogoConfig,
     SiafCorrelativoConfig,
+    SiafCorrelativoArea,
     SiafCorrelativoReserva,
     ExpedienteCorrelativoConfig,
   ],

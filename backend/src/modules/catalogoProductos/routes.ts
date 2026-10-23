@@ -20,6 +20,12 @@ import {
   SUBPRODUCTO_COLUMNAS_DESCRIPCION,
   SUBPRODUCTO_ENCABEZADOS,
 } from '../../services/listadoSubproductosDocx';
+import {
+  KORAX_COLUMNAS,
+  KORAX_COLUMNAS_DESCRIPCION,
+  KORAX_ENCABEZADOS,
+  leerListadoKoraxXlsx,
+} from '../../services/listadoKoraxXlsx';
 
 let XLSX: any;
 try {
@@ -98,7 +104,7 @@ catalogoProductosRouter.get('/codigo/:codigo', verifyToken, async (req: Request,
     }
     const origenFiltro = parseOrigen(req.query.origen);
     if (!origenFiltro) {
-      return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
+      return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA, SUBPRODUCTOS o KORAX.' });
     }
     const qb = getProductoCatalogoRepository()
       .createQueryBuilder('p')
@@ -124,7 +130,7 @@ catalogoProductosRouter.get('/buscar', verifyToken, async (req: Request, res: Re
   try {
     const origen = parseOrigen(req.query.origen);
     if (!origen) {
-      return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
+      return res.status(400).json({ message: 'Seleccione el catálogo MINFIN, SIBOFA, SUBPRODUCTOS o KORAX.' });
     }
     const q = String(req.query.q ?? '').trim();
     const maxLimit = origen === 'SUBPRODUCTOS' ? 500 : 25;
@@ -209,11 +215,13 @@ const detectCatalogHeaderRow = (rows: any[][]) => {
   return bestIndex;
 };
 
-const buildCatalogDescription = (data: Record<string, string>, columns: string[]) => {
+const buildCatalogDescription = (data: Record<string, string>, columns: string[], separador = '; ') => {
   const parts = columns
     .map((column) => String(data[column] ?? '').trim().replace(/(?:\s*;\s*)+$/g, ''))
     .filter(Boolean);
-  return parts.length ? parts.join('; ') : '';
+  if (!parts.length) return '';
+  const texto = parts.join(separador);
+  return separador === ' ' ? `${texto} ` : texto;
 };
 
 const normalizarPresentacion = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -439,6 +447,67 @@ const importarSubproductosDocx = async (
   });
 };
 
+const importarKoraxExcel = async (
+  buffer: Buffer,
+  reemplazar: boolean,
+  trabajoId: string | null,
+  res: Response,
+) => {
+  updateCatalogoTrabajo(trabajoId, { progreso: 30, estado: 'PROCESANDO', mensaje: 'Leyendo el Excel de KORAX...' });
+  const registros = leerListadoKoraxXlsx(buffer);
+  const columnasDescripcion = [...KORAX_COLUMNAS_DESCRIPCION];
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 55,
+    mensaje: reemplazar
+      ? `Reemplazando KORAX con ${registros.length.toLocaleString('es-GT')} códigos...`
+      : 'Verificando códigos KORAX existentes...',
+  });
+  const existentes = reemplazar
+    ? []
+    : await getProductoCatalogoRepository().find({ where: { origen: 'KORAX' }, select: { codigo: true } });
+  const codigosExistentes = new Set(existentes.map((item) => item.codigo));
+  const nuevos = reemplazar ? registros : registros.filter((item) => !codigosExistentes.has(item.codigo));
+  const omitidos = registros.length - nuevos.length;
+  await AppDataSource.transaction(async (manager) => {
+    const repo = manager.getRepository(ProductoCatalogo);
+    const configRepo = manager.getRepository(ProductoCatalogoConfig);
+    if (reemplazar) await repo.delete({ origen: 'KORAX' });
+    const CHUNK = 500;
+    for (let i = 0; i < nuevos.length; i += CHUNK) {
+      const chunk = nuevos.slice(i, i + CHUNK).map((item) => ({
+        origen: 'KORAX' as const,
+        codigo: item.codigo,
+        descripcion: item.descripcion,
+        datosOriginales: item.datosOriginales,
+        columnaCodigo: KORAX_COLUMNAS.codigo,
+        columnasDescripcion,
+      }));
+      await repo.createQueryBuilder().insert().values(chunk).orIgnore().execute();
+    }
+    await configRepo.save({
+      origen: 'KORAX',
+      encabezados: [...KORAX_ENCABEZADOS],
+      columnaCodigo: KORAX_COLUMNAS.codigo,
+      columnasDescripcion,
+    });
+  });
+  updateCatalogoTrabajo(trabajoId, {
+    progreso: 100,
+    estado: 'COMPLETADO',
+    mensaje: `KORAX: ${nuevos.length.toLocaleString('es-GT')} códigos cargados.`,
+  });
+  return res.json({
+    message: `Catálogo KORAX: ${nuevos.length.toLocaleString('es-GT')} códigos cargados y ${omitidos.toLocaleString('es-GT')} ya existentes.`,
+    origen: 'KORAX',
+    nuevos: nuevos.length,
+    omitidos,
+    reemplazado: reemplazar,
+    columnaCodigo: KORAX_COLUMNAS.codigo,
+    encabezados: KORAX_ENCABEZADOS,
+    columnasDescripcion,
+  });
+};
+
 catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super administrador', 'actualizar-codigos-productos']), uploadMemory.single('archivo'), async (req: Request, res: Response) => {
   const trabajoId = String(req.query.trabajoId ?? '') || null;
   const send500 = (msg: string) => {
@@ -448,7 +517,7 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
   try {
     const origen = parseOrigen(req.body?.origen);
     if (!origen) {
-      return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN, SIBOFA o SUBPRODUCTOS).' });
+      return res.status(400).json({ message: 'Debe indicar el catálogo de origen (MINFIN, SIBOFA, SUBPRODUCTOS o KORAX).' });
     }
     const file = (req as any).file;
     const buffer = file?.buffer ?? file;
@@ -476,6 +545,13 @@ catalogoProductosRouter.post('/importar', verifyToken, authorizeRoles(['super ad
       }
       const reemplazar = String(req.body?.reemplazar ?? '').toLowerCase() === 'true';
       return await importarSubproductosDocx(buffer, reemplazar, trabajoId, res);
+    }
+    if (origen === 'KORAX') {
+      if (esPdf || esDocx) {
+        return res.status(400).json({ message: 'KORAX se actualiza con el Excel del listado.' });
+      }
+      const reemplazar = String(req.body?.reemplazar ?? '').toLowerCase() === 'true';
+      return await importarKoraxExcel(buffer, reemplazar, trabajoId, res);
     }
     if (esPdf || esDocx) {
       return res.status(400).json({ message: 'Este catálogo se actualiza con un archivo Excel.' });
@@ -624,7 +700,7 @@ catalogoProductosRouter.get('/config', verifyToken, authorizeRoles(['super admin
   try {
     const origen = parseOrigen(req.query.origen);
     if (!origen) {
-      return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA o SUBPRODUCTOS.' });
+      return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA, SUBPRODUCTOS o KORAX.' });
     }
     const config = await AppDataSource.getRepository(ProductoCatalogoConfig).findOne({ where: { origen } });
     res.json({
@@ -649,7 +725,7 @@ catalogoProductosRouter.put('/config', verifyToken, authorizeRoles(['super admin
     });
     const origen = parseOrigen(req.body?.origen);
     if (!origen) {
-      return res.status(400).json({ message: 'Debe indicar el catálogo MINFIN, SIBOFA o SUBPRODUCTOS.' });
+      return res.status(400).json({ message: 'Debe indicar el catálogo MINFIN, SIBOFA, SUBPRODUCTOS o KORAX.' });
     }
     const configRepository = AppDataSource.getRepository(ProductoCatalogoConfig);
     const config = await configRepository.findOne({ where: { origen } });
@@ -674,22 +750,30 @@ catalogoProductosRouter.put('/config', verifyToken, authorizeRoles(['super admin
       const columnsJson = JSON.stringify(columns);
       for (let i = 0; i < rows.length; i += CHUNK) {
         const ids = rows.slice(i, i + CHUNK).map((row) => row.id);
+        const separador = origen === 'KORAX' ? ' ' : '; ';
         await manager.query(
           `
             UPDATE producto_catalogo p
             SET descripcion = COALESCE((
-              SELECT string_agg(
-                regexp_replace(trim(p.datos_originales ->> c.nombre), '(\\s*;\\s*)+$', '', 'g'),
-                '; ' ORDER BY c.orden
-              )
-              FROM jsonb_array_elements_text($1::jsonb)
-                WITH ORDINALITY AS c(nombre, orden)
-              WHERE NULLIF(trim(p.datos_originales ->> c.nombre), '') IS NOT NULL
+              SELECT CASE
+                WHEN agg IS NULL OR agg = '' THEN ''
+                WHEN $3::text = ' ' THEN agg || ' '
+                ELSE agg
+              END
+              FROM (
+                SELECT string_agg(
+                  regexp_replace(trim(p.datos_originales ->> c.nombre), '(\\s*;\\s*)+$', '', 'g'),
+                  $3 ORDER BY c.orden
+                ) AS agg
+                FROM jsonb_array_elements_text($1::jsonb)
+                  WITH ORDINALITY AS c(nombre, orden)
+                WHERE NULLIF(trim(p.datos_originales ->> c.nombre), '') IS NOT NULL
+              ) partes
             ), ''),
             columnas_descripcion = $1::jsonb
             WHERE p.id = ANY($2::int[])
           `,
-          [columnsJson, ids]
+          [columnsJson, ids, separador]
         );
         const processed = Math.min(i + ids.length, rows.length);
         updateCatalogoTrabajo(trabajoId, {
@@ -743,16 +827,18 @@ catalogoProductosRouter.get('/stats', verifyToken, authorizeRoles(['super admini
       const s = await buildStats(origenFiltro);
       return res.json({ origen: origenFiltro, ...s });
     }
-    const [minfin, sibofa, subproductos] = await Promise.all([
+    const [minfin, sibofa, subproductos, korax] = await Promise.all([
       buildStats('MINFIN'),
       buildStats('SIBOFA'),
       buildStats('SUBPRODUCTOS'),
+      buildStats('KORAX'),
     ]);
     res.json({
       MINFIN: minfin,
       SIBOFA: sibofa,
       SUBPRODUCTOS: subproductos,
-      total: minfin.total + sibofa.total + subproductos.total,
+      KORAX: korax,
+      total: minfin.total + sibofa.total + subproductos.total + korax.total,
     });
   } catch (err: any) {
     console.error('Error al obtener estadísticas del catálogo:', err);
@@ -760,6 +846,7 @@ catalogoProductosRouter.get('/stats', verifyToken, authorizeRoles(['super admini
       MINFIN: { total: 0, ultimaActualizacion: null },
       SIBOFA: { total: 0, ultimaActualizacion: null },
       SUBPRODUCTOS: { total: 0, ultimaActualizacion: null },
+      KORAX: { total: 0, ultimaActualizacion: null },
       total: 0,
     });
   }
@@ -770,7 +857,7 @@ catalogoProductosRouter.get('/', verifyToken, authorizeRoles(['super administrad
   try {
     const origen = parseOrigen(req.query.origen);
     if (!origen) {
-      return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA o SUBPRODUCTOS.' });
+      return res.status(400).json({ message: 'Debe indicar origen=MINFIN, SIBOFA, SUBPRODUCTOS o KORAX.' });
     }
     const q = String(req.query.q ?? '').trim();
     const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);

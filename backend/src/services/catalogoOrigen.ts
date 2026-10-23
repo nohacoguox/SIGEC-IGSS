@@ -1,4 +1,4 @@
-export const CATALOGO_ORIGENES = ['MINFIN', 'SIBOFA', 'SUBPRODUCTOS'] as const;
+export const CATALOGO_ORIGENES = ['MINFIN', 'SIBOFA', 'SUBPRODUCTOS', 'KORAX'] as const;
 
 export type CatalogoOrigenApi = (typeof CATALOGO_ORIGENES)[number];
 

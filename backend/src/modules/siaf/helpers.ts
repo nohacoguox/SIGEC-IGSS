@@ -46,17 +46,31 @@ export const resolverItemsSiafDesdeCatalogo = async (items: any[]) => {
       continue;
     }
     const origen = parseOrigen(raw?.catalogoOrigen);
-    if (!origen) {
-      return { error: `Seleccione el catálogo MINFIN o SIBOFA para el código "${codigo || 'vacío'}".` };
+    if (!origen || origen === 'SUBPRODUCTOS') {
+      return { error: `Seleccione el catálogo MINFIN, SIBOFA o KORAX para el código "${codigo || 'vacío'}".` };
     }
     const producto = await productoCatalogoRepository.findOne({ where: { codigo, origen } });
     if (!producto) {
       return { error: `El código "${codigo}" no existe en el catálogo ${origen}.` };
     }
+    const base = String(producto.descripcion ?? '');
+    let descripcion = base;
+    if (origen === 'KORAX') {
+      const baseTrim = base.trim();
+      const escritaTrim = String(raw?.descripcion ?? '').trim();
+      if (!baseTrim) {
+        descripcion = escritaTrim;
+      } else if (escritaTrim.toLowerCase().startsWith(baseTrim.toLowerCase())) {
+        const resto = escritaTrim.slice(baseTrim.length);
+        descripcion = resto.trim() ? `${baseTrim}${resto}` : `${baseTrim} `;
+      } else {
+        descripcion = escritaTrim ? `${baseTrim} ${escritaTrim}` : `${baseTrim} `;
+      }
+    }
     resolved.push({
       ...raw,
       codigo: producto.codigo,
-      descripcion: producto.descripcion ?? '',
+      descripcion,
       catalogoOrigen: origen,
     });
   }

@@ -51,7 +51,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   'area-management': { title: 'Gestión de Áreas', subtitle: 'Administra las áreas del sistema' },
   'puesto-management': { title: 'Gestión de Puestos', subtitle: 'Administra los puestos de trabajo' },
   'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: 'Administra las unidades médicas' },
-  'correlativo-management': { title: 'Gestión de Correlativos', subtitle: 'Numeración automática de SIAF y expedientes' },
+  'correlativo-management': { title: 'Gestión de Correlativos', subtitle: '' },
   settings: { title: 'Configuración', subtitle: 'Configura las opciones del sistema' },
 };
 

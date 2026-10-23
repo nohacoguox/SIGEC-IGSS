@@ -1,14 +1,25 @@
 import { AppDataSource } from '../data-source';
 import { SiafCorrelativoConfig } from '../entity/SiafCorrelativoConfig';
+import { SiafCorrelativoArea } from '../entity/SiafCorrelativoArea';
 import { SiafCorrelativoReserva } from '../entity/SiafCorrelativoReserva';
+import { Area } from '../entity/Area';
 import { SiafSolicitud } from '../entity/SiafSolicitud';
 import { randomUUID } from 'crypto';
 
-/** Formato institucional: número/año → ej. 1/2026 */
-export function formatCorrelativo(numero: number, digitos: number, anio?: number): string {
+/** antes → BF 1/2026. despues → 14568 SC/2026. Vacío → 1/2026. */
+export function formatCorrelativo(
+  numero: number,
+  digitos: number,
+  anio?: number,
+  prefijo?: string,
+  posicion?: string,
+): string {
   const year = anio ?? new Date().getFullYear();
   const numPart = digitos > 0 ? String(numero).padStart(digitos, '0') : String(numero);
-  return `${numPart}/${year}`;
+  const prefix = (prefijo || '').trim();
+  if (!prefix) return `${numPart}/${year}`;
+  if (posicion === 'despues') return `${numPart} ${prefix}/${year}`;
+  return `${prefix} ${numPart}/${year}`;
 }
 
 export function anioActual(): number {
@@ -59,17 +70,19 @@ async function expireReservations(): Promise<void> {
 
   if (expired.length === 0) return;
 
-  let minLiberado: number | null = null;
+  const minPorConfig = new Map<number, number>();
   for (const r of expired) {
     r.estado = 'liberado';
     r.liberadoEn = now;
     await reservaRepo.save(r);
-    if (minLiberado == null || r.numero < minLiberado) minLiberado = r.numero;
+    if (!r.configId) continue;
+    const actual = minPorConfig.get(r.configId);
+    if (actual == null || r.numero < actual) minPorConfig.set(r.configId, r.numero);
   }
 
-  if (minLiberado != null) {
-    const config = await ensureConfig();
-    if (minLiberado < config.siguienteNumero) {
+  for (const [configId, minLiberado] of minPorConfig) {
+    const config = await configRepo.findOne({ where: { id: configId } });
+    if (config && minLiberado < config.siguienteNumero) {
       config.siguienteNumero = Math.max(config.numeroInicio, minLiberado);
       await configRepo.save(config);
     }
@@ -81,38 +94,37 @@ async function expireReservations(): Promise<void> {
  * Si el usuario ya tiene una reserva activa, la reutiliza.
  * Serializa con advisory lock para evitar que dos usuarios reciban el mismo número.
  */
-export async function reservarCorrelativo(usuarioId: number): Promise<{
+export async function reservarCorrelativo(usuarioId: number, areaId: number): Promise<{
   reservaId: number;
   correlativo: string;
   numero: number;
   expiraEn: Date;
 }> {
+  if (!areaId) {
+    throw new Error('Seleccione el área para asignar el correlativo.');
+  }
   await expireReservations();
 
   return AppDataSource.transaction(async (manager) => {
-    // Bloqueo de transacción: una sola reserva a la vez en todo el sistema
-    await manager.query(`SELECT pg_advisory_xact_lock(hashtext('sigec_siaf_correlativo'))`);
+    await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`sigec_siaf_usuario_${usuarioId}`]);
 
     const configRepo = manager.getRepository(SiafCorrelativoConfig);
     const reservaRepo = manager.getRepository(SiafCorrelativoReserva);
     const siafRepo = manager.getRepository(SiafSolicitud);
+    const areaLink = await manager.getRepository(SiafCorrelativoArea).findOne({ where: { areaId } });
+    if (!areaLink) {
+      throw new Error('Esta área no tiene un correlativo asignado. Agréguela en Gestión de Correlativos.');
+    }
 
-    let config = await configRepo
-      .createQueryBuilder('c')
-      .orderBy('c.id', 'ASC')
-      .setLock('pessimistic_write')
-      .getOne();
+    await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`sigec_siaf_correlativo_${areaLink.configId}`]);
+
+    let config = await configRepo.findOne({
+      where: { id: areaLink.configId },
+      lock: { mode: 'pessimistic_write' },
+    });
 
     if (!config) {
-      config = await configRepo.save(
-        configRepo.create({
-          siguienteNumero: 1,
-          numeroInicio: 1,
-          digitos: 0,
-          minutosReserva: 120,
-          anioActual: anioActual(),
-        })
-      );
+      throw new Error('El correlativo de esta área ya no existe. Revise Gestión de Correlativos.');
     }
 
     const year = anioActual();
@@ -130,7 +142,12 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
       .orderBy('r.id', 'DESC')
       .getOne();
 
-    if (existing && existing.expiraEn > new Date() && existing.correlativo.endsWith(`/${year}`)) {
+    if (
+      existing &&
+      existing.configId === config.id &&
+      existing.expiraEn > new Date() &&
+      existing.correlativo.endsWith(`/${year}`)
+    ) {
       return {
         reservaId: existing.id,
         correlativo: existing.correlativo,
@@ -142,9 +159,17 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
       existing.estado = 'liberado';
       existing.liberadoEn = new Date();
       await reservaRepo.save(existing);
-      if (existing.correlativo.endsWith(`/${year}`) && existing.numero < config.siguienteNumero) {
-        config.siguienteNumero = Math.max(config.numeroInicio, existing.numero);
-        await configRepo.save(config);
+      const configDeReserva = existing.configId
+        ? await configRepo.findOne({ where: { id: existing.configId } })
+        : config;
+      if (
+        configDeReserva &&
+        existing.correlativo.endsWith(`/${year}`) &&
+        existing.numero < configDeReserva.siguienteNumero
+      ) {
+        configDeReserva.siguienteNumero = Math.max(configDeReserva.numeroInicio, existing.numero);
+        await configRepo.save(configDeReserva);
+        if (configDeReserva.id === config.id) config.siguienteNumero = configDeReserva.siguienteNumero;
       }
     }
 
@@ -153,7 +178,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
     const maxAttempts = 10000;
 
     for (let i = 0; i < maxAttempts; i++) {
-      const correlativo = formatCorrelativo(candidate, config.digitos, year);
+      const correlativo = formatCorrelativo(candidate, config.digitos, year, config.prefijo, config.prefijoPosicion);
 
       const inSiaf = await siafRepo.findOne({ where: { correlativo } });
       if (inSiaf) {
@@ -203,6 +228,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
             estado = 'reservado',
             token = $3,
             expira_en = $4,
+            config_id = $6,
             liberado_en = NULL,
             consumido_en = NULL,
             reservado_en = NOW()
@@ -216,7 +242,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
         AND estado = 'liberado'
         RETURNING id, correlativo, numero, expira_en
       `,
-        [usuarioId, candidate, token, expiraEn, correlativo]
+        [usuarioId, candidate, token, expiraEn, correlativo, config.id]
       );
 
       let saved: { id: number; correlativo: string; numero: number; expiraEn: Date } | null = null;
@@ -251,6 +277,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
               estado = 'reservado',
               token = $3,
               expira_en = $4,
+              config_id = $6,
               liberado_en = NULL,
               consumido_en = NULL,
               reservado_en = NOW()
@@ -264,7 +291,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
           AND estado = 'consumido'
           RETURNING id, correlativo, numero, expira_en
         `,
-          [usuarioId, candidate, token, expiraEn, correlativo]
+          [usuarioId, candidate, token, expiraEn, correlativo, config.id]
         );
         const orphanRow = firstRow(orphanConsumido);
         if (orphanRow?.id != null && orphanRow?.correlativo) {
@@ -292,11 +319,11 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
               const rows = await manager.query(
                 `
                 INSERT INTO siaf_correlativo_reservas
-                  (numero, correlativo, usuario_id, estado, token, expira_en, expires_at, liberado_en, consumido_en)
-                VALUES ($1, $2, $3, 'reservado', $4, $5, $5, NULL, NULL)
+                  (numero, correlativo, usuario_id, estado, token, expira_en, expires_at, config_id, liberado_en, consumido_en)
+                VALUES ($1, $2, $3, 'reservado', $4, $5, $5, $6, NULL, NULL)
                 RETURNING id, correlativo, numero, expira_en
               `,
-                [candidate, correlativo, usuarioId, token, expiraEn]
+                [candidate, correlativo, usuarioId, token, expiraEn, config.id]
               );
               const row = firstRow(rows);
               if (!row?.id || !row?.correlativo) {
@@ -314,6 +341,7 @@ export async function reservarCorrelativo(usuarioId: number): Promise<{
                 reservaRepo.create({
                   numero: candidate,
                   correlativo,
+                  configId: config.id,
                   usuarioId,
                   estado: 'reservado',
                   token,
@@ -381,13 +409,11 @@ export async function liberarCorrelativo(
     reserva.liberadoEn = new Date();
     await reservaRepo.save(reserva);
 
-    let config = await configRepo
-      .createQueryBuilder('c')
-      .orderBy('c.id', 'ASC')
-      .getOne();
+    const config = reserva.configId
+      ? await configRepo.findOne({ where: { id: reserva.configId } })
+      : await configRepo.createQueryBuilder('c').orderBy('c.id', 'ASC').getOne();
     if (!config) return true;
 
-    // Al liberar, el número vuelve al pool: bajar el puntero para reutilizar huecos
     if (reserva.numero < config.siguienteNumero) {
       config.siguienteNumero = Math.max(config.numeroInicio, reserva.numero);
       await configRepo.save(config);
@@ -469,7 +495,7 @@ export async function getEstadoCorrelativos() {
     numeroInicio: config.numeroInicio,
     digitos: config.digitos,
     minutosReserva: config.minutosReserva,
-    correlativoSiguientePreview: formatCorrelativo(config.siguienteNumero, config.digitos, anioActual()),
+    correlativoSiguientePreview: formatCorrelativo(config.siguienteNumero, config.digitos, anioActual(), config.prefijo, config.prefijoPosicion),
     anioActual: config.anioActual || anioActual(),
     ultimoUsado,
     enUso: activasValidas.map((r) => ({
@@ -521,6 +547,217 @@ export async function actualizarConfigCorrelativo(input: {
   }
 
   return repo.save(config);
+}
+
+function normalizarPosicion(value: unknown): 'antes' | 'despues' {
+  return String(value || '').trim().toLowerCase() === 'despues' ? 'despues' : 'antes';
+}
+
+function normalizarPrefijo(value: unknown): string {
+  const prefijo = String(value ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!prefijo) return '';
+  if (!/^[A-Z]{1,8}$/.test(prefijo)) {
+    throw new Error('El prefijo solo puede tener letras, hasta 8, o quedar vacío.');
+  }
+  return prefijo;
+}
+
+function normalizarNombre(value: unknown): string {
+  const nombre = String(value ?? '').trim();
+  if (nombre.length < 2 || nombre.length > 120) {
+    throw new Error('El nombre del correlativo debe tener entre 2 y 120 caracteres.');
+  }
+  return nombre;
+}
+
+async function asignarAreas(configId: number, areaIds: number[]) {
+  const unicos = Array.from(new Set(areaIds.map((id) => Number(id)).filter((id) => id > 0)));
+  const areaRepo = AppDataSource.getRepository(Area);
+  const linkRepo = AppDataSource.getRepository(SiafCorrelativoArea);
+  if (unicos.length) {
+    const areas = await areaRepo.find({ where: unicos.map((id) => ({ id })) });
+    if (areas.length !== unicos.length) throw new Error('Hay un área que no existe.');
+    await linkRepo
+      .createQueryBuilder()
+      .delete()
+      .where('area_id IN (:...ids)', { ids: unicos })
+      .andWhere('config_id <> :configId', { configId })
+      .execute();
+  }
+  await linkRepo.delete({ configId });
+  if (unicos.length) {
+    await linkRepo.save(unicos.map((areaId) => linkRepo.create({ configId, areaId })));
+  }
+}
+
+export async function listarSeriesCorrelativo() {
+  await expireReservations();
+  const configRepo = AppDataSource.getRepository(SiafCorrelativoConfig);
+  const linkRepo = AppDataSource.getRepository(SiafCorrelativoArea);
+  const areaRepo = AppDataSource.getRepository(Area);
+  const reservaRepo = AppDataSource.getRepository(SiafCorrelativoReserva);
+  const siafRepo = AppDataSource.getRepository(SiafSolicitud);
+  const configs = await configRepo.find({ order: { id: 'ASC' } });
+  const links = await linkRepo.find();
+  const areas = await areaRepo.find({ order: { nombre: 'ASC' } });
+  const reservas = await reservaRepo.find({
+    where: { estado: 'reservado' },
+    order: { numero: 'ASC' },
+    relations: ['usuario'],
+  });
+  const recientes = await siafRepo.find({
+    order: { id: 'DESC' },
+    take: 400,
+    select: ['id', 'correlativo'],
+  });
+  const year = anioActual();
+  return {
+    areas: areas.filter((area) => area.activo).map((area) => ({
+      id: area.id,
+      nombre: area.nombre,
+      configId: links.find((link) => link.areaId === area.id)?.configId ?? null,
+    })),
+    series: configs.map((config) => {
+      const propias = links.filter((link) => link.configId === config.id);
+      const enUso = reservas.filter((reserva) => reserva.configId === config.id && reserva.expiraEn > new Date());
+      const ultimo = recientes.find((siaf) => correlativoDeSerie(siaf.correlativo, config.prefijo, config.prefijoPosicion));
+      return {
+        id: config.id,
+        nombre: config.nombre || 'General',
+        prefijo: config.prefijo || '',
+        prefijoPosicion: config.prefijoPosicion === 'despues' ? 'despues' : 'antes',
+        siguienteNumero: config.siguienteNumero,
+        numeroInicio: config.numeroInicio,
+        digitos: config.digitos,
+        minutosReserva: config.minutosReserva,
+        anioActual: config.anioActual || year,
+        correlativoSiguientePreview: formatCorrelativo(config.siguienteNumero, config.digitos, year, config.prefijo, config.prefijoPosicion),
+        ultimoUsado: ultimo ? { correlativo: ultimo.correlativo, numero: null } : null,
+        areas: propias
+          .map((link) => areas.find((area) => area.id === link.areaId))
+          .filter((area): area is Area => !!area)
+          .map((area) => ({ id: area.id, nombre: area.nombre })),
+        enUso: enUso.map((reserva) => ({
+          reservaId: reserva.id,
+          numero: reserva.numero,
+          correlativo: reserva.correlativo,
+          usuarioId: reserva.usuarioId,
+          usuarioNombre: reserva.usuario
+            ? `${reserva.usuario.nombres || ''} ${reserva.usuario.apellidos || ''}`.trim()
+            : '—',
+          reservadoEn: reserva.reservadoEn,
+          expiraEn: reserva.expiraEn,
+        })),
+        totalReservasActivas: enUso.length,
+      };
+    }),
+  };
+}
+
+function correlativoDeSerie(correlativo: string, prefijo: string, posicion?: string): boolean {
+  const texto = String(correlativo || '').trim();
+  const prefix = (prefijo || '').trim();
+  if (!prefix) return /^\d+\/\d{4}$/.test(texto);
+  if (posicion === 'despues') return new RegExp(`^\\d+ ${prefix}/\\d{4}$`).test(texto);
+  return texto.startsWith(`${prefix} `) && /\/\d{4}$/.test(texto);
+}
+
+export async function crearSerieCorrelativo(input: { nombre: unknown; prefijo?: unknown; prefijoPosicion?: unknown; areaIds?: number[] }) {
+  const nombre = normalizarNombre(input.nombre);
+  const prefijo = normalizarPrefijo(input.prefijo);
+  const prefijoPosicion = normalizarPosicion(input.prefijoPosicion);
+  const repo = AppDataSource.getRepository(SiafCorrelativoConfig);
+  const existente = await repo
+    .createQueryBuilder('c')
+    .where('LOWER(c.nombre) = LOWER(:nombre)', { nombre })
+    .getOne();
+  if (existente) throw new Error('Ya existe un correlativo con ese nombre.');
+  const creado = await repo.save(repo.create({
+    nombre,
+    prefijo,
+    prefijoPosicion,
+    siguienteNumero: 1,
+    numeroInicio: 1,
+    digitos: 0,
+    minutosReserva: 120,
+    anioActual: anioActual(),
+  }));
+  await asignarAreas(creado.id, input.areaIds || []);
+  return listarSeriesCorrelativo();
+}
+
+export async function actualizarSerieCorrelativo(id: number, input: {
+  nombre?: unknown;
+  prefijo?: unknown;
+  prefijoPosicion?: unknown;
+  areaIds?: number[];
+  numeroInicio?: number;
+  siguienteNumero?: number;
+  digitos?: number;
+  minutosReserva?: number;
+}) {
+  const repo = AppDataSource.getRepository(SiafCorrelativoConfig);
+  const config = await repo.findOne({ where: { id } });
+  if (!config) throw new Error('Correlativo no encontrado.');
+  if (input.nombre != null) {
+    const nombre = normalizarNombre(input.nombre);
+    const duplicado = await repo
+      .createQueryBuilder('c')
+      .where('LOWER(c.nombre) = LOWER(:nombre)', { nombre })
+      .andWhere('c.id <> :id', { id })
+      .getOne();
+    if (duplicado) throw new Error('Ya existe un correlativo con ese nombre.');
+    config.nombre = nombre;
+  }
+  if (input.prefijo != null) config.prefijo = normalizarPrefijo(input.prefijo);
+  if (input.prefijoPosicion != null) config.prefijoPosicion = normalizarPosicion(input.prefijoPosicion);
+  if (input.numeroInicio != null) {
+    if (input.numeroInicio < 1) throw new Error('El número de inicio debe ser >= 1');
+    config.numeroInicio = input.numeroInicio;
+  }
+  if (input.siguienteNumero != null) {
+    if (input.siguienteNumero < 1) throw new Error('El siguiente número debe ser >= 1');
+    config.siguienteNumero = input.siguienteNumero;
+  }
+  if (input.digitos != null) {
+    if (input.digitos < 0 || input.digitos > 12) throw new Error('Dígitos debe estar entre 0 y 12');
+    config.digitos = input.digitos;
+  }
+  if (input.minutosReserva != null) {
+    if (input.minutosReserva < 5 || input.minutosReserva > 24 * 60) {
+      throw new Error('Minutos de reserva debe estar entre 5 y 1440');
+    }
+    config.minutosReserva = input.minutosReserva;
+  }
+  if (input.numeroInicio != null && input.siguienteNumero == null) {
+    config.siguienteNumero = input.numeroInicio;
+  }
+  await repo.save(config);
+  if (input.areaIds) await asignarAreas(config.id, input.areaIds);
+  return listarSeriesCorrelativo();
+}
+
+export async function eliminarSerieCorrelativo(id: number) {
+  const repo = AppDataSource.getRepository(SiafCorrelativoConfig);
+  const config = await repo.findOne({ where: { id } });
+  if (!config) throw new Error('Correlativo no encontrado.');
+  const usadas = await AppDataSource.getRepository(SiafCorrelativoReserva).count({
+    where: { configId: id, estado: 'consumido' },
+  });
+  if (usadas > 0) {
+    throw new Error('Este correlativo ya se usó en SIAF guardados. No se puede eliminar.');
+  }
+  const guardados = await AppDataSource.getRepository(SiafSolicitud).find({
+    select: ['id', 'correlativo'],
+    order: { id: 'DESC' },
+    take: 500,
+  });
+  if (guardados.some((siaf) => correlativoDeSerie(siaf.correlativo, config.prefijo, config.prefijoPosicion))) {
+    throw new Error('Este correlativo ya se usó en SIAF guardados. No se puede eliminar.');
+  }
+  await AppDataSource.getRepository(SiafCorrelativoArea).delete({ configId: id });
+  await repo.delete({ id });
+  return listarSeriesCorrelativo();
 }
 
 export async function liberarReservaAdmin(reservaId: number): Promise<boolean> {

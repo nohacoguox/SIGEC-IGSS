@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
-export type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'SUBPRODUCTOS';
+export type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'SUBPRODUCTOS' | 'KORAX';
 
 @Entity('producto_catalogo')
 @Index('uq_producto_catalogo_origen_codigo', ['origen', 'codigo'], { unique: true })
@@ -8,7 +8,7 @@ export class ProductoCatalogo {
   @PrimaryGeneratedColumn()
   id: number;
 
-  /** Catálogo de origen: MINFIN, SIBOFA o SUBPRODUCTOS */
+  /** Catálogo de origen: MINFIN, SIBOFA, SUBPRODUCTOS o KORAX */
   @Column({ type: 'varchar', length: 20, default: 'MINFIN' })
   origen: CatalogoOrigen;
 

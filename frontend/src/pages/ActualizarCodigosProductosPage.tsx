@@ -34,7 +34,7 @@ import { useThemeMode } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
-type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'SUBPRODUCTOS';
+type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'SUBPRODUCTOS' | 'KORAX';
 
 type CatalogoStats = {
   total: number;
@@ -76,12 +76,18 @@ const CATALOGOS: { key: CatalogoOrigen; label: string; ayuda: string }[] = [
     ayuda:
       'Listado oficial de subproductos. Se carga con el Word de productos y subproductos. Sin la casilla de primera carga, agrega códigos nuevos y actualiza las descripciones que cambiaron. Los códigos que no vienen en el Word se conservan.',
   },
+  {
+    key: 'KORAX',
+    label: 'KORAX',
+    ayuda: 'Listado Korax. La descripción queda con el subtipo, el nombre del procedimiento y un espacio al final.',
+  },
 ];
 
 const emptyStats = (): Record<CatalogoOrigen, CatalogoStats> => ({
   MINFIN: { total: 0, ultimaActualizacion: null },
   SIBOFA: { total: 0, ultimaActualizacion: null },
   SUBPRODUCTOS: { total: 0, ultimaActualizacion: null },
+  KORAX: { total: 0, ultimaActualizacion: null },
 });
 
 const excelColumnLabel = (index: number) => {
@@ -95,11 +101,13 @@ const excelColumnLabel = (index: number) => {
   return label;
 };
 
-const buildDescriptionPreview = (data: Record<string, string>, columns: string[]) => {
+const buildDescriptionPreview = (data: Record<string, string>, columns: string[], espacioFinal = false) => {
   const parts = columns
     .map((column) => String(data?.[column] ?? '').trim().replace(/(?:\s*;\s*)+$/g, ''))
     .filter(Boolean);
-  return parts.length ? parts.join('; ') : '—';
+  if (!parts.length) return '—';
+  const texto = parts.join(espacioFinal ? ' ' : '; ');
+  return espacioFinal ? `${texto} ` : texto;
 };
 
 const ActualizarCodigosProductosPage: React.FC = () => {
@@ -125,6 +133,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   const [uploadMessage, setUploadMessage] = useState('');
   const [reemplazarSibofa, setReemplazarSibofa] = useState(true);
   const [reemplazarSubproductos, setReemplazarSubproductos] = useState(false);
+  const [reemplazarKorax, setReemplazarKorax] = useState(true);
   const [cambiosPresentacion, setCambiosPresentacion] = useState<CambioPresentacion[]>([]);
   const [configProgress, setConfigProgress] = useState(0);
   const [configMessage, setConfigMessage] = useState('');
@@ -172,6 +181,12 @@ const ActualizarCodigosProductosPage: React.FC = () => {
           ultimaActualizacion: res.data?.SUBPRODUCTOS?.ultimaActualizacion ?? null,
           columnaCodigo: res.data?.SUBPRODUCTOS?.columnaCodigo ?? null,
           columnasDescripcion: res.data?.SUBPRODUCTOS?.columnasDescripcion ?? [],
+        },
+        KORAX: {
+          total: res.data?.KORAX?.total ?? 0,
+          ultimaActualizacion: res.data?.KORAX?.ultimaActualizacion ?? null,
+          columnaCodigo: res.data?.KORAX?.columnaCodigo ?? null,
+          columnasDescripcion: res.data?.KORAX?.columnasDescripcion ?? [],
         },
       });
     } catch {
@@ -254,8 +269,8 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       e.target.value = '';
       return;
     }
-    if (tab === 'MINFIN' && (esPdf || esDocx)) {
-      showError('MINFIN se actualiza con un archivo Excel.');
+    if ((tab === 'MINFIN' || tab === 'KORAX') && (esPdf || esDocx)) {
+      showError(`${tab} se actualiza con un archivo Excel.`);
       e.target.value = '';
       return;
     }
@@ -264,6 +279,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
     formData.append('origen', tab);
     if (tab === 'SIBOFA' && reemplazarSibofa) formData.append('reemplazar', 'true');
     if (tab === 'SUBPRODUCTOS' && reemplazarSubproductos) formData.append('reemplazar', 'true');
+    if (tab === 'KORAX' && reemplazarKorax) formData.append('reemplazar', 'true');
     setCambiosPresentacion([]);
     setUploading(true);
     setUploadProgress(1);
@@ -289,6 +305,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       setCambiosPresentacion(cambios);
       if (tab === 'SIBOFA' && reemplazarSibofa) setReemplazarSibofa(false);
       if (tab === 'SUBPRODUCTOS' && reemplazarSubproductos) setReemplazarSubproductos(false);
+      if (tab === 'KORAX' && reemplazarKorax) setReemplazarKorax(false);
       if (cambios.length > 0) {
         showWarning(`${cambios.length} códigos de SIBOFA cambiaron en Forma, concentración y presentación.`);
       }
@@ -351,10 +368,9 @@ const ActualizarCodigosProductosPage: React.FC = () => {
         Actualización de Códigos y Productos
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-        Gestione de forma independiente los catálogos <strong>MINFIN</strong>, <strong>SIBOFA</strong> y{' '}
-        <strong>Subproductos</strong>. MINFIN se carga con Excel. SIBOFA se carga con el PDF del listado básico de
-        medicamentos. Subproductos se cargan con el Word del listado oficial: sin la casilla de primera carga se
-        agregan códigos nuevos y se actualizan las descripciones; con la casilla se reemplaza todo el catálogo.
+        Gestione de forma independiente los catálogos <strong>MINFIN</strong>, <strong>SIBOFA</strong>,{' '}
+        <strong>Subproductos</strong> y <strong>KORAX</strong>. MINFIN y KORAX se cargan con Excel. SIBOFA se carga
+        con el PDF del listado básico de medicamentos. Subproductos se cargan con el Word del listado oficial.
       </Typography>
 
       <Tabs
@@ -427,6 +443,19 @@ const ActualizarCodigosProductosPage: React.FC = () => {
                 />
               }
               label="Primera carga: borrar todos los subproductos y cargar este Word completo. Déjela sin marcar para solo agregar códigos nuevos y actualizar descripciones."
+            />
+          )}
+          {tab === 'KORAX' && (
+            <FormControlLabel
+              sx={{ mb: 1, alignItems: 'flex-start' }}
+              control={
+                <Checkbox
+                  checked={reemplazarKorax}
+                  onChange={(event) => setReemplazarKorax(event.target.checked)}
+                  disabled={uploading}
+                />
+              }
+              label="Primera carga: borrar todo KORAX y cargar este Excel completo."
             />
           )}
           <input
@@ -553,7 +582,9 @@ const ActualizarCodigosProductosPage: React.FC = () => {
               Columnas que formarán la descripción
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Cada valor se unirá en el orden del Excel y quedará separado por punto y coma (;).
+              {tab === 'KORAX'
+                ? 'Cada valor se unirá con un espacio y al final quedará otro espacio para el texto correspondiente.'
+                : 'Cada valor se unirá en el orden del Excel y quedará separado por punto y coma (;).'}
             </Typography>
             <FormGroup sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, mb: 2 }}>
               {headers.map((header, index) => (
@@ -582,7 +613,7 @@ const ActualizarCodigosProductosPage: React.FC = () => {
               </Typography>
               {items.slice(0, 3).map((row) => (
                 <Typography key={row.id} variant="body2" sx={{ mb: 0.5, wordBreak: 'break-word' }}>
-                  {buildDescriptionPreview(row.datosOriginales, descriptionColumns)}
+                  {buildDescriptionPreview(row.datosOriginales, descriptionColumns, tab === 'KORAX')}
                 </Typography>
               ))}
             </Alert>

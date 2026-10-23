@@ -1,5 +1,5 @@
 export type ItemTipo = 'bien' | 'servicio';
-export type CatalogoOrigen = 'MINFIN' | 'SIBOFA';
+export type CatalogoOrigen = 'MINFIN' | 'SIBOFA' | 'KORAX';
 
 export type CatalogoSugerencia = {
   codigo: string;

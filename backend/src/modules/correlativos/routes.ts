@@ -6,6 +6,10 @@ import {
   getEstadoCorrelativos,
   actualizarConfigCorrelativo,
   liberarReservaAdmin,
+  listarSeriesCorrelativo,
+  crearSerieCorrelativo,
+  actualizarSerieCorrelativo,
+  eliminarSerieCorrelativo,
 } from '../../services/CorrelativoService';
 import {
   actualizarConfigCorrelativoExpediente,
@@ -52,6 +56,69 @@ correlativosRouter.put(
   }
 );
 
+correlativosRouter.get(
+  '/series',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+  async (_req: Request, res: Response) => {
+    try {
+      res.json(await listarSeriesCorrelativo());
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || 'Error al listar correlativos' });
+    }
+  }
+);
+
+correlativosRouter.post(
+  '/series',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+  async (req: Request, res: Response) => {
+    try {
+      res.status(201).json(await crearSerieCorrelativo(req.body || {}));
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message || 'Error al crear el correlativo' });
+    }
+  }
+);
+
+correlativosRouter.put(
+  '/series/:id',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+  async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const body = req.body || {};
+      res.json(await actualizarSerieCorrelativo(id, {
+        nombre: body.nombre,
+        prefijo: body.prefijo,
+        prefijoPosicion: body.prefijoPosicion,
+        areaIds: Array.isArray(body.areaIds) ? body.areaIds.map((value: unknown) => Number(value)) : undefined,
+        numeroInicio: body.numeroInicio != null ? Number(body.numeroInicio) : undefined,
+        siguienteNumero: body.siguienteNumero != null ? Number(body.siguienteNumero) : undefined,
+        digitos: body.digitos != null ? Number(body.digitos) : undefined,
+        minutosReserva: body.minutosReserva != null ? Number(body.minutosReserva) : undefined,
+      }));
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message || 'Error al guardar el correlativo' });
+    }
+  }
+);
+
+correlativosRouter.delete(
+  '/series/:id',
+  verifyToken,
+  authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
+  async (req: Request, res: Response) => {
+    try {
+      res.json(await eliminarSerieCorrelativo(parseInt(req.params.id, 10)));
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message || 'Error al eliminar el correlativo' });
+    }
+  }
+);
+
 correlativosRouter.post(
   '/reservar',
   verifyToken,
@@ -62,7 +129,8 @@ correlativosRouter.post(
   async (req: Request, res: Response) => {
     try {
       const userId = (req as any).user.userId;
-      const reserva = await reservarCorrelativo(userId);
+      const areaId = Number(req.body?.areaId);
+      const reserva = await reservarCorrelativo(userId, areaId);
       res.status(201).json(reserva);
     } catch (err: any) {
       console.error('[correlativos/reservar]', err);
@@ -70,7 +138,8 @@ correlativosRouter.post(
       const hint = /does not exist|relation|tabla/i.test(msg)
         ? ' Reinicie el backend para crear las tablas de correlativos.'
         : '';
-      res.status(500).json({ message: `${msg}${hint}` });
+      const status = err?.code || /does not exist|relation|tabla/i.test(msg) ? 500 : 400;
+      res.status(status).json({ message: `${msg}${hint}` });
     }
   }
 );

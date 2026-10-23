@@ -40,9 +40,11 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle }) => (
     >
       {title}
     </Typography>
-    <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 640, lineHeight: 1.6 }}>
-      {subtitle}
-    </Typography>
+    {subtitle ? (
+      <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 640, lineHeight: 1.6 }}>
+        {subtitle}
+      </Typography>
+    ) : null}
     <Box
       component={motion.div}
       initial={{ scaleX: 0 }}

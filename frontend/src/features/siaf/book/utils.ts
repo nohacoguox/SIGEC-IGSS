@@ -95,7 +95,7 @@ export function getValidationError(state: ValidationFormState): string | null {
 
   const hayBienes = items.some((i) => i.tipo === 'bien');
   if (hayBienes && !catalogoSeleccionado) {
-    return 'Seleccione el catálogo MINFIN o SIBOFA antes de ingresar códigos.';
+    return 'Seleccione el catálogo MINFIN, SIBOFA o KORAX antes de ingresar códigos.';
   }
 
   if (items.some((i) => Number(i.cantidad) < 0)) {

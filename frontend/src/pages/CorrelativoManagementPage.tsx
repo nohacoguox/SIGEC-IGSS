@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, CircularProgress, Grid, Paper, Tab, Table,
+  Alert, Box, Button, Checkbox, Chip, CircularProgress, FormControl, Grid, InputLabel, MenuItem, Paper, Select, Tab, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import NumbersIcon from '@mui/icons-material/Numbers';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AddIcon from '@mui/icons-material/Add';
 import SaveIcon from '@mui/icons-material/Save';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
@@ -24,6 +24,31 @@ interface ReservaEnUso {
   expiraEn: string;
 }
 
+interface AreaCorrelativo {
+  id: number;
+  nombre: string;
+  configId: number | null;
+}
+
+type PosicionLetras = 'antes' | 'despues';
+
+function vistaCorrelativo(numero: string, digitos: string, anio: number, prefijo: string, posicion: PosicionLetras) {
+  const n = Math.max(1, Number(numero) || 1);
+  const d = Math.max(0, Math.min(12, Number(digitos) || 0));
+  const padded = d > 0 ? String(n).padStart(d, '0') : String(n);
+  const letras = prefijo.trim().toUpperCase();
+  if (!letras) return `${padded}/${anio}`;
+  return posicion === 'despues' ? `${padded} ${letras}/${anio}` : `${letras} ${padded}/${anio}`;
+}
+
+interface SerieCorrelativo extends EstadoCorrelativos {
+  id: number;
+  nombre: string;
+  prefijo: string;
+  prefijoPosicion: PosicionLetras;
+  areas: { id: number; nombre: string }[];
+}
+
 interface EstadoCorrelativos {
   siguienteNumero: number;
   numeroInicio: number;
@@ -35,16 +60,11 @@ interface EstadoCorrelativos {
   totalReservasActivas: number;
 }
 
-function SectionTitle({ step, title, description }: { step: string; title: string; description: string }) {
+function SectionTitle({ step, title }: { step: string; title: string }) {
   return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
-        {step}. {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, maxWidth: 720 }}>
-        {description}
-      </Typography>
-    </Box>
+    <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 2, color: IGSS_COLORS.azulOscuro }}>
+      {step}. {title}
+    </Typography>
   );
 }
 
@@ -60,6 +80,18 @@ const CorrelativoManagementPage: React.FC = () => {
   const [minutosReserva, setMinutosReserva] = useState('120');
   const [loadError, setLoadError] = useState('');
   const [baseline, setBaseline] = useState({ numeroInicio: '1', siguienteNumero: '1', digitos: '0', minutosReserva: '120' });
+  const [series, setSeries] = useState<SerieCorrelativo[]>([]);
+  const [areasCatalogo, setAreasCatalogo] = useState<AreaCorrelativo[]>([]);
+  const [serieId, setSerieId] = useState<number | null>(null);
+  const serieIdRef = useRef<number | null>(null);
+  const [nombre, setNombre] = useState('General');
+  const [prefijo, setPrefijo] = useState('');
+  const [prefijoPosicion, setPrefijoPosicion] = useState<PosicionLetras>('antes');
+  const [areaIds, setAreaIds] = useState<number[]>([]);
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  const [nuevoPrefijo, setNuevoPrefijo] = useState('');
+  const [nuevoPrefijoPosicion, setNuevoPrefijoPosicion] = useState<PosicionLetras>('antes');
+  const [creando, setCreando] = useState(false);
 
   const esSiaf = tipoCorrelativo === 'siaf';
   const anio = new Date().getFullYear();
@@ -76,15 +108,26 @@ const CorrelativoManagementPage: React.FC = () => {
     if (siguienteNumero !== baseline.siguienteNumero) return true;
     if (digitos !== baseline.digitos) return true;
     if (esSiaf && minutosReserva !== baseline.minutosReserva) return true;
+    if (esSiaf && nombre !== (series.find((serie) => serie.id === serieId)?.nombre || '')) return true;
+    if (esSiaf && prefijo.trim().toUpperCase() !== (series.find((serie) => serie.id === serieId)?.prefijo || '')) return true;
+    if (esSiaf && prefijoPosicion !== (series.find((serie) => serie.id === serieId)?.prefijoPosicion || 'antes')) return true;
+    if (esSiaf) {
+      const actuales = (series.find((serie) => serie.id === serieId)?.areas || []).map((area) => area.id).sort().join(',');
+      const editadas = [...areaIds].sort().join(',');
+      if (actuales !== editadas) return true;
+    }
     return false;
-  }, [estado, numeroInicio, siguienteNumero, digitos, minutosReserva, baseline, esSiaf]);
+  }, [estado, numeroInicio, siguienteNumero, digitos, minutosReserva, baseline, esSiaf, nombre, prefijo, prefijoPosicion, areaIds, series, serieId]);
 
   const previewLocal = useMemo(() => {
-    const n = Math.max(1, Number(siguienteNumero) || 1);
-    const d = Math.max(0, Math.min(12, Number(digitos) || 0));
-    const padded = d > 0 ? String(n).padStart(d, '0') : String(n);
-    return esSiaf ? `${padded}/${anio}` : `EXP-${padded}/${anio}`;
-  }, [siguienteNumero, digitos, esSiaf, anio]);
+    if (!esSiaf) {
+      const n = Math.max(1, Number(siguienteNumero) || 1);
+      const d = Math.max(0, Math.min(12, Number(digitos) || 0));
+      const padded = d > 0 ? String(n).padStart(d, '0') : String(n);
+      return `EXP-${padded}/${anio}`;
+    }
+    return vistaCorrelativo(siguienteNumero, digitos, anio, prefijo, prefijoPosicion);
+  }, [siguienteNumero, digitos, esSiaf, anio, prefijo, prefijoPosicion]);
 
   const applyEstadoToForm = (data: EstadoCorrelativos) => {
     const next = {
@@ -100,13 +143,43 @@ const CorrelativoManagementPage: React.FC = () => {
     setBaseline(next);
   };
 
+  const aplicarSerie = (serie: SerieCorrelativo) => {
+    serieIdRef.current = serie.id;
+    setSerieId(serie.id);
+    setNombre(serie.nombre);
+    setPrefijo(serie.prefijo || '');
+    setPrefijoPosicion(serie.prefijoPosicion === 'despues' ? 'despues' : 'antes');
+    setAreaIds(serie.areas.map((area) => area.id));
+    setEstado(serie);
+    applyEstadoToForm(serie);
+  };
+
   const loadEstado = useCallback(async () => {
     setLoading(true);
+    setEstado(null);
     try {
-      const endpoint = tipoCorrelativo === 'siaf'
-        ? '/correlativos/estado'
-        : '/correlativos/expedientes/estado';
-      const res = await api.get(endpoint);
+      if (tipoCorrelativo === 'siaf') {
+        const res = await api.get('/correlativos/series');
+        const lista: SerieCorrelativo[] = res.data?.series || [];
+        setSeries(lista);
+        setAreasCatalogo(res.data?.areas || []);
+        const elegida = lista.find((serie) => serie.id === serieIdRef.current) || lista[0];
+        if (elegida) {
+          serieIdRef.current = elegida.id;
+          setSerieId(elegida.id);
+          setNombre(elegida.nombre);
+          setPrefijo(elegida.prefijo || '');
+          setPrefijoPosicion(elegida.prefijoPosicion === 'despues' ? 'despues' : 'antes');
+          setAreaIds(elegida.areas.map((area) => area.id));
+          setEstado(elegida);
+          applyEstadoToForm(elegida);
+        } else {
+          setEstado(null);
+        }
+        setLoadError('');
+        return;
+      }
+      const res = await api.get('/correlativos/expedientes/estado');
       const data: EstadoCorrelativos = res.data;
       setEstado(data);
       applyEstadoToForm(data);
@@ -138,21 +211,79 @@ const CorrelativoManagementPage: React.FC = () => {
   const handleGuardar = async () => {
     setSaving(true);
     try {
-      const endpoint = tipoCorrelativo === 'siaf'
-        ? '/correlativos/config'
-        : '/correlativos/expedientes/config';
+      if (tipoCorrelativo === 'siaf') {
+        if (!serieId) throw new Error('Seleccione un correlativo.');
+        const res = await api.put(`/correlativos/series/${serieId}`, {
+          nombre,
+          prefijo,
+          prefijoPosicion,
+          areaIds,
+          numeroInicio: Number(numeroInicio),
+          siguienteNumero: Number(siguienteNumero),
+          digitos: Number(digitos),
+          minutosReserva: Number(minutosReserva),
+        });
+        const lista: SerieCorrelativo[] = res.data?.series || [];
+        setSeries(lista);
+        setAreasCatalogo(res.data?.areas || []);
+        const elegida = lista.find((serie) => serie.id === serieId) || lista[0];
+        if (elegida) {
+          serieIdRef.current = elegida.id;
+          aplicarSerie(elegida);
+        }
+        showSuccess('Correlativo SIAF guardado');
+        return;
+      }
+      const endpoint = '/correlativos/expedientes/config';
       const payload: Record<string, number> = {
         numeroInicio: Number(numeroInicio),
         siguienteNumero: Number(siguienteNumero),
         digitos: Number(digitos),
       };
-      if (tipoCorrelativo === 'siaf') payload.minutosReserva = Number(minutosReserva);
       const res = await api.put(endpoint, payload);
       setEstado(res.data.estado);
       applyEstadoToForm(res.data.estado);
-      showSuccess(`Configuración de ${tipoCorrelativo === 'siaf' ? 'SIAF' : 'expedientes'} guardada`);
+      showSuccess('Configuración de expedientes guardada');
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCrear = async () => {
+    setCreando(true);
+    try {
+      const res = await api.post('/correlativos/series', { nombre: nuevoNombre, prefijo: nuevoPrefijo, prefijoPosicion: nuevoPrefijoPosicion, areaIds: [] });
+      const lista: SerieCorrelativo[] = res.data?.series || [];
+      setSeries(lista);
+      setAreasCatalogo(res.data?.areas || []);
+      const creada = lista.find((serie) => serie.nombre.trim().toLowerCase() === nuevoNombre.trim().toLowerCase()) || lista[lista.length - 1];
+      if (creada) aplicarSerie(creada);
+      setNuevoNombre('');
+      setNuevoPrefijo('');
+      setNuevoPrefijoPosicion('antes');
+      showSuccess('Correlativo creado. Ahora asígnele las áreas y guarde.');
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'Error al crear el correlativo');
+    } finally {
+      setCreando(false);
+    }
+  };
+
+  const handleEliminar = async () => {
+    if (!serieId) return;
+    setSaving(true);
+    try {
+      const res = await api.delete(`/correlativos/series/${serieId}`);
+      const lista: SerieCorrelativo[] = res.data?.series || [];
+      setSeries(lista);
+      setAreasCatalogo(res.data?.areas || []);
+      if (lista[0]) aplicarSerie(lista[0]);
+      else setEstado(null);
+      showSuccess('Correlativo eliminado');
+    } catch (err: any) {
+      showError(err?.response?.data?.message || 'Error al eliminar');
     } finally {
       setSaving(false);
     }
@@ -161,9 +292,18 @@ const CorrelativoManagementPage: React.FC = () => {
   const handleAplicarInicio = async () => {
     setSaving(true);
     try {
-      const endpoint = tipoCorrelativo === 'siaf'
-        ? '/correlativos/config'
-        : '/correlativos/expedientes/config';
+      if (tipoCorrelativo === 'siaf') {
+        if (!serieId) return;
+        const res = await api.put(`/correlativos/series/${serieId}`, { numeroInicio: Number(numeroInicio) });
+        const lista: SerieCorrelativo[] = res.data?.series || [];
+        setSeries(lista);
+        setAreasCatalogo(res.data?.areas || []);
+        const elegida = lista.find((serie) => serie.id === serieId);
+        if (elegida) aplicarSerie(elegida);
+        showSuccess(`La secuencia ahora inicia desde ${numeroInicio}`);
+        return;
+      }
+      const endpoint = '/correlativos/expedientes/config';
       const res = await api.put(endpoint, {
         numeroInicio: Number(numeroInicio),
       });
@@ -179,9 +319,8 @@ const CorrelativoManagementPage: React.FC = () => {
 
   const handleLiberar = async (reservaId: number) => {
     try {
-      const res = await api.post(`/correlativos/liberar-admin/${reservaId}`);
-      setEstado(res.data.estado);
-      applyEstadoToForm(res.data.estado);
+      await api.post(`/correlativos/liberar-admin/${reservaId}`);
+      await loadEstado();
       showSuccess('Número liberado: ya puede usarlo el siguiente formulario SIAF');
     } catch (err: any) {
       showError(err?.response?.data?.message || 'Error al liberar');
@@ -189,10 +328,14 @@ const CorrelativoManagementPage: React.FC = () => {
   };
 
   const descartarCambios = () => {
-    setNumeroInicio(baseline.numeroInicio);
-    setSiguienteNumero(baseline.siguienteNumero);
-    setDigitos(baseline.digitos);
-    setMinutosReserva(baseline.minutosReserva);
+    const serie = series.find((item) => item.id === serieId);
+    if (esSiaf && serie) aplicarSerie(serie);
+    else {
+      setNumeroInicio(baseline.numeroInicio);
+      setSiguienteNumero(baseline.siguienteNumero);
+      setDigitos(baseline.digitos);
+      setMinutosReserva(baseline.minutosReserva);
+    }
   };
 
   if (loading && !estado) {
@@ -205,28 +348,6 @@ const CorrelativoManagementPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
-      <Alert
-        severity="info"
-        icon={<InfoOutlinedIcon />}
-        sx={{
-          borderRadius: 2,
-          bgcolor: (t) => (t.palette.mode === 'dark' ? undefined : 'rgba(0,91,145,0.06)'),
-          color: (t) => (t.palette.mode === 'dark' ? undefined : IGSS_COLORS.textoOscuro),
-          '& .MuiAlert-icon': {
-            color: (t) => (t.palette.mode === 'dark' ? undefined : IGSS_COLORS.azul),
-          },
-        }}
-      >
-        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
-          Qué controla esta pantalla
-        </Typography>
-        <Typography variant="body2">
-          El <strong>correlativo</strong> es el número automático que recibe cada SIAF o expediente
-          (ej. <strong>1/{anio}</strong> o <strong>EXP-0001/{anio}</strong>).
-          Elija el tipo abajo, revise el estado y ajuste la secuencia solo si necesita reiniciar o adelantar la numeración.
-        </Typography>
-      </Alert>
-
       <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
         <Box
           sx={{
@@ -279,14 +400,6 @@ const CorrelativoManagementPage: React.FC = () => {
           </Button>
         </Box>
 
-        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-          <Typography variant="body2" color="text.secondary">
-            {esSiaf
-              ? 'Numeración de solicitudes SIAF. Al abrir «Crear SIAF» se reserva un número hasta guardar o cancelar.'
-              : 'Numeración interna de expedientes de compras. Se asigna automáticamente al crear el expediente.'}
-          </Typography>
-        </Box>
-
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           {loadError && (
             <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }} onClose={() => setLoadError('')}>
@@ -294,10 +407,147 @@ const CorrelativoManagementPage: React.FC = () => {
             </Alert>
           )}
 
+          {esSiaf && (
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 1.5 }}>
+                Correlativos SIAF
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                {series.map((serie) => (
+                  <Chip
+                    key={serie.id}
+                    label={`${serie.nombre} · ${serie.correlativoSiguientePreview}`}
+                    color={serie.id === serieId ? 'primary' : 'default'}
+                    variant={serie.id === serieId ? 'filled' : 'outlined'}
+                    onClick={() => aplicarSerie(serie)}
+                    sx={{ fontWeight: 700 }}
+                  />
+                ))}
+              </Box>
+
+              {serieId && (
+                <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                    <Typography fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+                      {nombre || 'Correlativo'}
+                    </Typography>
+                    <Button color="error" size="small" onClick={handleEliminar} disabled={saving}>
+                      Eliminar
+                    </Button>
+                  </Box>
+                  <Grid container spacing={1.5}>
+                    <Grid item xs={12} md={4}>
+                      <TextField size="small" label="Nombre" fullWidth value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={3}>
+                      <TextField size="small" label="Letras" fullWidth value={prefijo} onChange={(e) => setPrefijo(e.target.value)} placeholder="BF" />
+                    </Grid>
+                    <Grid item xs={12} sm={8} md={5}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel id="posicion-letras">Posición de las letras</InputLabel>
+                        <Select
+                          labelId="posicion-letras"
+                          label="Posición de las letras"
+                          value={prefijoPosicion}
+                          onChange={(event) => setPrefijoPosicion(event.target.value as PosicionLetras)}
+                        >
+                          <MenuItem value="antes">Antes del número</MenuItem>
+                          <MenuItem value="despues">Después del número</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+
+                  <Typography variant="body2" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
+                    Áreas
+                  </Typography>
+                  {areasCatalogo.length === 0 ? (
+                    <Alert severity="warning">No hay áreas activas.</Alert>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {areasCatalogo.map((area) => {
+                        const ocupada = area.configId != null && area.configId !== serieId;
+                        const marcada = areaIds.includes(area.id);
+                        const dueno = series.find((serie) => serie.id === area.configId);
+                        return (
+                          <Box
+                            key={area.id}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              minHeight: 40,
+                              px: 0.5,
+                              borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: marcada ? 'primary.main' : 'divider',
+                              bgcolor: marcada ? 'rgba(0,91,145,0.06)' : 'transparent',
+                            }}
+                          >
+                            <Checkbox
+                              size="small"
+                              checked={marcada}
+                              onChange={(event) => {
+                                setAreaIds((current) => event.target.checked
+                                  ? [...current, area.id]
+                                  : current.filter((id) => id !== area.id));
+                              }}
+                            />
+                            <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }}>
+                              {area.nombre}
+                            </Typography>
+                            {ocupada && (
+                              <Typography variant="caption" color="text.secondary" noWrap sx={{ pr: 1 }}>
+                                {marcada ? `Pasa desde ${dueno?.nombre || 'otro'}` : `En ${dueno?.nombre || 'otro'}`}
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2" fontWeight={800} sx={{ mb: 1.25, color: IGSS_COLORS.azulOscuro }}>
+                  Agregar correlativo
+                </Typography>
+                <Grid container spacing={1.5} alignItems="center">
+                  <Grid item xs={12} md={4}>
+                    <TextField size="small" label="Nombre" fullWidth value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder="Fondo Rotativo" />
+                  </Grid>
+                  <Grid item xs={12} sm={4} md={2}>
+                    <TextField size="small" label="Letras" fullWidth value={nuevoPrefijo} onChange={(e) => setNuevoPrefijo(e.target.value)} placeholder="FR" />
+                  </Grid>
+                  <Grid item xs={12} sm={8} md={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="nueva-posicion-letras">Posición</InputLabel>
+                      <Select
+                        labelId="nueva-posicion-letras"
+                        label="Posición"
+                        value={nuevoPrefijoPosicion}
+                        onChange={(event) => setNuevoPrefijoPosicion(event.target.value as PosicionLetras)}
+                      >
+                        <MenuItem value="antes">Antes del número</MenuItem>
+                        <MenuItem value="despues">Después del número</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Button fullWidth variant="contained" startIcon={<AddIcon />} onClick={handleCrear} disabled={creando || nuevoNombre.trim().length < 2}>
+                      Crear
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Paper>
+          )}
+
           <SectionTitle
             step="1"
             title="Estado actual"
-            description="Lectura rápida: qué número sigue, cuál fue el último y cuántos están bloqueados en formularios abiertos."
           />
 
           <Grid container spacing={2} sx={{ mb: 3.25 }}>
@@ -316,11 +566,8 @@ const CorrelativoManagementPage: React.FC = () => {
                 <Typography variant="caption" fontWeight={700} color="text.secondary">
                   Próximo a asignar
                 </Typography>
-                <Typography variant="h4" fontWeight={800} color="primary" sx={{ my: 0.75, lineHeight: 1.15 }}>
+                <Typography variant="h4" fontWeight={800} color="primary" sx={{ mt: 0.75, lineHeight: 1.15 }}>
                   {estado?.correlativoSiguientePreview ?? '—'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Será el siguiente {esSiaf ? 'SIAF' : 'expediente'} nuevo
                 </Typography>
               </Paper>
             </Grid>
@@ -339,13 +586,8 @@ const CorrelativoManagementPage: React.FC = () => {
                 <Typography variant="caption" fontWeight={700} color="text.secondary">
                   Último guardado
                 </Typography>
-                <Typography variant="h4" fontWeight={800} sx={{ my: 0.75, lineHeight: 1.15, color: IGSS_COLORS.verdeOscuro }}>
+                <Typography variant="h4" fontWeight={800} sx={{ mt: 0.75, lineHeight: 1.15, color: IGSS_COLORS.verdeOscuro }}>
                   {ultimoCorrelativo}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {estado?.ultimoUsado
-                    ? esSiaf ? 'Ya existe en solicitudes SIAF' : 'Ya existe en expedientes'
-                    : esSiaf ? 'Aún no hay SIAF guardados' : 'Aún no hay expedientes creados'}
                 </Typography>
               </Paper>
             </Grid>
@@ -365,11 +607,8 @@ const CorrelativoManagementPage: React.FC = () => {
                   <Typography variant="caption" fontWeight={700} color="text.secondary">
                     Reservados ahora
                   </Typography>
-                  <Typography variant="h4" fontWeight={800} sx={{ my: 0.75, lineHeight: 1.15, color: IGSS_COLORS.azulClaro }}>
+                  <Typography variant="h4" fontWeight={800} sx={{ mt: 0.75, lineHeight: 1.15, color: IGSS_COLORS.azulClaro }}>
                     {estado?.totalReservasActivas ?? 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Formularios abiertos sin guardar (sección 3)
                   </Typography>
                 </Paper>
               </Grid>
@@ -379,7 +618,6 @@ const CorrelativoManagementPage: React.FC = () => {
           <SectionTitle
             step="2"
             title="Ajustar la secuencia"
-            description="Use esto solo si necesita reiniciar, saltar números o cambiar el formato. La vista previa se actualiza al editar."
           />
 
           <Paper
@@ -419,18 +657,6 @@ const CorrelativoManagementPage: React.FC = () => {
               </Box>
             </Box>
 
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              {esSiaf ? (
-                <>
-                  Formato SIAF: <strong>número/año</strong>. Si alguien cancela el formulario, el número se libera para otro usuario.
-                </>
-              ) : (
-                <>
-                  Formato expediente: <strong>EXP-número/año</strong>. El sistema lo asigna al guardar el expediente (sin reserva temporal).
-                </>
-              )}
-            </Alert>
-
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={esSiaf ? 3 : 4}>
                 <TextField
@@ -439,7 +665,6 @@ const CorrelativoManagementPage: React.FC = () => {
                   fullWidth
                   value={numeroInicio}
                   onChange={(e) => setNumeroInicio(e.target.value)}
-                  helperText="Piso mínimo permitido (ej. 1 o 100)"
                   inputProps={{ min: 1 }}
                 />
               </Grid>
@@ -450,7 +675,6 @@ const CorrelativoManagementPage: React.FC = () => {
                   fullWidth
                   value={siguienteNumero}
                   onChange={(e) => setSiguienteNumero(e.target.value)}
-                  helperText="El que se asignará ahora"
                   inputProps={{ min: 1 }}
                 />
               </Grid>
@@ -461,7 +685,6 @@ const CorrelativoManagementPage: React.FC = () => {
                   fullWidth
                   value={digitos}
                   onChange={(e) => setDigitos(e.target.value)}
-                  helperText={digitos === '0' || digitos === '' ? `Sin padding → 1/${anio}` : `Con ${digitos} dígitos → ${String(1).padStart(Number(digitos) || 0, '0')}/${anio}`}
                   inputProps={{ min: 0, max: 12 }}
                 />
               </Grid>
@@ -473,7 +696,6 @@ const CorrelativoManagementPage: React.FC = () => {
                     fullWidth
                     value={minutosReserva}
                     onChange={(e) => setMinutosReserva(e.target.value)}
-                    helperText="Si no guardan, se libera solo"
                     inputProps={{ min: 5, max: 1440 }}
                   />
                 </Grid>
@@ -501,9 +723,6 @@ const CorrelativoManagementPage: React.FC = () => {
                 Descartar cambios
               </Button>
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
-              «Solo aplicar empezar desde» reinicia la secuencia al piso indicado sin tocar dígitos ni minutos de reserva.
-            </Typography>
           </Paper>
 
           {esSiaf && (
@@ -511,7 +730,6 @@ const CorrelativoManagementPage: React.FC = () => {
               <SectionTitle
                 step="3"
                 title="Números bloqueados (reservas)"
-                description="Si un colaborador abrió «Crear SIAF» y abandonó el formulario, puede liberar el número aquí para que otro lo use."
               />
 
               <Paper
@@ -519,9 +737,9 @@ const CorrelativoManagementPage: React.FC = () => {
                 sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
               >
                 {(estado?.enUso?.length ?? 0) === 0 ? (
-                  <Alert severity="success" sx={{ borderRadius: 2 }}>
-                    Ningún correlativo está reservado ahora. Puede seguir creando SIAF con normalidad.
-                  </Alert>
+                  <Typography variant="body2" color="text.secondary">
+                    Sin reservas
+                  </Typography>
                 ) : (
                   <TableContainer sx={{ overflowX: 'auto' }}>
                     <Table size="small">

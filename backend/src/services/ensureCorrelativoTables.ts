@@ -240,6 +240,33 @@ export async function ensureCorrelativoTables(): Promise<void> {
     console.warn('[correlativos] índice único parcial:', e?.message);
   }
 
+  await AppDataSource.query(`
+    ALTER TABLE siaf_correlativo_config ADD COLUMN IF NOT EXISTS nombre VARCHAR(120) NOT NULL DEFAULT 'General'
+  `);
+  await AppDataSource.query(`
+    ALTER TABLE siaf_correlativo_config ADD COLUMN IF NOT EXISTS prefijo VARCHAR(12) NOT NULL DEFAULT ''
+  `);
+  await AppDataSource.query(`
+    ALTER TABLE siaf_correlativo_config ADD COLUMN IF NOT EXISTS prefijo_posicion VARCHAR(10) NOT NULL DEFAULT 'antes'
+  `);
+  await AppDataSource.query(`
+    UPDATE siaf_correlativo_config
+    SET prefijo_posicion = 'despues',
+        prefijo = CASE WHEN prefijo IN ('', 'SF') THEN 'SC' ELSE prefijo END
+    WHERE lower(btrim(nombre)) = 'servicios contratados'
+  `);
+  await AppDataSource.query(`
+    ALTER TABLE siaf_correlativo_reservas ADD COLUMN IF NOT EXISTS config_id INT NULL
+  `);
+  await AppDataSource.query(`
+    CREATE TABLE IF NOT EXISTS siaf_correlativo_areas (
+      id SERIAL PRIMARY KEY,
+      config_id INT NOT NULL REFERENCES siaf_correlativo_config(id) ON DELETE CASCADE,
+      area_id INT NOT NULL REFERENCES areas(id) ON DELETE CASCADE,
+      UNIQUE (area_id)
+    )
+  `);
+
   const rows = await AppDataSource.query(`SELECT id FROM siaf_correlativo_config LIMIT 1`);
   if (!rows?.length) {
     const year = new Date().getFullYear();

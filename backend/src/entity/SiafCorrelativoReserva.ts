@@ -24,6 +24,10 @@ export class SiafCorrelativoReserva {
   @Column({ type: 'int' })
   numero: number;
 
+  /** Secuencia a la que pertenece esta reserva. */
+  @Column({ name: 'config_id', type: 'int', nullable: true })
+  configId: number | null;
+
   /** Valor formateado que se guarda en siaf_solicitudes.correlativo */
   @Column({ type: 'varchar', length: 50 })
   correlativo: string;

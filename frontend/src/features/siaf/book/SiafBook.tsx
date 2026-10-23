@@ -219,54 +219,17 @@ const SiafBook: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, unidadesMedicas]);
 
-  // Reservar correlativo automático al crear (no en modo corregir)
-  // Regla: se reserva al entrar; se libera al Volver/salir sin guardar; solo se consume al Guardar.
+  // El correlativo se reserva al elegir el área y se libera al salir sin guardar.
   useEffect(() => {
     if (id) return;
 
-    let cancelled = false;
     correlativoConsumidoRef.current = false;
 
-    // Si Strict Mode desmontó hace un momento, cancelar la liberación pendiente
     const pending = (window as any).__siafLiberateTimer as number | undefined;
     if (pending) {
       window.clearTimeout(pending);
       (window as any).__siafLiberateTimer = undefined;
     }
-
-    const reservar = async () => {
-      setReservandoCorrelativo(true);
-      try {
-        // El backend reutiliza la reserva activa del mismo usuario si aún existe
-        const res = await api.post('/correlativos/reservar');
-        const rid = res.data.reservaId as number;
-        const corr = res.data.correlativo as string;
-        reservaIdRef.current = rid;
-        if (cancelled) return;
-        setCorrelativo(corr);
-        setReservaId(rid);
-        try {
-          sessionStorage.setItem(
-            'siaf_correlativo_reserva',
-            JSON.stringify({ reservaId: rid, correlativo: corr })
-          );
-        } catch {
-          /* ignore */
-        }
-      } catch (err: any) {
-        console.error(err);
-        if (!cancelled) {
-          showError(
-            err?.response?.data?.message ||
-              'No se pudo asignar un correlativo automático. Reinicie el backend e intente de nuevo.'
-          );
-        }
-      } finally {
-        if (!cancelled) setReservandoCorrelativo(false);
-      }
-    };
-
-    reservar();
 
     const liberarAlSalir = () => {
       const rid = reservaIdRef.current;
@@ -295,7 +258,6 @@ const SiafBook: React.FC = () => {
     window.addEventListener('beforeunload', liberarAlSalir);
 
     return () => {
-      cancelled = true;
       window.removeEventListener('beforeunload', liberarAlSalir);
       const rid = reservaIdRef.current;
       if (!rid || correlativoConsumidoRef.current) return;
@@ -313,7 +275,63 @@ const SiafBook: React.FC = () => {
         }
       }, 500);
     };
-  }, [id, showError]);
+  }, [id]);
+
+  useEffect(() => {
+    if (id) return;
+    const area = areas.find((item) => item.nombre === areaUnidad);
+    if (!area) {
+      const rid = reservaIdRef.current;
+      if (rid && !correlativoConsumidoRef.current) {
+        api.post('/correlativos/liberar', { reservaId: rid }).catch(() => {});
+        reservaIdRef.current = null;
+        setReservaId(null);
+      }
+      setCorrelativo('');
+      return;
+    }
+    let cancelled = false;
+    const reservar = async () => {
+      setReservandoCorrelativo(true);
+      try {
+        const res = await api.post('/correlativos/reservar', { areaId: area.id });
+        const rid = res.data.reservaId as number;
+        const corr = res.data.correlativo as string;
+        reservaIdRef.current = rid;
+        if (cancelled) return;
+        setCorrelativo(corr);
+        setReservaId(rid);
+        try {
+          sessionStorage.setItem(
+            'siaf_correlativo_reserva',
+            JSON.stringify({ reservaId: rid, correlativo: corr })
+          );
+        } catch {
+          /* ignore */
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          const rid = reservaIdRef.current;
+          if (rid) {
+            api.post('/correlativos/liberar', { reservaId: rid }).catch(() => {});
+            reservaIdRef.current = null;
+            setReservaId(null);
+          }
+          setCorrelativo('');
+          showError(
+            err?.response?.data?.message ||
+              'No se pudo asignar el correlativo de esta área.'
+          );
+        }
+      } finally {
+        if (!cancelled) setReservandoCorrelativo(false);
+      }
+    };
+    reservar();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, areaUnidad, areas, showError]);
 
   const liberarYVolver = async () => {
     const rid = reservaIdRef.current;
@@ -605,7 +623,7 @@ const SiafBook: React.FC = () => {
     if (items[index]?.tipo !== 'bien') return;
     const origen = catalogoSeleccionado || items[index]?.catalogoOrigen;
     if (!origen) {
-      showWarning('Seleccione primero el catálogo MINFIN o SIBOFA.');
+      showWarning('Seleccione primero el catálogo MINFIN, SIBOFA o KORAX.');
       return;
     }
     const codigo = (items[index]?.codigo ?? '').trim();
@@ -1231,7 +1249,9 @@ const SiafBook: React.FC = () => {
                       helperText={
                         id
                           ? 'El correlativo no se modifica al corregir'
-                          : 'Reservado mientras llena el formulario. Solo se confirma al «Guardar y Generar SIAF». Si vuelve atrás sin guardar, se libera.'
+                          : areaUnidad
+                            ? 'Se reserva al elegir el área y se confirma al guardar. Si cambia de área o sale sin guardar, se libera.'
+                            : 'Elija el área para asignar el correlativo de esa secuencia.'
                       }
                       sx={{
                         '& .MuiOutlinedInput-root': {
@@ -1396,10 +1416,11 @@ const SiafBook: React.FC = () => {
                   SelectProps={{ displayEmpty: true }}
                 >
                   <MenuItem value="" disabled>
-                    <em>Seleccione MINFIN o SIBOFA</em>
+                    <em>Seleccione MINFIN, SIBOFA o KORAX</em>
                   </MenuItem>
                   <MenuItem value="MINFIN">MINFIN</MenuItem>
                   <MenuItem value="SIBOFA">SIBOFA</MenuItem>
+                  <MenuItem value="KORAX">KORAX</MenuItem>
                 </TextField>
               <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
                 <Table sx={{ minWidth: 900, tableLayout: 'fixed' }}>
@@ -1513,6 +1534,19 @@ const SiafBook: React.FC = () => {
                               value={item.descripcion}
                               onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
                               placeholder="Escriba la descripción del servicio"
+                              sx={{ '& .MuiInputBase-root': { alignItems: 'flex-start' } }}
+                            />
+                          ) : (item.catalogoOrigen === 'KORAX' || catalogoSeleccionado === 'KORAX') ? (
+                            <TextField
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={3}
+                              maxRows={8}
+                              value={item.descripcion}
+                              onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
+                              placeholder="El catálogo deja el inicio. Agregue el texto correspondiente al final."
                               sx={{ '& .MuiInputBase-root': { alignItems: 'flex-start' } }}
                             />
                           ) : (
