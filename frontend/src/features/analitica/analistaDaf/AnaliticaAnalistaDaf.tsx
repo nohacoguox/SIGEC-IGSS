@@ -147,9 +147,6 @@ const AnaliticaAnalistaDaf: React.FC = () => {
         <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
           Mis tiempos DAF
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-          Sus revisiones como analista (SIAF y expedientes), por hospitales y consultorios de su departamento.
-        </Typography>
       </Box>
 
       <Paper
@@ -257,7 +254,6 @@ const AnaliticaAnalistaDaf: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
           <SectionBlock
             title="Su desempeño en el período"
-            description="Tiempos y volumen de lo que usted revisó; la cola pendiente es la bandeja compartida DAF."
           >
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={3}>
@@ -308,11 +304,6 @@ const AnaliticaAnalistaDaf: React.FC = () => {
 
           <SectionBlock
             title="Por unidad médica"
-            description={
-              data.departamento
-                ? `Hospitales y consultorios del departamento ${data.departamento} (${data.unidadesDisponibles.length}).`
-                : 'Clasifique la carga y sus tiempos según la unidad de origen.'
-            }
           >
             {chartData.length === 0 ? (
               <Alert severity="info" sx={{ borderRadius: 2 }}>
@@ -395,7 +386,7 @@ const AnaliticaAnalistaDaf: React.FC = () => {
             )}
           </SectionBlock>
 
-          <SectionBlock title="Sus últimas decisiones" description="Historial reciente de aprobaciones y rechazos hechos por usted.">
+          <SectionBlock title="Sus últimas decisiones">
             <Paper elevation={0} sx={panelSx}>
               {data.recientes.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">

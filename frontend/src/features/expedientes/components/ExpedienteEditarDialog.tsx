@@ -91,9 +91,6 @@ const ExpedienteEditarDialog: React.FC<ExpedienteEditarDialogProps> = ({
           <Typography variant="h6" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.3 }}>
             Editar expediente
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-            Actualice el título, la O.C. o la descripción del expediente.
-          </Typography>
         </Box>
       </Box>
     </DialogTitle>
@@ -105,7 +102,6 @@ const ExpedienteEditarDialog: React.FC<ExpedienteEditarDialogProps> = ({
           fullWidth
           disabled
           InputLabelProps={{ shrink: true }}
-          helperText="El número no se puede modificar"
         />
         <TextField
           label="Título"
@@ -135,7 +131,6 @@ const ExpedienteEditarDialog: React.FC<ExpedienteEditarDialogProps> = ({
           onChange={(ev) => onEditNumeroSiafChange(ev.target.value)}
           fullWidth
           placeholder="Ej. SIAF-44-2026"
-          helperText="Opcional; permite relacionar el expediente con las mediciones del piloto."
           InputLabelProps={{ shrink: true }}
         />
         <TextField

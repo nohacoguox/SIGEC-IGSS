@@ -436,9 +436,6 @@ const SiafManagement: React.FC = () => {
                 <Typography variant="h6" fontWeight="700" sx={{ color: 'grey.800' }}>
                   SIAF Existentes
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  En borrador puede finalizarlo sin revisión o enviarlo a Dirección Departamental cuando necesite el visto bueno.
-                </Typography>
               </Box>
               <CardContent sx={{ p: 0 }}>
                 <TableContainer sx={{ overflowX: 'auto' }}>

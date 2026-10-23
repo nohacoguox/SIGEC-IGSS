@@ -237,7 +237,6 @@ export default function TabPorCaso({
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <SectionBlock
         title={`${casoLabel}s del período (${casos.length})`}
-        description={`Seleccione un ${casoLabel.toLowerCase()} para ver su proceso y tiempos.`}
         action={
           <TextField
             size="small"

@@ -2,6 +2,7 @@ import { AppDataSource } from '../data-source';
 import { UnidadMedica } from '../entity/UnidadMedica';
 import { Expediente, ExpedienteDocumento, ExpedienteDocumentoVersion } from '../entity/Expediente';
 import { ensureCorrelativoTables } from './ensureCorrelativoTables';
+import { asegurarTablaActividadAdmin } from './adminActividad';
 
 /**
  * Reparaciones de datos + tablas de correlativos tras las migraciones TypeORM.
@@ -13,6 +14,12 @@ import { ensureCorrelativoTables } from './ensureCorrelativoTables';
  * - backfills / recuperación de versiones y siaf_id en bitácora
  */
 export async function ensureSchema(): Promise<void> {
+  try {
+    await asegurarTablaActividadAdmin();
+  } catch (e: any) {
+    console.error('Aviso al crear la tabla de actividad de administración:', e?.message);
+  }
+
   try {
     await AppDataSource.query(
       `ALTER TABLE expediente_bitacora ALTER COLUMN tipo TYPE varchar(40)`

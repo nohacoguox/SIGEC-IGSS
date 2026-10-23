@@ -335,9 +335,6 @@ function LoginPage() {
                 Iniciar sesión
               </Typography>
               <Box sx={{ width: 48, height: 3, bgcolor: IGSS_COLORS.verde, borderRadius: 1, mb: 3 }} />
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Ingresa tus credenciales institucionales para acceder al sistema.
-              </Typography>
 
               <Box component="form" noValidate onSubmit={handleSubmit}>
                 <TextField
@@ -545,9 +542,6 @@ function LoginPage() {
                 <Typography variant="h5" sx={{ color: IGSS_COLORS.blanco, mt: 0.4 }}>
                   Recuperar contraseña
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.6, color: IGSS_COLORS.gris, maxWidth: 390 }}>
-                  Solicita aquí la temporal; luego inicia sesión desde la pantalla principal.
-                </Typography>
               </Box>
             </Stack>
           </Box>
@@ -605,12 +599,6 @@ function LoginPage() {
                 </Box>
               ))}
             </Stack>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              En esta ventana solo confirmas tu identidad. Después cierras, revisas tu correo institucional
-              y vuelves a iniciar sesión desde cero con la contraseña temporal. El sistema te pedirá
-              crear una nueva.
-            </Typography>
 
             <TextField
               autoFocus

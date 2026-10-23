@@ -6,7 +6,7 @@ import { IGSS_COLORS } from '../../theme/institutionalColors';
 
 interface ActionCardProps {
   title: string;
-  description: string;
+  description?: string;
   icon: React.ReactNode;
   accent: string;
   onClick: () => void;
@@ -71,9 +71,13 @@ const ActionCard: React.FC<ActionCardProps> = ({
         <Typography variant="h6" fontWeight={700} gutterBottom sx={{ color: 'text.primary', pr: 4 }}>
           {title}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, lineHeight: 1.55 }}>
-          {description}
-        </Typography>
+        {description ? (
+          <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, lineHeight: 1.55 }}>
+            {description}
+          </Typography>
+        ) : (
+          <Box sx={{ flexGrow: 1 }} />
+        )}
         <ArrowForwardRoundedIcon
           className="action-arrow"
           sx={{

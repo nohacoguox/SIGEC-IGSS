@@ -8,28 +8,11 @@ export type AnaliticaTabId = 'general' | 'rankings' | 'motivos' | 'caso';
 export const ANALITICA_TABS: Array<{
   id: AnaliticaTabId;
   label: string;
-  guide: string;
 }> = [
-  {
-    id: 'general',
-    label: 'Vista general',
-    guide: 'Totales del período y evolución mes a mes.',
-  },
-  {
-    id: 'rankings',
-    label: 'Rankings',
-    guide: 'Ranking de colaboradores: casos, aprobados y rechazos.',
-  },
-  {
-    id: 'motivos',
-    label: 'Motivos de rechazo',
-    guide: 'Motivos más frecuentes en el período.',
-  },
-  {
-    id: 'caso',
-    label: 'Análisis',
-    guide: 'Listado del período → seleccione uno para ver proceso y tiempos.',
-  },
+  { id: 'general', label: 'Vista general' },
+  { id: 'rankings', label: 'Rankings' },
+  { id: 'motivos', label: 'Motivos de rechazo' },
+  { id: 'caso', label: 'Análisis' },
 ];
 
 type Props = {
@@ -41,7 +24,6 @@ type Props = {
   showRankings?: boolean;
   /** Etiqueta de la pestaña de análisis por caso (p. ej. «Análisis de expedientes»). */
   analisisTabLabel?: string;
-  analisisTabGuide?: string;
   periodLabel?: string | null;
   filterSlot: React.ReactNode;
   children: React.ReactNode;
@@ -55,7 +37,6 @@ export default function AnaliticaShell({
   onTabChange,
   showRankings = true,
   analisisTabLabel,
-  analisisTabGuide,
   periodLabel,
   filterSlot,
   children,
@@ -67,16 +48,14 @@ export default function AnaliticaShell({
           ? {
               ...t,
               label: analisisTabLabel || t.label,
-              guide: analisisTabGuide || t.guide,
             }
           : t,
       ),
-    [showRankings, analisisTabLabel, analisisTabGuide],
+    [showRankings, analisisTabLabel],
   );
 
   const safeTab = tabs.some((t) => t.id === tab) ? tab : 'general';
   const tabIndex = Math.max(0, tabs.findIndex((t) => t.id === safeTab));
-  const guide = tabs[tabIndex]?.guide ?? ANALITICA_TABS[0].guide;
 
   return (
     <Box sx={analyticsPageSx}>
@@ -94,9 +73,11 @@ export default function AnaliticaShell({
           <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, letterSpacing: -0.3, lineHeight: 1.2 }}>
             {title}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            {subtitle}
-          </Typography>
+          {subtitle ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              {subtitle}
+            </Typography>
+          ) : null}
         </Box>
         {periodLabel && (
           <Typography
@@ -148,11 +129,6 @@ export default function AnaliticaShell({
               <Tab key={t.id} label={t.label} />
             ))}
           </Tabs>
-        </Box>
-        <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(0,91,145,0.03)', borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-            {guide}
-          </Typography>
         </Box>
       </Paper>
 

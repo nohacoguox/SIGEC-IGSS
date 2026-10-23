@@ -925,10 +925,7 @@ const RevisarDireccionDepartamental: React.FC = () => {
                             <Box>
                               <AttachFile sx={{ fontSize: 40, color: 'grey.500', mb: 1 }} />
                               <Typography variant="subtitle2" fontWeight={700} color="grey.700">
-                                Elija un adjunto arriba
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Podrá compararlo con el SIAF a la izquierda sin cerrar esta vista.
+                                Sin adjunto seleccionado
                               </Typography>
                             </Box>
                           </Box>

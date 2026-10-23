@@ -26,6 +26,22 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+async function actividadReciente(): Promise<Array<{ fecha: string; usuario: string; texto: string }>> {
+  const rows: Array<{ fecha: Date | string; usuario: string | null; texto: string | null }> =
+    await AppDataSource.query(`
+      SELECT fecha, usuario, texto
+      FROM admin_actividad
+      ORDER BY fecha DESC
+      LIMIT 8
+    `);
+
+  return rows.map((row) => ({
+    fecha: row.fecha instanceof Date ? row.fecha.toISOString() : String(row.fecha),
+    usuario: (row.usuario || '').trim(),
+    texto: String(row.texto || '').trim(),
+  }));
+}
 const synchronizeEnabled = process.env.DB_SYNCHRONIZE === 'true';
 
 // Middleware
@@ -85,12 +101,13 @@ runUserRolesMigration()
   // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
     try {
-      const [totalUsers, totalRoles, totalSiaf] = await Promise.all([
+      const [totalUsers, totalRoles, totalSiaf, actividad] = await Promise.all([
         AppDataSource.getRepository(User).count(),
         AppDataSource.getRepository(Role).count(),
         AppDataSource.getRepository(SiafSolicitud).count(),
+        actividadReciente(),
       ]);
-      res.json({ totalUsers, totalRoles, totalSiaf });
+      res.json({ totalUsers, totalRoles, totalSiaf, actividad });
     } catch (error) {
       console.error('Error al obtener estadísticas del dashboard:', error);
       res.status(500).json({ message: 'Error al obtener estadísticas del dashboard' });

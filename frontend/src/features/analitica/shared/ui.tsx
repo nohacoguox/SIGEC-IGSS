@@ -129,14 +129,3 @@ export function SectionBlock({
     </Box>
   );
 }
-
-/** Guía corta bajo las pestañas (preguntas de negocio). */
-export const ANALYTICS_TAB_GUIDES = [
-  '¿Cómo vamos? Totales del período y evolución mes a mes (aprobados, rechazos y pendientes).',
-  '¿Quién destaca? Ranking de casos, aprobaciones y rechazos por colaborador.',
-  '¿Por qué rechazan? Motivos más frecuentes (gráfica y detalle).',
-  '¿Qué pasó en un caso? Tiempos, ciclos y trazabilidad de un SIAF o expediente concreto.',
-] as const;
-
-/** @deprecated use ANALYTICS_TAB_GUIDES */
-export const TAB_GUIDES = ANALYTICS_TAB_GUIDES;

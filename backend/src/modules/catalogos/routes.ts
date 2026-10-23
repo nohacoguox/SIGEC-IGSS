@@ -7,6 +7,7 @@ import { UnidadMedica } from '../../entity/UnidadMedica';
 import { Area } from '../../entity/Area';
 import { User } from '../../entity/User';
 import { verifyToken, authorizeRoles, authorizeRolesOrPermissions } from '../../middleware/auth';
+import { describirCambios, registrarActividadAdmin } from '../../services/adminActividad';
 
 export const catalogosRouter = Router();
 
@@ -39,6 +40,7 @@ catalogosRouter.post('/puestos', verifyToken, authorizeRoles(['super administrad
     const puestoRepository = AppDataSource.getRepository(Puesto);
     const puesto = puestoRepository.create({ nombre, activo: activo !== false });
     await puestoRepository.save(puesto);
+    await registrarActividadAdmin(req, `Creó el puesto ${nombre || ''}`);
     res.status(201).json(puesto);
   } catch (error) {
     console.error('Error al crear puesto:', error);
@@ -53,9 +55,17 @@ catalogosRouter.put('/puestos/:id', verifyToken, authorizeRoles(['super administ
     const puestoRepository = AppDataSource.getRepository(Puesto);
     const puesto = await puestoRepository.findOneBy({ id });
     if (!puesto) return res.status(404).json({ message: 'Puesto no encontrado' });
+    const nombrePrevio = puesto.nombre;
+    const activoPrevio = puesto.activo;
     if (nombre != null) puesto.nombre = nombre;
     if (activo != null) puesto.activo = activo;
     await puestoRepository.save(puesto);
+    const cambiosPuesto = [
+      ...(nombre != null ? [{ etiqueta: 'el nombre', antes: nombrePrevio, despues: puesto.nombre }] : []),
+      ...(activo != null ? [{ etiqueta: 'el estado', antes: activoPrevio ? 'activo' : 'inactivo', despues: puesto.activo ? 'activo' : 'inactivo' }] : []),
+    ];
+    const detallePuesto = describirCambios(cambiosPuesto);
+    if (detallePuesto) await registrarActividadAdmin(req, `En el puesto ${nombrePrevio}: ${detallePuesto}.`);
     res.json(puesto);
   } catch (error) {
     console.error('Error al actualizar puesto:', error);
@@ -69,7 +79,9 @@ catalogosRouter.delete('/puestos/:id', verifyToken, authorizeRoles(['super admin
     const puestoRepository = AppDataSource.getRepository(Puesto);
     const puesto = await puestoRepository.findOneBy({ id });
     if (!puesto) return res.status(404).json({ message: 'Puesto no encontrado' });
+    const nombre = puesto.nombre;
     await puestoRepository.remove(puesto);
+    await registrarActividadAdmin(req, `Eliminó el puesto ${nombre || ''}`);
     res.status(204).send();
   } catch (error) {
     console.error('Error al eliminar puesto:', error);
@@ -203,6 +215,7 @@ catalogosRouter.post(
         where: { id: saved.id },
         relations: ['municipio', 'municipio.departamento'],
       });
+      await registrarActividadAdmin(req, `Creó la unidad médica ${saved.nombre || ''}`);
       res.status(201).json(full ?? saved);
     } catch (error: any) {
       console.error('Error al crear unidad médica:', error);
@@ -229,6 +242,14 @@ catalogosRouter.put(
         relations: ['municipio', 'municipio.departamento'],
       });
       if (!unidad) return res.status(404).json({ message: 'Unidad médica no encontrada' });
+      const fichaUnidad = (item: UnidadMedica) => ({
+        nombre: item.nombre || '',
+        codigo: item.codigo || '',
+        direccion: item.direccion || '',
+        telefonos: item.telefonos || '',
+        municipio: [item.municipio?.nombre, item.municipio?.departamento?.nombre || item.departamento].filter(Boolean).join(', '),
+      });
+      const unidadPrevia = fichaUnidad(unidad);
 
       const err = await applyUnidadMedicaFields(unidad, req.body);
       if (err) return res.status(400).json({ message: err });
@@ -251,6 +272,17 @@ catalogosRouter.put(
         where: { id: unidad.id },
         relations: ['municipio', 'municipio.departamento'],
       });
+      const unidadNueva = fichaUnidad(full ?? unidad);
+      const detalleUnidad = describirCambios([
+        { etiqueta: 'el nombre', antes: unidadPrevia.nombre, despues: unidadNueva.nombre },
+        { etiqueta: 'el código', antes: unidadPrevia.codigo, despues: unidadNueva.codigo },
+        { etiqueta: 'la dirección', antes: unidadPrevia.direccion, despues: unidadNueva.direccion },
+        { etiqueta: 'los teléfonos', antes: unidadPrevia.telefonos, despues: unidadNueva.telefonos },
+        { etiqueta: 'el municipio', antes: unidadPrevia.municipio, despues: unidadNueva.municipio },
+      ]);
+      if (detalleUnidad) {
+        await registrarActividadAdmin(req, `En la unidad médica ${unidadPrevia.nombre}: ${detalleUnidad}.`);
+      }
       res.json(full ?? unidad);
     } catch (error: any) {
       console.error('Error al actualizar unidad médica:', error);
@@ -283,7 +315,9 @@ catalogosRouter.delete(
         });
       }
 
+      const nombre = unidad.nombre;
       await repo.remove(unidad);
+      await registrarActividadAdmin(req, `Eliminó la unidad médica ${nombre || ''}`);
       res.json({ message: 'Unidad médica eliminada correctamente' });
     } catch (error: any) {
       console.error('Error al eliminar unidad médica:', error);
@@ -340,6 +374,7 @@ catalogosRouter.post(
       activo,
     });
     await areaRepository.save(area);
+    await registrarActividadAdmin(req, `Creó el área ${nombre}`);
     res.status(201).json(area);
   } catch (err: any) {
     if (err?.code === 'ER_DUP_ENTRY' || err?.message?.includes('Duplicate')) {
@@ -373,6 +408,11 @@ catalogosRouter.put(
     const areaRepository = AppDataSource.getRepository(Area);
     const area = await areaRepository.findOne({ where: { id } });
     if (!area) return res.status(404).json({ message: 'Área no encontrada.' });
+    const areaPrevia = {
+      nombre: area.nombre,
+      descripcion: area.descripcion || '',
+      activo: area.activo ? 'activa' : 'inactiva',
+    };
 
     const otroConMismoNombre = await areaRepository.findOne({ where: { nombre } });
     if (otroConMismoNombre && otroConMismoNombre.id !== id) {
@@ -383,6 +423,12 @@ catalogosRouter.put(
     area.descripcion = descripcion || null;
     area.activo = activo;
     await areaRepository.save(area);
+    const detalleArea = describirCambios([
+      { etiqueta: 'el nombre', antes: areaPrevia.nombre, despues: area.nombre },
+      { etiqueta: 'la descripción', antes: areaPrevia.descripcion, despues: area.descripcion },
+      { etiqueta: 'el estado', antes: areaPrevia.activo, despues: area.activo ? 'activa' : 'inactiva' },
+    ]);
+    if (detalleArea) await registrarActividadAdmin(req, `En el área ${areaPrevia.nombre}: ${detalleArea}.`);
     res.json(area);
   } catch (err: any) {
     if (err?.code === 'ER_DUP_ENTRY' || err?.message?.includes('Duplicate')) {
@@ -404,7 +450,9 @@ catalogosRouter.delete(
     const areaRepository = AppDataSource.getRepository(Area);
     const area = await areaRepository.findOne({ where: { id } });
     if (!area) return res.status(404).json({ message: 'Área no encontrada.' });
+    const nombre = area.nombre;
     await areaRepository.remove(area);
+    await registrarActividadAdmin(req, `Eliminó el área ${nombre || ''}`);
     res.status(204).send();
   } catch (err: any) {
     console.error('Error al eliminar área:', err);

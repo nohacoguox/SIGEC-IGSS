@@ -1,5 +1,7 @@
 import { Request, Response, Router } from 'express';
+import { AppDataSource } from '../../data-source';
 import { verifyToken, authorizeRolesOrPermissions } from '../../middleware/auth';
+import { describirAltasBajas, describirCambios, registrarActividadAdmin } from '../../services/adminActividad';
 import {
   reservarCorrelativo,
   liberarCorrelativo,
@@ -42,6 +44,9 @@ correlativosRouter.put(
   async (req: Request, res: Response) => {
     try {
       const { numeroInicio, siguienteNumero, digitos, minutosReserva } = req.body;
+      const previa = await AppDataSource.query(
+        `SELECT id, nombre, numero_inicio, siguiente_numero, digitos, minutos_reserva FROM siaf_correlativo_config ORDER BY id ASC LIMIT 1`
+      );
       const config = await actualizarConfigCorrelativo({
         numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
         siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
@@ -49,6 +54,15 @@ correlativosRouter.put(
         minutosReserva: minutosReserva != null ? Number(minutosReserva) : undefined,
       });
       const estado = await getEstadoCorrelativos();
+      const detalleConfig = describirCambios([
+        { etiqueta: 'el número de inicio', antes: previa?.[0]?.numero_inicio, despues: config.numeroInicio },
+        { etiqueta: 'el siguiente número', antes: previa?.[0]?.siguiente_numero, despues: config.siguienteNumero },
+        { etiqueta: 'los dígitos', antes: previa?.[0]?.digitos, despues: config.digitos },
+        { etiqueta: 'los minutos de reserva', antes: previa?.[0]?.minutos_reserva, despues: config.minutosReserva },
+      ]);
+      if (detalleConfig) {
+        await registrarActividadAdmin(req, `En el correlativo ${previa?.[0]?.nombre || 'General'}: ${detalleConfig}.`);
+      }
       res.json({ config, estado });
     } catch (err: any) {
       res.status(400).json({ message: err?.message || 'Error al actualizar configuración' });
@@ -75,7 +89,9 @@ correlativosRouter.post(
   authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
   async (req: Request, res: Response) => {
     try {
-      res.status(201).json(await crearSerieCorrelativo(req.body || {}));
+      const creada = await crearSerieCorrelativo(req.body || {});
+      await registrarActividadAdmin(req, `Creó el correlativo ${req.body?.nombre || ''}`);
+      res.status(201).json(creada);
     } catch (err: any) {
       res.status(400).json({ message: err?.message || 'Error al crear el correlativo' });
     }
@@ -90,7 +106,15 @@ correlativosRouter.put(
     try {
       const id = parseInt(req.params.id, 10);
       const body = req.body || {};
-      res.json(await actualizarSerieCorrelativo(id, {
+      const previa = await AppDataSource.query(
+        `SELECT nombre, prefijo, prefijo_posicion, numero_inicio, siguiente_numero, digitos, minutos_reserva FROM siaf_correlativo_config WHERE id = $1`,
+        [id]
+      );
+      const areasPrevias: Array<{ nombre: string }> = await AppDataSource.query(
+        `SELECT a.nombre FROM siaf_correlativo_areas j JOIN areas a ON a.id = j.area_id WHERE j.config_id = $1 ORDER BY a.nombre`,
+        [id]
+      );
+      const actualizada = await actualizarSerieCorrelativo(id, {
         nombre: body.nombre,
         prefijo: body.prefijo,
         prefijoPosicion: body.prefijoPosicion,
@@ -99,7 +123,43 @@ correlativosRouter.put(
         siguienteNumero: body.siguienteNumero != null ? Number(body.siguienteNumero) : undefined,
         digitos: body.digitos != null ? Number(body.digitos) : undefined,
         minutosReserva: body.minutosReserva != null ? Number(body.minutosReserva) : undefined,
-      }));
+      });
+      const nueva = await AppDataSource.query(
+        `SELECT nombre, prefijo, prefijo_posicion, numero_inicio, siguiente_numero, digitos, minutos_reserva FROM siaf_correlativo_config WHERE id = $1`,
+        [id]
+      );
+      const areasNuevas: Array<{ nombre: string }> = await AppDataSource.query(
+        `SELECT a.nombre FROM siaf_correlativo_areas j JOIN areas a ON a.id = j.area_id WHERE j.config_id = $1 ORDER BY a.nombre`,
+        [id]
+      );
+      const posicion = (valor: unknown) => (String(valor || '') === 'despues' ? 'después del número' : 'antes del número');
+      const partes: string[] = [];
+      const detalleSerie = describirCambios([
+        { etiqueta: 'el nombre', antes: previa?.[0]?.nombre, despues: nueva?.[0]?.nombre },
+        { etiqueta: 'el prefijo', antes: previa?.[0]?.prefijo, despues: nueva?.[0]?.prefijo },
+        { etiqueta: 'la posición del prefijo', antes: posicion(previa?.[0]?.prefijo_posicion), despues: posicion(nueva?.[0]?.prefijo_posicion) },
+        { etiqueta: 'el número de inicio', antes: previa?.[0]?.numero_inicio, despues: nueva?.[0]?.numero_inicio },
+        { etiqueta: 'el siguiente número', antes: previa?.[0]?.siguiente_numero, despues: nueva?.[0]?.siguiente_numero },
+        { etiqueta: 'los dígitos', antes: previa?.[0]?.digitos, despues: nueva?.[0]?.digitos },
+        { etiqueta: 'los minutos de reserva', antes: previa?.[0]?.minutos_reserva, despues: nueva?.[0]?.minutos_reserva },
+      ]);
+      if (detalleSerie) partes.push(detalleSerie);
+      if (Array.isArray(body.areaIds)) {
+        const antesNombres = areasPrevias.map((area) => area.nombre);
+        const despuesNombres = areasNuevas.map((area) => area.nombre);
+        const antesSet = new Set(antesNombres);
+        const despuesSet = new Set(despuesNombres);
+        const detalleAreas = describirAltasBajas(
+          despuesNombres.filter((nombre) => !antesSet.has(nombre)),
+          antesNombres.filter((nombre) => !despuesSet.has(nombre)),
+          'área'
+        );
+        if (detalleAreas) partes.push(detalleAreas);
+      }
+      if (partes.length) {
+        await registrarActividadAdmin(req, `En el correlativo ${previa?.[0]?.nombre || ''}: ${partes.join('; ')}.`);
+      }
+      res.json(actualizada);
     } catch (err: any) {
       res.status(400).json({ message: err?.message || 'Error al guardar el correlativo' });
     }
@@ -112,7 +172,11 @@ correlativosRouter.delete(
   authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
   async (req: Request, res: Response) => {
     try {
-      res.json(await eliminarSerieCorrelativo(parseInt(req.params.id, 10)));
+      const id = parseInt(req.params.id, 10);
+      const previa = await AppDataSource.query(`SELECT nombre FROM siaf_correlativo_config WHERE id = $1`, [id]);
+      const resultado = await eliminarSerieCorrelativo(id);
+      await registrarActividadAdmin(req, `Eliminó el correlativo ${previa?.[0]?.nombre || ''}`);
+      res.json(resultado);
     } catch (err: any) {
       res.status(400).json({ message: err?.message || 'Error al eliminar el correlativo' });
     }
@@ -167,9 +231,15 @@ correlativosRouter.post(
   authorizeRolesOrPermissions(['super administrador', 'gestionar-correlativos'], ['gestionar-correlativos']),
   async (req: Request, res: Response) => {
     try {
-      const ok = await liberarReservaAdmin(parseInt(req.params.id, 10));
+      const reservaId = parseInt(req.params.id, 10);
+      const reserva = await AppDataSource.query(
+        `SELECT correlativo FROM siaf_correlativo_reservas WHERE id = $1`,
+        [reservaId]
+      );
+      const ok = await liberarReservaAdmin(reservaId);
       if (!ok) return res.status(404).json({ message: 'Reserva no encontrada' });
       const estado = await getEstadoCorrelativos();
+      await registrarActividadAdmin(req, `Liberó la reserva ${reserva?.[0]?.correlativo || ''}`.trim());
       res.json({ ok: true, estado });
     } catch (err: any) {
       res.status(500).json({ message: err?.message || 'Error al liberar reserva' });
@@ -213,11 +283,22 @@ correlativosRouter.put(
   async (req: Request, res: Response) => {
     try {
       const { numeroInicio, siguienteNumero, digitos } = req.body || {};
+      const previa = await AppDataSource.query(
+        `SELECT numero_inicio, siguiente_numero, digitos FROM expediente_correlativo_config ORDER BY id ASC LIMIT 1`
+      );
       const config = await actualizarConfigCorrelativoExpediente({
         numeroInicio: numeroInicio != null ? Number(numeroInicio) : undefined,
         siguienteNumero: siguienteNumero != null ? Number(siguienteNumero) : undefined,
         digitos: digitos != null ? Number(digitos) : undefined,
       });
+      const detalleExpediente = describirCambios([
+        { etiqueta: 'el número de inicio', antes: previa?.[0]?.numero_inicio, despues: config.numeroInicio },
+        { etiqueta: 'el siguiente número', antes: previa?.[0]?.siguiente_numero, despues: config.siguienteNumero },
+        { etiqueta: 'los dígitos', antes: previa?.[0]?.digitos, despues: config.digitos },
+      ]);
+      if (detalleExpediente) {
+        await registrarActividadAdmin(req, `En el correlativo de expedientes: ${detalleExpediente}.`);
+      }
       res.json({ config, estado: await getEstadoCorrelativosExpediente() });
     } catch (err: any) {
       res.status(400).json({ message: err?.message || 'Error al actualizar correlativos de expedientes' });

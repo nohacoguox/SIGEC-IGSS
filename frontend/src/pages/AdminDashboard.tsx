@@ -45,20 +45,38 @@ import api from '../api';
 import logoIgss from '../assets/images/logo-igss.png';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Panel de Administración', subtitle: 'Bienvenido al panel de control del sistema' },
-  'user-management': { title: 'Gestión de Usuarios', subtitle: 'Alta, edición y roles de acceso del personal' },
-  'role-management': { title: 'Gestión de Roles', subtitle: 'Defina roles (pantallas) y asígnelos a colaboradores' },
-  'area-management': { title: 'Gestión de Áreas', subtitle: 'Administra las áreas del sistema' },
-  'puesto-management': { title: 'Gestión de Puestos', subtitle: 'Administra los puestos de trabajo' },
-  'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: 'Administra las unidades médicas' },
+  dashboard: { title: 'Panel de Administración', subtitle: '' },
+  'user-management': { title: 'Gestión de Usuarios', subtitle: '' },
+  'role-management': { title: 'Gestión de Roles', subtitle: '' },
+  'area-management': { title: 'Gestión de Áreas', subtitle: '' },
+  'puesto-management': { title: 'Gestión de Puestos', subtitle: '' },
+  'unidad-medica-management': { title: 'Gestión de Unidades Médicas', subtitle: '' },
   'correlativo-management': { title: 'Gestión de Correlativos', subtitle: '' },
-  settings: { title: 'Configuración', subtitle: 'Configura las opciones del sistema' },
+  settings: { title: 'Configuración', subtitle: '' },
 };
+
+interface ActividadReciente {
+  fecha: string;
+  usuario: string;
+  texto: string;
+}
 
 interface DashboardStats {
   totalUsers: number;
   totalRoles: number;
   totalSiaf: number;
+  actividad: ActividadReciente[];
+}
+
+function formatoFechaCorta(iso: string): string {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return '';
+  return fecha.toLocaleString('es-GT', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 const AdminDashboard: React.FC = () => {
@@ -79,6 +97,7 @@ const AdminDashboard: React.FC = () => {
     totalUsers: 0,
     totalRoles: 0,
     totalSiaf: 0,
+    actividad: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +148,7 @@ const AdminDashboard: React.FC = () => {
           totalUsers: data.totalUsers ?? 0,
           totalRoles: data.totalRoles ?? 0,
           totalSiaf: data.totalSiaf ?? data.totalReports ?? 0,
+          actividad: Array.isArray(data.actividad) ? data.actividad : [],
         });
       } catch (err: any) {
         console.error('Error al obtener estadísticas:', err);
@@ -203,38 +223,59 @@ const AdminDashboard: React.FC = () => {
               >
                 <Paper
                   sx={{
-                    p: 4,
+                    p: 3,
                     mt: 1,
                     borderRadius: 3,
-                    border: '1px dashed',
+                    border: '1px solid',
                     borderColor: 'divider',
                     bgcolor: 'background.paper',
-                    textAlign: 'center',
                   }}
                   elevation={0}
                 >
-                  <Box
-                    sx={{
-                      width: 64,
-                      height: 64,
-                      mx: 'auto',
-                      mb: 2,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: 'action.hover',
-                      color: 'primary.main',
-                    }}
-                  >
-                    <TimelineOutlinedIcon sx={{ fontSize: 32 }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: stats.actividad.length ? 1 : 0 }}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'action.hover',
+                        color: 'primary.main',
+                      }}
+                    >
+                      <TimelineOutlinedIcon />
+                    </Box>
+                    <Typography variant="h6" fontWeight={700}>
+                      Actividad reciente
+                    </Typography>
                   </Box>
-                  <Typography variant="h6" fontWeight={700} gutterBottom>
-                    Actividad Reciente
-                  </Typography>
-                  <Typography color="text.secondary" sx={{ maxWidth: 400, mx: 'auto' }}>
-                    No hay actividad reciente para mostrar. Las acciones del sistema aparecerán aquí próximamente.
-                  </Typography>
+                  {stats.actividad.length === 0 ? (
+                    <Typography color="text.secondary" sx={{ pl: 6.5 }}>
+                      Aún no hay movimientos.
+                    </Typography>
+                  ) : (
+                    <List disablePadding>
+                      {stats.actividad.map((item, index) => (
+                        <ListItemButton
+                          key={`${item.fecha}-${index}`}
+                          disableRipple
+                          sx={{ px: 0.5, py: 1.25, cursor: 'default', borderRadius: 2, '&:hover': { bgcolor: 'transparent' } }}
+                        >
+                          <ListItemText
+                            primary={
+                              <Typography fontWeight={600}>
+                                {item.usuario ? `${item.usuario} · ` : ''}
+                                <Box component="span" sx={{ fontWeight: 500 }}>{item.texto}</Box>
+                              </Typography>
+                            }
+                            secondary={formatoFechaCorta(item.fecha)}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  )}
                 </Paper>
               </Box>
             </Grid>

@@ -354,12 +354,11 @@ const CategorizarPaqueteDialog: React.FC<CategorizarPaqueteDialogProps> = ({
           Categorizar expediente completo
           {numeroExpediente ? ` · ${numeroExpediente}` : ''}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-          En el PDF marque <strong>inicio</strong> y luego <strong>fin</strong> de cada documento. Cada rango se guarda solo y no pisa el anterior.
-          {numPages > 0
-            ? ` · ${paginasPendientes.length} página${paginasPendientes.length === 1 ? '' : 's'} pendiente${paginasPendientes.length === 1 ? '' : 's'} de ${numPages}`
-            : ''}
-        </Typography>
+        {numPages > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+            {paginasPendientes.length} página{paginasPendientes.length === 1 ? '' : 's'} pendiente{paginasPendientes.length === 1 ? '' : 's'} de {numPages}
+          </Typography>
+        )}
       </DialogTitle>
 
       <DialogContent sx={{ display: 'flex', gap: 2, pt: 2, pb: 1, overflow: 'hidden' }}>
@@ -432,9 +431,6 @@ const CategorizarPaqueteDialog: React.FC<CategorizarPaqueteDialogProps> = ({
                 <Box sx={{ p: 4, textAlign: 'center' }}>
                   <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
                     Todas las páginas ya están categorizadas
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                    Revise el listado a la derecha. Use Visualizar o Editar si necesita ajustar un documento.
                   </Typography>
                 </Box>
               ) : (
@@ -587,11 +583,8 @@ const CategorizarPaqueteDialog: React.FC<CategorizarPaqueteDialogProps> = ({
                   bgcolor: alpha(IGSS_COLORS.azul, 0.05),
                 }}
               >
-                <Typography variant="caption" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                <Typography variant="caption" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, letterSpacing: 0.4, textTransform: 'uppercase', display: 'block', mb: 1.25 }}>
                   Definiendo documento
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, mt: 0.25 }}>
-                  Elija el tipo y marque inicio → fin en el PDF.
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                   <TextField

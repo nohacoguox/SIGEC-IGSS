@@ -220,7 +220,6 @@ const AreaManagementPage: React.FC = () => {
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
-              helperText="Máximo 200 caracteres. No se permiten nombres duplicados."
               inputProps={{ maxLength: 200 }}
             />
             <TextField

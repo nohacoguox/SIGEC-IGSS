@@ -41,9 +41,6 @@ const SiafOrtografiaDialog: React.FC<SiafOrtografiaDialogProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Correcciones ortográficas ({sugerencias.length})</DialogTitle>
       <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Elija la palabra correcta en cada caso. Si ninguna aplica, seleccione &quot;No corregir&quot;.
-        </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
           {sugerencias.map((s, idx) => (
             <Paper key={`${s.original}-${s.offset}`} variant="outlined" sx={{ p: 1.5 }}>

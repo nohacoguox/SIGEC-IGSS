@@ -2,7 +2,6 @@ import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   SelectChangeEvent, Snackbar, Tab, Tabs, Typography, Paper,
 } from '@mui/material';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -11,7 +10,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import UserForm from './UserForm';
 import UserList from './UserList';
-import { useThemeMode } from '../context/ThemeContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
 const API_URL = 'users';
@@ -61,7 +59,6 @@ const emptyForm = {
 };
 
 const UserManagementContainer: React.FC = () => {
-  const { mode } = useThemeMode();
   const [users, setUsers] = useState<User[]>([]);
   const [unidadesMedicas, setUnidadesMedicas] = useState<UnidadMedica[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
@@ -254,29 +251,6 @@ const UserManagementContainer: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0, width: '100%', maxWidth: '100%' }}>
-      <Alert
-        severity="info"
-        icon={<InfoOutlinedIcon />}
-        sx={{
-          borderRadius: 2,
-          ...(mode === 'dark'
-            ? {}
-            : {
-                bgcolor: 'rgba(0,91,145,0.06)',
-                color: IGSS_COLORS.textoOscuro,
-                '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
-              }),
-        }}
-      >
-        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
-          Cómo administrar usuarios
-        </Typography>
-        <Typography variant="body2">
-          En el <strong>listado</strong> busque, edite o restablezca contraseñas.
-          En <strong>crear / editar</strong> complete los datos y asigne roles (las pantallas del menú dependen de esos roles).
-        </Typography>
-      </Alert>
-
       <Paper
         elevation={2}
         sx={{
@@ -337,15 +311,13 @@ const UserManagementContainer: React.FC = () => {
           )}
         </Box>
 
-        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="body2" color="text.secondary">
-            {tab === 0
-              ? `${users.length} usuario(s) registrados. Use la búsqueda o las acciones de cada fila.`
-              : editingId != null
-                ? 'Modifique los datos y guarde. Los roles definen qué pantallas verá al iniciar sesión.'
-                : 'Complete los datos obligatorios. Al crear, se mostrará la contraseña temporal y se enviará al correo institucional.'}
-          </Typography>
-        </Box>
+        {tab === 0 && (
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="body2" color="text.secondary">
+              {users.length} usuario(s) registrados
+            </Typography>
+          </Box>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -404,9 +376,6 @@ const UserManagementContainer: React.FC = () => {
       >
         <DialogTitle>Usuario creado — credenciales temporales</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Anote o copie estos datos. El colaborador deberá cambiar la contraseña en el primer ingreso.
-          </Typography>
           <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Código de empleado</Typography>
           <Typography
             component="code"

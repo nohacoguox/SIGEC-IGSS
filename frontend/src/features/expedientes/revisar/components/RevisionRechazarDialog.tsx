@@ -121,9 +121,6 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
       )}
     </DialogTitle>
     <DialogContent sx={{ pt: 2, pb: 2, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, px: 0.5, flexShrink: 0 }}>
-        <strong>Pasos:</strong> 1) En la lista de la derecha, haga clic en <strong>«Ver»</strong> para abrir cada documento a la izquierda. 2) Use <strong>Acercar / Alejar</strong> si lo necesita. 3) Active <strong>«Marcar corrección»</strong> y haga <strong>clic</strong> en el punto del documento; se abrirá el diálogo para indicar categoría y qué debe corregirse. 4) También puede agregar motivos desde la derecha. Todo queda en la bitácora.
-      </Typography>
       {rechazarLoading ? (
         <Typography variant="body2" color="text.secondary">Cargando documentos…</Typography>
       ) : rechazarDocumentos.length === 0 ? (
@@ -294,7 +291,7 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
                   </>
                 ) : (
                   <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ px: 2 }}>
-                    Haga clic en «Ver» en cualquier documento de la lista de la derecha para leerlo aquí mientras indica el rechazo.
+                    Sin documento abierto
                   </Typography>
                 )}
               </Box>
@@ -334,9 +331,6 @@ const RevisionRechazarDialog: React.FC<RevisionRechazarDialogProps> = ({
               <Box sx={{ px: 2, pt: 1.75, pb: 1, flexShrink: 0 }}>
                 <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.2 }}>
                   Motivos por documento
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.4 }}>
-                  Desplácese hacia abajo para ver todos los motivos. Marque en el documento o agregue motivos aquí.
                 </Typography>
               </Box>
               <Box

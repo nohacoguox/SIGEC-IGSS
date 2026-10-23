@@ -105,9 +105,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
             <Typography variant="h6" fontWeight={700} sx={{ color: IGSS_COLORS.azulOscuro, lineHeight: 1.3 }}>
               Nuevo expediente de compras
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-              Complete los datos y suba el PDF completo del expediente. Después podrá categorizar cada documento por páginas.
-            </Typography>
           </Box>
         </Box>
       </DialogTitle>
@@ -135,11 +132,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
                 <Typography variant="h5" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mt: 0.5, letterSpacing: 0.4 }}>
                   {siguienteCorrelativo || 'Se asignará al crear'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                  {siguienteCorrelativo
-                    ? 'Este será el número interno asignado al guardar el expediente.'
-                    : 'El sistema asignará el siguiente correlativo disponible al crear el expediente.'}
-                </Typography>
               </>
             )}
           </Box>
@@ -151,7 +143,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
             required
             fullWidth
             autoFocus
-            helperText="Clasifique el expediente según el tipo de adquisición"
             InputLabelProps={{ shrink: true }}
           >
             {TITULOS_OPCIONES.map((t) => (
@@ -165,7 +156,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
             required
             fullWidth
             placeholder="Ej. 12345"
-            helperText="Ingrese el número de la orden de compra asociada"
             InputLabelProps={{ shrink: true }}
           />
           <TextField
@@ -174,7 +164,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
             onChange={(ev) => onNuevoNumeroSiafChange(ev.target.value)}
             fullWidth
             placeholder="Ej. SIAF-44-2026"
-            helperText="Opcional; se usa para identificar este caso en las estadísticas del piloto."
             InputLabelProps={{ shrink: true }}
           />
           <TextField
@@ -186,7 +175,6 @@ const ExpedienteCrearDialog: React.FC<ExpedienteCrearDialogProps> = ({
             rows={3}
             fullWidth
             placeholder="Resumen breve del objeto del expediente"
-            helperText="Describa el objeto del expediente"
             InputLabelProps={{ shrink: true }}
           />
 

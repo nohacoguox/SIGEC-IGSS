@@ -58,14 +58,11 @@ interface UserFormProps {
   onCancelToList?: () => void;
 }
 
-function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
+      <Typography variant="subtitle1" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 1.5 }}>
         {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        {description}
       </Typography>
       <Grid container spacing={2}>
         {children}
@@ -190,11 +187,8 @@ const UserForm: React.FC<UserFormProps> = ({
       <Typography variant="h6" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, mb: 0.5 }}>
         {editingId !== null ? 'Editar usuario' : 'Crear usuario'}
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: '100%' }}>
-        Los campos marcados son obligatorios. El acceso al sistema se define con los roles.
-      </Typography>
 
-      <Section title="A. Datos personales" description="Identificación y contacto del colaborador.">
+      <Section title="A. Datos personales">
         <Grid item xs={12} sm={6} md={4}>
           <TextField
             fullWidth
@@ -272,7 +266,7 @@ const UserForm: React.FC<UserFormProps> = ({
 
       <Divider sx={{ mb: 2.5 }} />
 
-      <Section title="B. Datos laborales" description="Código de acceso, puesto y unidad médica.">
+      <Section title="B. Datos laborales">
         <Grid item xs={12} sm={6} md={3}>
           <TextField
             fullWidth
@@ -282,7 +276,6 @@ const UserForm: React.FC<UserFormProps> = ({
             value={formState.codigoEmpleado}
             onChange={handleChange}
             required
-            helperText="Lo usa para iniciar sesión"
             InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" /></InputAdornment> }}
           />
         </Grid>
@@ -365,10 +358,7 @@ const UserForm: React.FC<UserFormProps> = ({
 
       <Divider sx={{ mb: 2.5 }} />
 
-      <Section
-        title="C. Roles de acceso"
-        description="Marque qué podrá hacer esta persona. Puede combinar varios roles; el menú será la unión de pantallas."
-      >
+      <Section title="C. Roles de acceso">
         <Grid item xs={12}>
           {roles.length === 0 ? (
             <Typography color="text.secondary">
@@ -464,9 +454,6 @@ const UserForm: React.FC<UserFormProps> = ({
                                     <Box sx={{ minWidth: 0 }}>
                                       <Typography fontWeight={800} sx={{ lineHeight: 1.25 }}>
                                         {meta.title}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>
-                                        {meta.description}
                                       </Typography>
                                     </Box>
                                   </Box>

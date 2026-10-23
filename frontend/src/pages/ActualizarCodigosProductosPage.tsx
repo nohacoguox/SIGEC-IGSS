@@ -58,29 +58,11 @@ type CambioPresentacion = {
   nuevo: string;
 };
 
-const CATALOGOS: { key: CatalogoOrigen; label: string; ayuda: string }[] = [
-  {
-    key: 'MINFIN',
-    label: 'MINFIN',
-    ayuda: 'Catálogo de códigos y productos del Ministerio de Finanzas Públicas.',
-  },
-  {
-    key: 'SIBOFA',
-    label: 'SIBOFA',
-    ayuda:
-      'Listado básico de medicamentos. Se carga con el PDF de Farmacoterapia. La primera carga puede vaciar SIBOFA; las siguientes solo agregan códigos nuevos y avisan si cambió la forma, concentración y presentación.',
-  },
-  {
-    key: 'SUBPRODUCTOS',
-    label: 'Subproductos',
-    ayuda:
-      'Listado oficial de subproductos. Se carga con el Word de productos y subproductos. Sin la casilla de primera carga, agrega códigos nuevos y actualiza las descripciones que cambiaron. Los códigos que no vienen en el Word se conservan.',
-  },
-  {
-    key: 'KORAX',
-    label: 'KORAX',
-    ayuda: 'Listado Korax. La descripción queda con el subtipo, el nombre del procedimiento y un espacio al final.',
-  },
+const CATALOGOS: { key: CatalogoOrigen; label: string }[] = [
+  { key: 'MINFIN', label: 'MINFIN' },
+  { key: 'SIBOFA', label: 'SIBOFA' },
+  { key: 'SUBPRODUCTOS', label: 'Subproductos' },
+  { key: 'KORAX', label: 'KORAX' },
 ];
 
 const emptyStats = (): Record<CatalogoOrigen, CatalogoStats> => ({
@@ -131,9 +113,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   const [savingConfig, setSavingConfig] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMessage, setUploadMessage] = useState('');
-  const [reemplazarSibofa, setReemplazarSibofa] = useState(true);
-  const [reemplazarSubproductos, setReemplazarSubproductos] = useState(false);
-  const [reemplazarKorax, setReemplazarKorax] = useState(true);
   const [cambiosPresentacion, setCambiosPresentacion] = useState<CambioPresentacion[]>([]);
   const [configProgress, setConfigProgress] = useState(0);
   const [configMessage, setConfigMessage] = useState('');
@@ -277,9 +256,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
     const formData = new FormData();
     formData.append('archivo', file);
     formData.append('origen', tab);
-    if (tab === 'SIBOFA' && reemplazarSibofa) formData.append('reemplazar', 'true');
-    if (tab === 'SUBPRODUCTOS' && reemplazarSubproductos) formData.append('reemplazar', 'true');
-    if (tab === 'KORAX' && reemplazarKorax) formData.append('reemplazar', 'true');
     setCambiosPresentacion([]);
     setUploading(true);
     setUploadProgress(1);
@@ -303,9 +279,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       setUploadMessage(res.data?.message || 'Carga completada.');
       const cambios = (res.data?.cambios ?? []) as CambioPresentacion[];
       setCambiosPresentacion(cambios);
-      if (tab === 'SIBOFA' && reemplazarSibofa) setReemplazarSibofa(false);
-      if (tab === 'SUBPRODUCTOS' && reemplazarSubproductos) setReemplazarSubproductos(false);
-      if (tab === 'KORAX' && reemplazarKorax) setReemplazarKorax(false);
       if (cambios.length > 0) {
         showWarning(`${cambios.length} códigos de SIBOFA cambiaron en Forma, concentración y presentación.`);
       }
@@ -357,7 +330,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
   };
 
   const stats = statsByOrigen[tab];
-  const meta = CATALOGOS.find((c) => c.key === tab)!;
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1100, mx: 'auto' }}>
@@ -366,11 +338,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
       </Button>
       <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ color: IGSS_COLORS.textoOscuro }}>
         Actualización de Códigos y Productos
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-        Gestione de forma independiente los catálogos <strong>MINFIN</strong>, <strong>SIBOFA</strong>,{' '}
-        <strong>Subproductos</strong> y <strong>KORAX</strong>. MINFIN y KORAX se cargan con Excel. SIBOFA se carga
-        con el PDF del listado básico de medicamentos. Subproductos se cargan con el Word del listado oficial.
       </Typography>
 
       <Tabs
@@ -392,10 +359,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
           />
         ))}
       </Tabs>
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {meta.ayuda}
-      </Typography>
 
       {loadingStats ? (
         <CircularProgress size={24} sx={{ mb: 2 }} />
@@ -419,45 +382,6 @@ const ActualizarCodigosProductosPage: React.FC = () => {
         }}
       >
         <CardContent sx={{ p: 3 }}>
-          {tab === 'SIBOFA' && (
-            <FormControlLabel
-              sx={{ mb: 1, alignItems: 'flex-start' }}
-              control={
-                <Checkbox
-                  checked={reemplazarSibofa}
-                  onChange={(event) => setReemplazarSibofa(event.target.checked)}
-                  disabled={uploading}
-                />
-              }
-              label="Primera carga: borrar todo SIBOFA y cargar este PDF completo. Déjela sin marcar en las siguientes cargas."
-            />
-          )}
-          {tab === 'SUBPRODUCTOS' && (
-            <FormControlLabel
-              sx={{ mb: 1, alignItems: 'flex-start' }}
-              control={
-                <Checkbox
-                  checked={reemplazarSubproductos}
-                  onChange={(event) => setReemplazarSubproductos(event.target.checked)}
-                  disabled={uploading}
-                />
-              }
-              label="Primera carga: borrar todos los subproductos y cargar este Word completo. Déjela sin marcar para solo agregar códigos nuevos y actualizar descripciones."
-            />
-          )}
-          {tab === 'KORAX' && (
-            <FormControlLabel
-              sx={{ mb: 1, alignItems: 'flex-start' }}
-              control={
-                <Checkbox
-                  checked={reemplazarKorax}
-                  onChange={(event) => setReemplazarKorax(event.target.checked)}
-                  disabled={uploading}
-                />
-              }
-              label="Primera carga: borrar todo KORAX y cargar este Excel completo."
-            />
-          )}
           <input
             ref={inputFileRef}
             type="file"
@@ -570,21 +494,12 @@ const ActualizarCodigosProductosPage: React.FC = () => {
             <Typography variant="h6" fontWeight={700}>
               Configurar descripción para el SIAF — {tab}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              El catálogo ya está cargado con todas sus columnas. Seleccione aquí cuáles valores deben aparecer en
-              “Descripción”. Puede cambiar esta configuración en cualquier momento sin volver a subir el Excel.
-            </Typography>
 
             <Alert severity="success" sx={{ mb: 2 }}>
               Columna de código detectada: <strong>{codigoColumn || '—'}</strong>
             </Alert>
             <Typography fontWeight={700} sx={{ mb: 0.5 }}>
               Columnas que formarán la descripción
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {tab === 'KORAX'
-                ? 'Cada valor se unirá con un espacio y al final quedará otro espacio para el texto correspondiente.'
-                : 'Cada valor se unirá en el orden del Excel y quedará separado por punto y coma (;).'}
             </Typography>
             <FormGroup sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, mb: 2 }}>
               {headers.map((header, index) => (

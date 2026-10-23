@@ -65,7 +65,6 @@ export default function TabGenerales({ casoLabel, resumen, cierre, gradId, tiemp
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <SectionBlock
         title="Números del período"
-        description={`Lectura rápida de ${casoLabel.toLowerCase()}: total, aprobados, rechazos y pendientes.`}
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} sm={6} lg={3}>
@@ -92,7 +91,6 @@ export default function TabGenerales({ casoLabel, resumen, cierre, gradId, tiemp
 
       <SectionBlock
         title="Evolución mes a mes"
-        description="Gráfica de cómo terminaron los casos cada mes: aprobados, rechazos, pendientes y revisión DAF."
       >
         <Paper elevation={0} sx={panelSx}>
           {cierre.length === 0 ? (
@@ -130,7 +128,6 @@ export default function TabGenerales({ casoLabel, resumen, cierre, gradId, tiemp
       {tiempos && (
         <SectionBlock
           title="Tiempos promedio del período"
-          description="Cuánto tardan, en promedio, las etapas del ciclo en todos los casos del filtro (no de un caso solo)."
         >
           <Grid container spacing={2.25}>
             <Grid item xs={12} sm={6} md={4}>

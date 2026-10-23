@@ -5,6 +5,7 @@ import { Role } from '../../entity/Role';
 import { Permission } from '../../entity/Permission';
 import { APP_SCREENS, PERMISSION_ALIASES } from '../../config/appScreens';
 import { verifyToken, authorizeRoles } from '../../middleware/auth';
+import { describirAltasBajas, describirCambios, listar, registrarActividadAdmin } from '../../services/adminActividad';
 
 export const rbacRouter = Router();
 
@@ -29,6 +30,11 @@ rbacRouter.post('/roles', verifyToken, authorizeRoles(['super administrador', 'g
       : [];
     const newRole = roleRepository.create({ name, permissions });
     await roleRepository.save(newRole);
+    const permisos = permissions.map((permiso) => permiso.description || permiso.name);
+    const conPermisos = permisos.length
+      ? ` con ${permisos.length === 1 ? 'el permiso' : 'los permisos'} ${listar(permisos)}`
+      : '';
+    await registrarActividadAdmin(req, `Creó el rol ${name || ''}${conPermisos}.`);
     res.status(201).json(newRole);
   } catch (err) {
     res.status(500).json({ message: 'Error creating role' });
@@ -45,6 +51,8 @@ rbacRouter.put('/roles/:id', verifyToken, authorizeRoles(['super administrador',
     if (!role) {
       return res.status(404).json({ message: 'Role not found' });
     }
+    const nombrePrevio = role.name;
+    const permisosPrevios = new Map((role.permissions || []).map((permiso) => [permiso.id, permiso.description || permiso.name]));
     role.name = name ?? role.name;
     if (permissionIds != null) {
       role.permissions = permissionIds.length
@@ -52,6 +60,21 @@ rbacRouter.put('/roles/:id', verifyToken, authorizeRoles(['super administrador',
         : [];
     }
     await roleRepository.save(role);
+    const partes: string[] = [];
+    const cambioNombre = describirCambios([{ etiqueta: 'el nombre', antes: nombrePrevio, despues: role.name }]);
+    if (cambioNombre) partes.push(cambioNombre);
+    if (permissionIds != null) {
+      const permisosNuevos = new Map((role.permissions || []).map((permiso) => [permiso.id, permiso.description || permiso.name]));
+      const detallePermisos = describirAltasBajas(
+        [...permisosNuevos.entries()].filter(([id]) => !permisosPrevios.has(id)).map(([, etiqueta]) => etiqueta),
+        [...permisosPrevios.entries()].filter(([id]) => !permisosNuevos.has(id)).map(([, etiqueta]) => etiqueta),
+        'permiso'
+      );
+      if (detallePermisos) partes.push(detallePermisos);
+    }
+    if (partes.length) {
+      await registrarActividadAdmin(req, `En el rol ${nombrePrevio}: ${partes.join('; ')}.`);
+    }
     res.json(role);
   } catch (err) {
     res.status(500).json({ message: 'Error updating role' });
@@ -64,7 +87,9 @@ rbacRouter.delete('/roles/:id', verifyToken, authorizeRoles(['super administrado
     const roleRepository = AppDataSource.getRepository(Role);
     const role = await roleRepository.findOne({ where: { id: roleId } });
     if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+    const nombre = role.name;
     await roleRepository.remove(role);
+    await registrarActividadAdmin(req, `Eliminó el rol ${nombre || ''}`);
     res.status(204).send();
   } catch (err) {
     console.error('Error al eliminar rol:', err);

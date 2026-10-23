@@ -11,7 +11,6 @@ import TabMotivos from '../shared/TabMotivos';
 import TabColaboradores from '../shared/TabColaboradores';
 import {
   createDefaultAnalyticsFilter,
-  etiquetaModo,
   resolveAnalyticsRoleMode,
   type AnalyticsRoleMode,
 } from '../shared/analyticsScope';
@@ -196,22 +195,14 @@ const AnaliticaDaf: React.FC = () => {
       ? `${new Date(data.desde).toLocaleDateString('es-GT', { dateStyle: 'medium' })} — ${new Date(data.hasta).toLocaleDateString('es-GT', { dateStyle: 'medium' })}`
       : null;
 
-  const subtitle =
-    roleMode === 'unidad'
-      ? `${etiquetaModo(roleMode, 'unidad')} · se muestran automáticamente todos los de su unidad.`
-      : roleMode === 'personal'
-        ? `${etiquetaModo(roleMode, 'personal')} · solo sus trámites.`
-        : 'Período y alcance según su rol. Cambie fechas y pulse Aplicar.';
-
   return (
     <AnaliticaShell
       title="Resultados SIAF"
-      subtitle={subtitle}
+      subtitle=""
       tab={tab}
       onTabChange={cambiarTab}
       showRankings={showRankings}
       analisisTabLabel="Análisis SIAF"
-      analisisTabGuide="Listado del período → seleccione un SIAF para ver proceso y tiempos."
       periodLabel={periodLabel}
       filterSlot={
         <AnalyticsFilterPanel

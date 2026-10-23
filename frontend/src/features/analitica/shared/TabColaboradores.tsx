@@ -235,7 +235,6 @@ export default function TabColaboradores({ tipo, filters }: Props) {
 
       <SectionBlock
         title="Podio del período"
-        description={`Líderes en ${casoLabel}: más casos, más aprobados y más rechazos.`}
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} sm={4}>
@@ -272,7 +271,6 @@ export default function TabColaboradores({ tipo, filters }: Props) {
 
       <SectionBlock
         title="Gráficas rápidas (Top 8)"
-        description="Compare de un vistazo aprobados y rechazos. Debajo está el ranking completo."
       >
         <Grid container spacing={2.25}>
           <Grid item xs={12} md={6}>
@@ -324,7 +322,6 @@ export default function TabColaboradores({ tipo, filters }: Props) {
 
       <SectionBlock
         title="Tabla completa"
-        description="Ordene por casos, aprobados o rechazos. También puede ver el desglose mes a mes."
       >
         <Paper elevation={0} sx={{ ...panelSx, p: 0, overflow: 'hidden' }}>
           <Box sx={{ px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>

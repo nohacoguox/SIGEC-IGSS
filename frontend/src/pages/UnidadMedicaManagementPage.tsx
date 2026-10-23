@@ -333,7 +333,6 @@ const UnidadMedicaManagementPage: React.FC = () => {
               value={formData.codigo}
               onChange={(e) => setFormData((f) => ({ ...f, codigo: e.target.value }))}
               placeholder="Ej. 210"
-              helperText="Opcional. Identificador institucional de la unidad."
             />
             <TextField
               label="Nombre *"

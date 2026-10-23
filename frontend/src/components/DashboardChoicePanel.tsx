@@ -16,7 +16,7 @@ export interface DashboardChoicePanelProps {
 
 interface PanelOptionProps {
   title: string;
-  description: string;
+  description?: string;
   icon: React.ReactNode;
   accent: string;
   onClick: () => void;
@@ -82,12 +82,14 @@ const PanelOption: React.FC<PanelOptionProps> = ({
           {icon}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ mb: 0.5 }}>
+          <Typography variant="subtitle1" fontWeight={700} color="text.primary">
             {title}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-            {description}
-          </Typography>
+          {description ? (
+            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, mt: 0.5 }}>
+              {description}
+            </Typography>
+          ) : null}
         </Box>
         <ArrowForwardRoundedIcon
           sx={{
@@ -122,16 +124,13 @@ const PanelContent: React.FC<DashboardChoicePanelProps> = ({
           bgcolor: IGSS_COLORS.verde,
         }}
       />
-          <Typography variant="h5" fontWeight={700} gutterBottom sx={{ color: 'primary.main' }}>
+          <Typography variant="h5" fontWeight={700} gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
         Bienvenido, {displayName.split(' ')[0]}
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 420, mx: 'auto' }}>
-        Tienes acceso a dos áreas del sistema. Elige con cuál deseas trabajar en esta sesión.
       </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <PanelOption
           title="Panel de Administración"
-          description="Gestión de usuarios, roles, catálogos, unidades médicas y configuración del sistema."
+          description="Usuarios, roles y catálogos."
           icon={<AdminPanelSettingsOutlinedIcon />}
           accent={IGSS_COLORS.azul}
           onClick={onSelectAdmin}
@@ -139,7 +138,7 @@ const PanelContent: React.FC<DashboardChoicePanelProps> = ({
         />
         <PanelOption
           title="Panel de Colaborador"
-          description="Crear y autorizar solicitudes SIAF, expedientes y flujos operativos del consultorio."
+          description="SIAF, expedientes y revisiones."
           icon={<AssignmentOutlinedIcon />}
           accent={IGSS_COLORS.verde}
           onClick={onSelectColaborador}

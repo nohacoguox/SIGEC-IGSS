@@ -68,9 +68,6 @@ const AgregarDocumentoDialog: React.FC<AgregarDocumentoDialogProps> = ({
     <DialogTitle>Agregar documento al expediente</DialogTitle>
     <DialogContent>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-          Elija el tipo de documento. Si es un documento especial que se sube por primera vez, use «Otro» e indique el nombre abajo.
-        </Typography>
         <TextField
           select
           label="Tipo / Título del documento"

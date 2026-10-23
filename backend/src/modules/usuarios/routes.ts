@@ -9,6 +9,7 @@ import { Role } from '../../entity/Role';
 import { verifyToken, authorizeRoles } from '../../middleware/auth';
 import { createTemporaryPassword } from '../auth/passwordPolicy';
 import { sendTemporaryPasswordEmail } from '../../services/PasswordRecoveryMailService';
+import { describirAltasBajas, describirCambios, registrarActividadAdmin } from '../../services/adminActividad';
 
 // El router se monta en /api/users. Solo super administrador o gestionar-usuarios,
 // salvo las consultas de director y personal médico que usa el formulario SIAF.
@@ -53,6 +54,7 @@ usuariosRouter.post('/:id/reset-password', verifyToken, authorizeRoles(['super a
       });
       await credentialRepository.save(credential);
     }
+    await registrarActividadAdmin(req, `Restableció la contraseña de ${[user.nombres, user.apellidos].filter(Boolean).join(' ')}`);
     res.json({ message: 'Contraseña restablecida correctamente. La nueva contraseña es: 123' });
   } catch (err: any) {
     console.error('Error al restablecer contraseña:', err);
@@ -110,8 +112,22 @@ usuariosRouter.put('/:id/roles', verifyToken, authorizeRoles(['super administrad
     const roles = Array.isArray(roleIds) && roleIds.length > 0
       ? await roleRepository.find({ where: { id: In(roleIds) } })
       : [];
+    const anteriores = user.roles ?? [];
+    const idsNuevos = new Set(roles.map((rol) => rol.id));
+    const idsAnteriores = new Set(anteriores.map((rol) => rol.id));
+    const detalleRoles = describirAltasBajas(
+      roles.filter((rol) => !idsAnteriores.has(rol.id)).map((rol) => rol.name),
+      anteriores.filter((rol) => !idsNuevos.has(rol.id)).map((rol) => rol.name),
+      'rol'
+    );
     user.roles = roles;
     await userRepository.save(user);
+    if (detalleRoles) {
+      await registrarActividadAdmin(
+        req,
+        `En el usuario ${[user.nombres, user.apellidos].filter(Boolean).join(' ')} ${detalleRoles}.`
+      );
+    }
     res.json({ roles: user.roles });
   } catch (error) {
     console.error('Error al actualizar roles del usuario:', error);
@@ -152,6 +168,7 @@ usuariosRouter.post('/', verifyToken, authorizeRoles(['super administrador', 'ge
       isTempPassword: true,
     });
     await credentialRepository.save(cred);
+    await registrarActividadAdmin(req, `Creó el usuario ${[nombres, apellidos].filter(Boolean).join(' ')}`);
 
     let emailSent = false;
     let emailError: string | null = null;
@@ -205,6 +222,20 @@ usuariosRouter.put('/:id', verifyToken, authorizeRoles(['super administrador', '
     const puestoRepository = AppDataSource.getRepository(Puesto);
     const user = await userRepository.findOne({ where: { id }, relations: ['puesto', 'roles'] });
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+    const nombrePrevio = [user.nombres, user.apellidos].filter(Boolean).join(' ');
+    const puestoPrevio = user.puesto?.nombre || '';
+    const previo = {
+      nombres: user.nombres,
+      apellidos: user.apellidos,
+      dpi: user.dpi,
+      nit: user.nit,
+      telefono: user.telefono,
+      correo: user.correoInstitucional,
+      codigo: user.codigoEmpleado,
+      renglon: user.renglon,
+      unidad: user.unidadMedica,
+      departamento: user.departamentoDireccion,
+    };
     if (nombres != null) user.nombres = nombres;
     if (apellidos != null) user.apellidos = apellidos;
     if (dpi != null) user.dpi = dpi;
@@ -215,11 +246,31 @@ usuariosRouter.put('/:id', verifyToken, authorizeRoles(['super administrador', '
     if (renglon != null) user.renglon = renglon;
     if (unidadMedica != null) user.unidadMedica = unidadMedica;
     if (departamentoDireccion !== undefined) user.departamentoDireccion = departamentoDireccion === '' || departamentoDireccion === null ? null : String(departamentoDireccion);
+    let puestoNuevo = puestoPrevio;
     if (puestoId != null) {
       const puesto = await puestoRepository.findOneBy({ id: puestoId });
-      if (puesto) user.puesto = puesto;
+      if (puesto) {
+        user.puesto = puesto;
+        puestoNuevo = puesto.nombre;
+      }
     }
     await userRepository.save(user);
+    const detalleUsuario = describirCambios([
+      { etiqueta: 'el nombre', antes: previo.nombres, despues: user.nombres },
+      { etiqueta: 'los apellidos', antes: previo.apellidos, despues: user.apellidos },
+      { etiqueta: 'el DPI', antes: previo.dpi, despues: user.dpi },
+      { etiqueta: 'el NIT', antes: previo.nit, despues: user.nit },
+      { etiqueta: 'el teléfono', antes: previo.telefono, despues: user.telefono },
+      { etiqueta: 'el correo', antes: previo.correo, despues: user.correoInstitucional },
+      { etiqueta: 'el código de empleado', antes: previo.codigo, despues: user.codigoEmpleado },
+      { etiqueta: 'el renglón', antes: previo.renglon, despues: user.renglon },
+      { etiqueta: 'la unidad médica', antes: previo.unidad, despues: user.unidadMedica },
+      { etiqueta: 'el departamento', antes: previo.departamento, despues: user.departamentoDireccion },
+      { etiqueta: 'el puesto', antes: puestoPrevio, despues: puestoNuevo },
+    ]);
+    if (detalleUsuario) {
+      await registrarActividadAdmin(req, `En el usuario ${nombrePrevio}: ${detalleUsuario}.`);
+    }
     res.json(user);
   } catch (error: any) {
     console.error('Error al actualizar usuario:', error);
@@ -233,7 +284,9 @@ usuariosRouter.delete('/:id', verifyToken, authorizeRoles(['super administrador'
     const userRepository = AppDataSource.getRepository(User);
     const user = await userRepository.findOne({ where: { id } });
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+    const nombre = [user.nombres, user.apellidos].filter(Boolean).join(' ');
     await userRepository.remove(user);
+    await registrarActividadAdmin(req, `Eliminó el usuario ${nombre}`);
     res.status(204).send();
   } catch (error) {
     console.error('Error al eliminar usuario:', error);

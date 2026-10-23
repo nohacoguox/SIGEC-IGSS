@@ -55,17 +55,11 @@ type CollaboratorView =
   | 'estadisticas-analista-daf';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Panel de Control', subtitle: 'Bienvenido al panel de control del colaborador' },
-  'bandeja-revisiones-daf': {
-    title: 'Bandeja de Revisiones DAF',
-    subtitle: 'Revise solicitudes SIAF y expedientes de compras pendientes de su departamento',
-  },
-  'estadisticas-daf': { title: 'Resultados SIAF', subtitle: 'Vista general, rankings, motivos y detalle de un caso' },
-  'estadisticas-piloto-pg2': { title: 'Resultados de expedientes', subtitle: 'Vista general, rankings, motivos y detalle de un caso' },
-  'estadisticas-analista-daf': {
-    title: 'Mis tiempos DAF',
-    subtitle: 'Sus revisiones como analista, clasificadas por unidad médica',
-  },
+  dashboard: { title: 'Panel de Control', subtitle: '' },
+  'bandeja-revisiones-daf': { title: 'Bandeja de Revisiones DAF', subtitle: '' },
+  'estadisticas-daf': { title: 'Resultados SIAF', subtitle: '' },
+  'estadisticas-piloto-pg2': { title: 'Resultados de expedientes', subtitle: '' },
+  'estadisticas-analista-daf': { title: 'Mis tiempos DAF', subtitle: '' },
 };
 
 // --- Main Component ---
@@ -649,7 +643,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Listado de SIAF"
-                    description="Consulte y administre sus solicitudes SIAF"
+                    description="Consulta y da seguimiento a tus solicitudes."
                     icon={<FormatListBulletedIcon />}
                     accent={IGSS_COLORS.azul}
                     onClick={() => navigate('/siaf-book')}
@@ -661,7 +655,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Crear SIAF"
-                    description="Crear una nueva solicitud de compra"
+                    description="Nueva solicitud de compra."
                     icon={<AddIcon />}
                     accent={IGSS_COLORS.azulOscuro}
                     onClick={() => navigate('/siaf-book/crear')}
@@ -673,7 +667,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="SIAF de mi unidad"
-                    description="Director / Administrador: En revisión, Rechazado y Finalizado de su unidad"
+                    description="Solicitudes de la unidad."
                     icon={<TaskAltIcon />}
                     accent={IGSS_COLORS.verdeOscuro}
                     onClick={() => navigate('/siaf-book/unidad-finalizados')}
@@ -685,7 +679,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Expedientes de Compras"
-                    description="Cree y administre expedientes de compras y sus documentos"
+                    description="Crea y consulta expedientes."
                     icon={<DescriptionIcon />}
                     accent={IGSS_COLORS.azul}
                     onClick={() => navigate('/expedientes')}
@@ -697,7 +691,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Expedientes de mi unidad"
-                    description="Director / Administrador: En revisión, Rechazado y Cerrado de su unidad"
+                    description="Expedientes de la unidad."
                     icon={<TaskAltIcon />}
                     accent={IGSS_COLORS.verdeOscuro}
                     onClick={() => navigate('/expedientes/unidad')}
@@ -709,7 +703,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Bandeja de Revisiones DAF"
-                    description="Revise SIAF y expedientes pendientes de su departamento"
+                    description="Pendientes de revisión del departamento."
                     icon={<InboxIcon />}
                     accent={IGSS_COLORS.azulOscuro}
                     onClick={() =>
@@ -725,7 +719,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Actualización de Códigos y Productos"
-                    description="Actualiza MINFIN y KORAX desde Excel, subproductos desde el Word oficial y SIBOFA desde el PDF del listado básico"
+                    description="Catálogos de códigos y productos."
                     icon={<UpdateIcon />}
                     accent={IGSS_COLORS.azulClaro}
                     onClick={() => navigate('/actualizar-codigos-productos')}
@@ -737,7 +731,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Resultados SIAF"
-                    description="Vista general, rankings de aprobados/rechazos, motivos y detalle de un caso"
+                    description="Totales y detalle de casos."
                     icon={<BarChartIcon />}
                     accent={IGSS_COLORS.verde}
                     onClick={() => setSelectedView('estadisticas-daf')}
@@ -749,7 +743,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Resultados de expedientes"
-                    description="Vista general, rankings de aprobados/rechazos, motivos y detalle de un caso"
+                    description="Totales y detalle de casos."
                     icon={<BarChartIcon />}
                     accent={IGSS_COLORS.verdeOscuro}
                     onClick={() => setSelectedView('estadisticas-piloto-pg2')}
@@ -761,7 +755,7 @@ const CollaboratorDashboard: React.FC = () => {
                 <Grid item xs={12} md={6} lg={4}>
                   <ActionCard
                     title="Mis tiempos DAF"
-                    description="Sus revisiones como analista, clasificadas por unidad médica de Escuintla"
+                    description="Tus revisiones por unidad médica."
                     icon={<TaskAltIcon />}
                     accent={IGSS_COLORS.azulOscuro}
                     onClick={() => setSelectedView('estadisticas-analista-daf')}

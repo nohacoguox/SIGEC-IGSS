@@ -238,7 +238,6 @@ const PuestoManagementPage: React.FC = () => {
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
-              helperText="Ingrese el nombre completo del puesto"
             />
             <FormControlLabel
               control={

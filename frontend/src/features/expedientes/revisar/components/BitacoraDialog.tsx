@@ -56,9 +56,6 @@ const BitacoraDialog: React.FC<BitacoraDialogProps> = ({
         <Typography color="text.secondary" sx={{ py: 2 }}>No hay registros en la bitácora.</Typography>
       ) : (
         <>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Historial de rechazos (motivo y observaciones por documento), aprobaciones y reemplazos de documento. En cada reemplazo se muestra el texto «documento X reemplazado por Y» y puede usar <strong>Ver documento actual</strong> para abrir el archivo actual. Los documentos rechazados que ya fueron corregidos se marcan con <Chip size="small" label="Corregido" color="info" sx={{ verticalAlign: 'middle' }} />.
-          </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflowX: 'auto' }}>
             <Table size="medium">
               <TableHead>

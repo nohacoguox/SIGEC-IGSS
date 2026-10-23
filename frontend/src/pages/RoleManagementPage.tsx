@@ -13,7 +13,6 @@ import ClearIcon from '@mui/icons-material/Clear';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
 import SearchIcon from '@mui/icons-material/Search';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -24,7 +23,6 @@ import {
   groupScreensByGroup,
 } from '../config/appScreens';
 import { useAppScreens } from '../context/AppScreensContext';
-import { useThemeMode } from '../context/ThemeContext';
 import { IGSS_COLORS } from '../theme/institutionalColors';
 
 interface Permission {
@@ -60,7 +58,6 @@ interface AppScreenApi extends AppScreenDefinition {
 type Order = 'asc' | 'desc';
 
 const RoleManagementPage: React.FC = () => {
-  const { mode } = useThemeMode();
   const { screens: catalogScreens } = useAppScreens();
   const [mainTab, setMainTab] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -482,11 +479,6 @@ const RoleManagementPage: React.FC = () => {
                 label={
                   <Box>
                     <Typography variant="body2" fontWeight={600}>{s.label}</Typography>
-                    {s.description && (
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.3 }}>
-                        {s.description}
-                      </Typography>
-                    )}
                   </Box>
                 }
               />
@@ -499,29 +491,6 @@ const RoleManagementPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, minWidth: 0 }}>
-      <Alert
-        severity="info"
-        icon={<InfoOutlinedIcon />}
-        sx={{
-          borderRadius: 2,
-          ...(mode === 'dark'
-            ? {}
-            : {
-                bgcolor: 'rgba(0,91,145,0.06)',
-                color: IGSS_COLORS.textoOscuro,
-                '& .MuiAlert-icon': { color: IGSS_COLORS.azul },
-              }),
-        }}
-      >
-        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.35 }}>
-          Cómo funciona el acceso
-        </Typography>
-        <Typography variant="body2">
-          Un <strong>rol</strong> es un paquete de pantallas. Primero cree o edite roles (paso 1),
-          luego asígnelos (paso 2) por colaborador o por rol. El menú de cada persona es la unión de sus roles.
-        </Typography>
-      </Alert>
-
       <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
         <Tabs
           value={mainTab}
@@ -549,10 +518,6 @@ const RoleManagementPage: React.FC = () => {
               <Box sx={{ minWidth: 0, maxWidth: 640 }}>
                 <Typography variant="h6" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro }}>
                   Catálogo de roles
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                  Defina el nombre del rol y marque las pantallas que podrá abrir quien lo tenga.
-                  Hay {appScreens.length} pantallas ({screensByPanel.admin.length} de administración y {screensByPanel.colaborador.length} de colaborador).
                 </Typography>
               </Box>
               <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog(null)}>
@@ -661,9 +626,6 @@ const RoleManagementPage: React.FC = () => {
               <Typography variant="h6" fontWeight={800} sx={{ color: IGSS_COLORS.azulOscuro, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AssignmentIndIcon /> Asignar roles
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                Elija cómo quiere trabajar: persona por persona, o un rol y varios colaboradores a la vez.
-              </Typography>
             </Box>
 
             <ToggleButtonGroup
@@ -702,10 +664,6 @@ const RoleManagementPage: React.FC = () => {
 
             {assignMode === 'por-colaborador' && (
               <>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 640 }}>
-                  Busque a la persona y marque los roles que debe tener. Puede combinar varios; el acceso es la unión de sus pantallas.
-                </Typography>
-
                 <Autocomplete
                   options={users}
                   getOptionLabel={userOptionLabel}
@@ -728,7 +686,6 @@ const RoleManagementPage: React.FC = () => {
                       {...params}
                       label="Buscar colaborador"
                       placeholder="Nombre, código o puesto"
-                      helperText={selectedUser ? 'Marque o desmarque roles y pulse Guardar' : 'Seleccione un colaborador para continuar'}
                     />
                   )}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
@@ -841,10 +798,6 @@ const RoleManagementPage: React.FC = () => {
 
             {assignMode === 'por-rol' && (
               <>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 720 }}>
-                  Elija un rol y marque a quiénes se lo asigna. Ideal para dar el mismo acceso a varias personas sin entrar una por una.
-                </Typography>
-
                 <Autocomplete
                   options={roles}
                   getOptionLabel={(opt) => opt.name}
@@ -859,7 +812,7 @@ const RoleManagementPage: React.FC = () => {
                       helperText={
                         selectedAssignRole
                           ? `${roleMemberIds.length} colaborador(es) con este rol${roleMembersDirty ? ' · cambios sin guardar' : ''}`
-                          : 'Seleccione el rol que desea asignar'
+                          : undefined
                       }
                     />
                   )}
@@ -1019,12 +972,8 @@ const RoleManagementPage: React.FC = () => {
             sx={{ mb: 2.5 }}
           />
 
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
-            Paso B — Pantallas permitidas
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Marque las opciones del menú que podrá ver quien tenga este rol.
-            Seleccionadas: <strong>{selectedScreenKeys.length}</strong>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+            Paso B — Pantallas permitidas ({selectedScreenKeys.length})
           </Typography>
 
           <Grid container spacing={2}>

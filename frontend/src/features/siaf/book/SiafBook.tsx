@@ -1190,26 +1190,12 @@ const SiafBook: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Paper sx={{ p: 4, borderRadius: 3 }} elevation={3}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Todos los campos son obligatorios, excepto &quot;Adjuntar Documentos&quot;.
-              </Typography>
-
               {/* Bitácora de rechazos y correcciones (solo en modo corregir) */}
               {id && bitacora.length > 0 && (
                 <SiafBitacoraCard bitacora={bitacora} onVerMarcas={handleVerMarcasEnPdf} />
               )}
 
               {/* Aviso: detección automática de correcciones cuando el SIAF estaba rechazado */}
-              {id && estadoSiafCargado === 'rechazado' && (
-                <Card sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'success.light', backgroundColor: 'success.light', color: 'success.dark' }} variant="outlined">
-                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="body2" fontWeight="medium">
-                      El sistema registrará automáticamente qué cambió (justificación, ítems, cantidades, subproductos, consistente, etc.) al guardar. No es necesario escribir manualmente el detalle.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Información General */}
               <Box sx={{ mb: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -1246,13 +1232,6 @@ const SiafBook: React.FC = () => {
                       value={reservandoCorrelativo ? 'Asignando…' : correlativo}
                       InputProps={{ readOnly: true }}
                       disabled={!!id || reservandoCorrelativo}
-                      helperText={
-                        id
-                          ? 'El correlativo no se modifica al corregir'
-                          : areaUnidad
-                            ? 'Se reserva al elegir el área y se confirma al guardar. Si cambia de área o sale sin guardar, se libera.'
-                            : 'Elija el área para asignar el correlativo de esa secuencia.'
-                      }
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           bgcolor: 'action.hover',
@@ -1339,11 +1318,6 @@ const SiafBook: React.FC = () => {
                                       )}
                                 </Select>
                               </FormControl>
-                              {!id && (
-                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                  La unidad se carga según el perfil del usuario. El área se elige del catálogo institucional (Gestión de Áreas).
-                                </Typography>
-                              )}
                               {!id && unidadUsuarioLigada && !nombreUnidad && unidadesMedicas.length > 0 && (
                                 <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
                                   No se encontró «{unidadUsuarioLigada}» en el catálogo de unidades. Verifique Gestión de Unidades Médicas.
@@ -1391,7 +1365,6 @@ const SiafBook: React.FC = () => {
                                 value={direccion}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText="Se completa automáticamente con la dirección de su unidad médica"
                               />
                           </Grid>
                       </Grid>
@@ -1402,9 +1375,6 @@ const SiafBook: React.FC = () => {
               {/* Detalle de Bienes o Servicios */}
               <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Detalle de Bienes o Servicios *</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Al menos un ítem con código, descripción y cantidad mayor a 0.
-                </Typography>
                 <TextField
                   select
                   size="small"
@@ -1533,7 +1503,6 @@ const SiafBook: React.FC = () => {
                               maxRows={8}
                               value={item.descripcion}
                               onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
-                              placeholder="Escriba la descripción del servicio"
                               sx={{ '& .MuiInputBase-root': { alignItems: 'flex-start' } }}
                             />
                           ) : (item.catalogoOrigen === 'KORAX' || catalogoSeleccionado === 'KORAX') ? (
@@ -1546,7 +1515,6 @@ const SiafBook: React.FC = () => {
                               maxRows={8}
                               value={item.descripcion}
                               onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
-                              placeholder="El catálogo deja el inicio. Agregue el texto correspondiente al final."
                               sx={{ '& .MuiInputBase-root': { alignItems: 'flex-start' } }}
                             />
                           ) : (
@@ -1559,7 +1527,6 @@ const SiafBook: React.FC = () => {
                               maxRows={8}
                               value={item.descripcion}
                               InputProps={{ readOnly: true }}
-                              placeholder="Se completa automáticamente con el catálogo"
                               title={item.descripcion || undefined}
                               sx={{
                                 '& .MuiInputBase-root': { alignItems: 'flex-start', bgcolor: 'action.hover' },
@@ -1672,12 +1639,6 @@ const SiafBook: React.FC = () => {
               {/* Detalle por Subproducto — combobox del catálogo */}
               <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" gutterBottom>Detalle por Subproducto *</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Elija el subproducto desde el listado (combobox) e indique la cantidad. Debe distribuir
-                  la totalidad del total de bienes/servicios (<strong>{totalItemCantidad}</strong>) en una
-                  o varias filas; el <strong>Disponible</strong> debe quedar en <strong>0</strong> para
-                  poder crear el SIAF.
-                </Typography>
 
                 <Alert
                   severity={
@@ -1879,7 +1840,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setNombreSolicitante(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText="Este campo se llena automáticamente con tu información"
                               />
                           </Grid>
                           <Grid item xs={12}>
@@ -1891,7 +1851,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setPuestoSolicitante(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText="Este campo se llena automáticamente con tu información"
                               />
                           </Grid>
                           <Grid item xs={12}>
@@ -1903,7 +1862,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setUnidadSolicitante(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText="Este campo se llena automáticamente con tu información"
                               />
                           </Grid>
                       </Grid>
@@ -1962,11 +1920,6 @@ const SiafBook: React.FC = () => {
                               }
                               label="¿Se encuentra ausente el director?"
                             />
-                            {id && (
-                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                En corrección no se puede cambiar: se mantiene la misma autoridad (Director o Encargado) que revisó la solicitud.
-                              </Typography>
-                            )}
                           </Grid>
                           {directorAusente && (
                             <Grid item xs={12}>
@@ -2003,11 +1956,6 @@ const SiafBook: React.FC = () => {
                                   </MenuItem>
                                 ))}
                               </TextField>
-                              {!id && (
-                                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                  Solo se listan usuarios con puesto de médico o doctor de la misma unidad médica ({unidadSolicitante || unidadUsuarioLigada || '—'}).
-                                </Typography>
-                              )}
                               {!id && directorAusente && medicosUnidad.length === 0 && (
                                 <Alert severity="warning" sx={{ mt: 1 }}>
                                   No hay usuarios con puesto de médico o doctor registrados en esta unidad. Debe existir al menos uno en la misma unidad para designar encargado.
@@ -2024,7 +1972,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setNombreAutoridad(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText={directorAusente ? "Se completa al elegir al Encargado/a del Despacho" : "Este campo se llena automáticamente con el Director de tu unidad médica"}
                               />
                           </Grid>
                           <Grid item xs={12}>
@@ -2036,7 +1983,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setPuestoAutoridad(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText={directorAusente ? "Se muestra como Encargado/a del Despacho de Dirección" : "Este campo se llena automáticamente con el Director de tu unidad médica"}
                               />
                           </Grid>
                           <Grid item xs={12}>
@@ -2048,7 +1994,6 @@ const SiafBook: React.FC = () => {
                                 onChange={(e) => setUnidadAutoridad(e.target.value)}
                                 InputProps={{ readOnly: true }}
                                 disabled
-                                helperText="Este campo se llena automáticamente con el Director de tu unidad médica"
                               />
                           </Grid>
                       </Grid>
@@ -2064,7 +2009,6 @@ const SiafBook: React.FC = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <AttachFileIcon sx={{ mr: 1, color: 'primary.main' }} />
                         <Typography variant="h6">Adjuntar Documentos</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>(opcional)</Typography>
                       </Box>
                       <Button
                         variant="outlined"
@@ -2088,9 +2032,6 @@ const SiafBook: React.FC = () => {
                         }}
                       />
                     </Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Adjunte especificaciones técnicas, cotizaciones u otros soportes de esta solicitud (PDF, Word, Excel, imágenes).
-                    </Typography>
                     {(pendingFiles.length > 0 || adjuntos.length > 0) && (
                       <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, overflowX: 'auto' }}>
                         <Table size="small">
