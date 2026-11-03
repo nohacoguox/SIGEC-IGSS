@@ -52,6 +52,7 @@ import { pdf } from '@react-pdf/renderer';
 import { SiafPdfDocument } from '../../../components/SiafPdfDocument';
 import { PdfMarker } from '../../../components/PdfViewerWithClick';
 import { parseMarcadoresBitacora, SiafMarcaBitacora } from '../../../utils/siafBitacora';
+import { fechaLocalHoy } from '../../../utils/dateUtils';
 import type {
   Area,
   BitacoraEntry,
@@ -89,7 +90,7 @@ const SiafBook: React.FC = () => {
   const { addSiaf, updateSiaf, siafList, loadSiafs } = useSiaf();
   const { mode } = useThemeMode();
   const { showSuccess, showError, showWarning } = useNotification();
-  const [fecha, setFecha] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState<string>(fechaLocalHoy());
   const [correlativo, setCorrelativo] = useState<string>('');
   const [reservaId, setReservaId] = useState<number | null>(null);
   const [reservandoCorrelativo, setReservandoCorrelativo] = useState(false);

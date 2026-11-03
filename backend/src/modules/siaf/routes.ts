@@ -233,7 +233,7 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
     // Borrador hasta que el solicitante lo envíe a revisión
     nuevaSolicitud.estado = 'borrador';
     nuevaSolicitud.correlativo = correlativoFinal;
-    nuevaSolicitud.fecha = new Date(siafData.fecha);
+    nuevaSolicitud.fecha = new Date(`${String(siafData.fecha).split('T')[0]}T12:00:00`);
     nuevaSolicitud.nombreUnidad = siafData.nombreUnidad;
     nuevaSolicitud.direccion = siafData.direccion;
     nuevaSolicitud.justificacion = siafData.justificacion;
@@ -846,7 +846,7 @@ siafRouter.put('/:id', verifyToken, async (req: Request, res: Response) => {
       subproductos: (solicitud.subproductos || []).map((s: any) => ({ codigo: s.codigo ?? '', cantidad: Number(s.cantidad ?? 0) })),
     } : null;
 
-    if (body.fecha != null) solicitud.fecha = new Date(body.fecha);
+    if (body.fecha != null) solicitud.fecha = new Date(`${String(body.fecha).split('T')[0]}T12:00:00`);
     if (body.nombreUnidad != null) solicitud.nombreUnidad = body.nombreUnidad;
     if (body.direccion != null) solicitud.direccion = body.direccion;
     if (body.justificacion != null) solicitud.justificacion = body.justificacion;
