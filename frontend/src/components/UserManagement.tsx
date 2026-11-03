@@ -1,7 +1,5 @@
 import api from '../api';
 import { useNotification } from '../context/NotificationContext';
-
-// frontend/src/components/UserManagement.tsx
 import React, { useState } from 'react';
 import {
   Box,

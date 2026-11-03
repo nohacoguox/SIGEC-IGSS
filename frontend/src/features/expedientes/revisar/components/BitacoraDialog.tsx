@@ -31,7 +31,7 @@ export type BitacoraDialogProps = {
   onAbrirVersion: (expedienteId: number, docId: number, versionId: number) => void;
 };
 
-/** Bitácora de revisión DD (sin «Ver marca» / Recargar — distinto al BitacoraDialog de expedientes). */
+/** Bitácora de revisión DD. */
 const BitacoraDialog: React.FC<BitacoraDialogProps> = ({
   open,
   titulo,

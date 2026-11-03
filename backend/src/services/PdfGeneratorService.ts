@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
 import { SiafSolicitud } from '../entity/SiafSolicitud';
+import { formatNombreUnidadConArea } from '../modules/siaf/helpers';
 
 // Dimensiones: 1 hoja LETTER, contenido más abajo para ocupar espacio en blanco
 const MARGIN_TOP = 38;
@@ -59,7 +60,7 @@ export class PdfGeneratorService {
         const right = PAGE_WIDTH - MARGIN_SIDES;
         let y = MARGIN_TOP;
 
-        // ----- 1. ENCABEZADO (réplica exacta: borde redondeado, logo+texto IGSS izquierda, título centro, FORMA arriba derecha) -----
+        // Encabezado FORMA IGSS
         const HEADER_BOX_HEIGHT = 50;
         const HEADER_RADIUS = 8;
         const headerPadding = 10;
@@ -111,7 +112,7 @@ export class PdfGeneratorService {
         doc.restore();
         y += HEADER_BOX_HEIGHT + GAP_BETWEEN_SECTIONS;
 
-        // ----- 2 y 3. Fecha, Correlativo + DATOS DE LA UNIDAD: un solo recuadro con bordes curvos -----
+        // Fecha, correlativo y datos de unidad
         const datosUnidadTop = y;
         const datosUnidadPadding = 8;
         const datosUnidadRadius = 8;
@@ -130,8 +131,8 @@ export class PdfGeneratorService {
         y += 16;
         doc.fontSize(FONT_BODY).font('Helvetica');
         doc.text('Nombre:', left + datosUnidadPadding, y + 2);
-        const areaNombre = siaf.area?.nombre ? ` / ${siaf.area.nombre}` : '';
-        doc.text(String(siaf.nombreUnidad || '') + areaNombre, left + datosUnidadPadding + 46, y + 2, { width: CONTENT_WIDTH - 52 - datosUnidadPadding * 2 });
+        const nombreConArea = formatNombreUnidadConArea(siaf.nombreUnidad, siaf.area?.nombre);
+        doc.text(nombreConArea, left + datosUnidadPadding + 46, y + 2, { width: CONTENT_WIDTH - 52 - datosUnidadPadding * 2 });
         y += 14;
         doc.text('Dirección:', left + datosUnidadPadding, y + 2);
         doc.text(String(siaf.direccion || 'N/A'), left + datosUnidadPadding + 50, y + 2, { width: CONTENT_WIDTH - 54 - datosUnidadPadding * 2 });
@@ -141,7 +142,7 @@ export class PdfGeneratorService {
         doc.roundedRect(left, datosUnidadTop, CONTENT_WIDTH, datosUnidadBoxHeight, datosUnidadRadius).stroke();
         y += GAP_BETWEEN_SECTIONS;
 
-        // ----- 4. TABLA: recuadro con bordes curvos; área de contenido altura fija SIN líneas horizontales -----
+        // Tabla de ítems
         const colCodigo = 0.15 * CONTENT_WIDTH;
         const colDesc = 0.65 * CONTENT_WIDTH;
         const colCant = 0.20 * CONTENT_WIDTH;
@@ -165,7 +166,7 @@ export class PdfGeneratorService {
         doc.text('Cantidad', left + colCodigo + colDesc + 2, y + 5, { width: colCant - 4, align: 'center' });
         y += ROW_HEIGHT;
 
-        // Área de contenido: altura fija, solo líneas verticales (sin horizontales). Items + "Consiste en" dentro.
+        // Área de contenido: altura fija, solo líneas verticales (sin horizontales). Items + "Consistente en" dentro.
         const contentTop = y;
         doc.moveTo(left + colCodigo, contentTop).lineTo(left + colCodigo, contentTop + CONTENT_BLOCK_HEIGHT).stroke();
         doc.moveTo(left + colCodigo + colDesc, contentTop).lineTo(left + colCodigo + colDesc, contentTop + CONTENT_BLOCK_HEIGHT).stroke();
@@ -198,7 +199,7 @@ export class PdfGeneratorService {
         });
         if (siaf.consistenteItem) {
           doc.fontSize(FONT_TABLE).font('Helvetica');
-          const consistente = `Consiste en: ${siaf.consistenteItem}`;
+          const consistente = `Consistente en:\n${siaf.consistenteItem}`;
           const h = Math.max(
             FONT_TABLE + 2,
             doc.heightOfString(consistente, { width: colDesc - 4 })
@@ -260,7 +261,7 @@ export class PdfGeneratorService {
 
         y += SUBPRODUCT_CONTENT_HEIGHT + GAP_BETWEEN_SECTIONS;
 
-        // ----- 5. FIRMAS: texto abajo; espacio libre arriba para firmar -----
+        // Firmas
         const gap = CONTENT_WIDTH - FIRMA_BOX_WIDTH * 2;
         doc.roundedRect(left, y, FIRMA_BOX_WIDTH, FIRMA_BOX_HEIGHT, TABLE_RADIUS).stroke();
         doc.roundedRect(left + FIRMA_BOX_WIDTH + gap, y, FIRMA_BOX_WIDTH, FIRMA_BOX_HEIGHT, TABLE_RADIUS).stroke();
@@ -305,7 +306,7 @@ export class PdfGeneratorService {
 
         y += FIRMA_BOX_HEIGHT + GAP_BETWEEN_SECTIONS;
 
-        // ----- 6. JUSTIFICACIÓN: de último -----
+        // Justificación al final
         doc.roundedRect(left, y, CONTENT_WIDTH, JUSTIFICACION_BOX_HEIGHT, TABLE_RADIUS).stroke();
         doc.fontSize(FONT_BODY).font('Helvetica-Bold');
         doc.text('JUSTIFICACIÓN:', left + 6, y + 8);

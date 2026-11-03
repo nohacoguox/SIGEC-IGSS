@@ -83,6 +83,7 @@ const mapApiToRow = (siaf: any): UnitSiafRow => ({
     nombreUnidad: siaf.nombreUnidad,
     direccion: siaf.direccion,
     areaId: siaf.area?.id,
+    areaUnidad: siaf.area?.nombre || '',
     justificacion: siaf.justificacion,
     nombreSolicitante: siaf.nombreSolicitante,
     puestoSolicitante: siaf.puestoSolicitante,

@@ -1,11 +1,6 @@
 /**
- * Crea roles y permisos según el catálogo de pantallas (appScreens).
- * Cada pantalla = un permiso; cada permiso puede tener un rol homónimo.
- * Ejecutar: npm run seed-roles
- *
- * IMPORTANTE: no toca asignaciones usuario↔rol. Nunca renombra ni reutiliza
- * "super administrador" / "administrador". No buscar roles “por permiso”
- * (eso vaciaba permisos del super admin).
+ * Roles/permisos desde appScreens (npm run seed-roles).
+ * No toca asignaciones usuario↔rol ni renombra "super administrador"/"administrador".
  */
 import 'reflect-metadata';
 import { AppDataSource } from '../data-source';

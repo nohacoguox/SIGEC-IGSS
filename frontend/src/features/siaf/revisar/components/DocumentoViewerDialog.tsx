@@ -12,7 +12,7 @@ type DocumentoViewerDialogProps = {
   onClose: () => void;
 };
 
-/** Visor local de adjunto (imagen o PDF/iframe). Extraído del flujo DD sin cambiar UI. */
+/** Visor de adjunto (imagen o PDF). */
 const DocumentoViewerDialog: React.FC<DocumentoViewerDialogProps> = ({
   open,
   viewingDoc,

@@ -24,6 +24,7 @@ import {
   ETIQUETAS_MOTIVO,
   MOTIVOS_VALIDOS,
   buildDetalleCorreccion,
+  cargarSiafParaPdf,
   loadBitacoraBySiafId,
   resolverItemsSiafDesdeCatalogo,
   validarTotalesSubproductos,
@@ -189,7 +190,7 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
       return res.status(400).json({ message: errorTotales });
     }
 
-    // 1. Validar reserva de correlativo (se consume solo tras guardar)
+    // Reserva de correlativo: se consume solo después de guardar
     const reservaId = Number(siafData.reservaId);
     if (!reservaId || Number.isNaN(reservaId)) {
       return res.status(400).json({
@@ -204,13 +205,11 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
     }
     const correlativoFinal = reservaOk.correlativo;
 
-    // 2. Validar correlativo único (doble chequeo)
     const existingSiaf = await siafRepository.findOne({ where: { correlativo: correlativoFinal } });
     if (existingSiaf) {
       return res.status(409).json({ message: `El correlativo "${correlativoFinal}" ya existe.` });
     }
 
-    // 3. Obtener entidades relacionadas
     const solicitante = await userRepository.findOneBy({ id: userId });
     if (!solicitante) {
       return res.status(404).json({ message: 'Usuario solicitante no encontrado.' });
@@ -230,9 +229,8 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
       area = await areaRepository.findOneBy({ id: siafData.areaId });
     }
 
-    // 4. Crear y poblar la solicitud
     const nuevaSolicitud = new SiafSolicitud();
-    // Nace como borrador: enviar a revisión es una decisión del solicitante.
+    // Borrador hasta que el solicitante lo envíe a revisión
     nuevaSolicitud.estado = 'borrador';
     nuevaSolicitud.correlativo = correlativoFinal;
     nuevaSolicitud.fecha = new Date(siafData.fecha);
@@ -241,7 +239,6 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
     nuevaSolicitud.justificacion = siafData.justificacion;
     nuevaSolicitud.consistenteItem = siafData.consistentItem;
 
-    // Asignar datos textuales y entidades
     nuevaSolicitud.nombreSolicitante = siafData.nombreSolicitante;
     nuevaSolicitud.puestoSolicitante = siafData.puestoSolicitante;
     nuevaSolicitud.unidadSolicitante = siafData.unidadSolicitante;
@@ -254,7 +251,6 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
     if (encargado) nuevaSolicitud.usuarioEncargado = encargado;
     if (area) nuevaSolicitud.area = area;
 
-    // 4. Mapear items y subproductos
     nuevaSolicitud.items = siafData.items.map((itemData: any, index: number) => {
       const newItem = new SiafItem();
       newItem.codigo = itemData.codigo;
@@ -273,22 +269,20 @@ siafRouter.post('/', verifyToken, async (req: Request, res: Response) => {
       return newSub;
     });
 
-    // 5. Guardar en la base de datos
     const savedSiaf = await siafRepository.save(nuevaSolicitud);
 
-    // 6. Marcar correlativo como consumido (ya no se puede reutilizar)
     await consumirCorrelativo(reservaId, userId);
 
-    // 7. Generar y guardar el PDF
     try {
-      const pdfBuffer = await pdfGeneratorService.generateSiafPdf(savedSiaf);
+      const siafPdf = (await cargarSiafParaPdf(savedSiaf.id)) || savedSiaf;
+      if (!siafPdf.area?.nombre && area) siafPdf.area = area;
+      const pdfBuffer = await pdfGeneratorService.generateSiafPdf(siafPdf);
       const pdfInfo = await fileStorageService.saveSiafPdf(pdfBuffer, savedSiaf.correlativo);
 
-      // Actualizar la solicitud con la info del PDF
       savedSiaf.pdfPath = pdfInfo.filePath;
       savedSiaf.pdfHash = pdfInfo.hash;
       savedSiaf.pdfSize = pdfInfo.size;
-      await siafRepository.save(savedSiaf); // Guardar la actualización
+      await siafRepository.save(savedSiaf);
 
       res.status(201).json({
         message: 'Solicitud SIAF creada y PDF generado exitosamente.',
@@ -496,7 +490,7 @@ siafRouter.get('/adjuntos/:idAdjunto/descargar', verifyToken, async (req: Reques
       relations: ['siaf', 'siaf.usuarioSolicitante'],
     });
     if (!adjunto) return res.status(404).json({ message: 'Documento adjunto no encontrado.' });
-    // Solo el solicitante o quien tenga acceso a la unidad puede descargar (por ahora permitir a cualquier autenticado que conozca el id)
+    // Descarga con token; el id basta mientras el SIAF esté autenticado
     const buffer = await fileStorageService.readFileByRelativePath(adjunto.rutaArchivo);
     const fileName = adjunto.nombreOriginal || `adjunto-${idAdjunto}`;
     res.setHeader('Content-Type', adjunto.mimeType || 'application/octet-stream');
@@ -959,7 +953,8 @@ siafRouter.put('/:id', verifyToken, async (req: Request, res: Response) => {
       }
     }
     try {
-      const pdfBuffer = await pdfGeneratorService.generateSiafPdf(solicitud);
+      const siafPdf = (await cargarSiafParaPdf(solicitud.id)) || solicitud;
+      const pdfBuffer = await pdfGeneratorService.generateSiafPdf(siafPdf);
       const pdfInfo = await fileStorageService.saveSiafPdf(pdfBuffer, solicitud.correlativo);
       solicitud.pdfPath = pdfInfo.filePath;
       solicitud.pdfHash = pdfInfo.hash;

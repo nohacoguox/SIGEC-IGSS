@@ -56,7 +56,7 @@ const RevisarExpedientesDD: React.FC = () => {
   const [rechazarLoading, setRechazarLoading] = useState(false);
   /** Varios motivos de rechazo por documento; puede incluir posición (marca en el documento). */
   const [rechazosPorDoc, setRechazosPorDoc] = useState<Record<number, Array<RechazoEntry>>>({});
-  /** Igual que SIAF: modo marcar + diálogo «Corrección en este punto» */
+  /** Modo marcar + diálogo de corrección. */
   const [modoMarcar, setModoMarcar] = useState(false);
   const [dialogNuevaMarca, setDialogNuevaMarca] = useState<DialogNuevaMarcaState | null>(null);
   const viewerContainerRef = useRef<HTMLDivElement>(null!);

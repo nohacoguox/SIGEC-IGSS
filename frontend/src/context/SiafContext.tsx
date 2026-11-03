@@ -1,9 +1,7 @@
-// frontend/src/context/SiafContext.tsx
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode } from 'react';
 import api from '../api';
 import { formatFechaDMA } from '../utils';
 
-// --- Tipos ---
 interface Siaf {
   id: string;
   backendId: number;
@@ -24,10 +22,8 @@ interface SiafContextType {
   clearSiafs: () => void;
 }
 
-// --- Contexto ---
 const SiafContext = createContext<SiafContextType | undefined>(undefined);
 
-// --- Provider ---
 export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [siafList, setSiafList] = useState<Siaf[]>([]);
 
@@ -51,6 +47,7 @@ export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           nombreUnidad: siaf.nombreUnidad,
           direccion: siaf.direccion,
           areaId: siaf.area?.id,
+          areaUnidad: siaf.area?.nombre || '',
           justificacion: siaf.justificacion,
           nombreSolicitante: siaf.nombreSolicitante,
           puestoSolicitante: siaf.puestoSolicitante,
@@ -72,11 +69,6 @@ export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clearSiafs = () => {
     setSiafList([]);
   };
-
-  // No longer loading on initial mount
-  // useEffect(() => {
-  //   loadSiafs();
-  // }, []);
 
   const addSiaf = (newSiafFormData: any, backendId?: number) => {
     const newSiaf: Siaf = {
@@ -114,7 +106,6 @@ export const SiafProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
-// --- Hook Personalizado ---
 export const useSiaf = () => {
   const context = useContext(SiafContext);
   if (context === undefined) {

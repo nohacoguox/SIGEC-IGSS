@@ -2,8 +2,31 @@ import { In } from 'typeorm';
 import { AppDataSource } from '../../data-source';
 import { User } from '../../entity/User';
 import { ProductoCatalogo } from '../../entity/ProductoCatalogo';
-import { SiafBitacora } from '../../entity/SiafSolicitud';
+import { SiafBitacora, SiafSolicitud } from '../../entity/SiafSolicitud';
 import { parseOrigen } from '../../services/catalogoOrigen';
+
+/** Nombre en Forma A-01: unidad, luego espacio, "/", espacio y el área. */
+export function formatNombreUnidadConArea(
+  nombreUnidad?: string | null,
+  area?: string | null,
+): string {
+  const nombre = String(nombreUnidad || '').trim();
+  const areaNombre = String(area || '').trim();
+  if (!areaNombre || areaNombre.toUpperCase() === 'N/A') return nombre;
+  if (!nombre) return areaNombre;
+  const sufijo = ` / ${areaNombre}`;
+  if (nombre.toLowerCase().endsWith(sufijo.toLowerCase()) || nombre.toLowerCase().endsWith(`/${areaNombre.toLowerCase()}`)) {
+    return nombre;
+  }
+  return `${nombre}${sufijo}`;
+}
+
+export async function cargarSiafParaPdf(siafId: number): Promise<SiafSolicitud | null> {
+  return AppDataSource.getRepository(SiafSolicitud).findOne({
+    where: { id: siafId },
+    relations: ['area', 'items', 'subproductos'],
+  });
+}
 
 export const ETIQUETAS_MOTIVO: Record<string, string> = {
   falta_documento: 'Falta documento',

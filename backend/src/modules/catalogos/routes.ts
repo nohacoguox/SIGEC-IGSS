@@ -11,7 +11,7 @@ import { describirCambios, registrarActividadAdmin } from '../../services/adminA
 
 export const catalogosRouter = Router();
 
-// Puestos: GET lista (para dropdown en Gestión de Usuarios) permite también gestionar-usuarios; resto solo super admin o gestionar-puestos
+// GET puestos: también con gestionar-usuarios (selector en alta de usuarios)
 catalogosRouter.get('/puestos', verifyToken, authorizeRoles(['super administrador', 'gestionar-puestos', 'gestionar-usuarios']), async (req: Request, res: Response) => {
   try {
     const puestoRepository = AppDataSource.getRepository(Puesto);

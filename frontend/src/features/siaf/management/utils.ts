@@ -27,7 +27,11 @@ export function buildPdfDataFromForm(formData: Record<string, unknown>): SiafPdf
     nombreAutoridad: String(formData.nombreAutoridad || ''),
     puestoAutoridad: String(formData.puestoAutoridad || ''),
     unidadAutoridad: String(formData.unidadAutoridad || ''),
-    areaUnidad: String(formData.nombreUnidad || ''),
+    areaUnidad: String(
+      formData.areaUnidad ||
+      (formData.area as { nombre?: string } | undefined)?.nombre ||
+      '',
+    ),
     consistentItem: String(formData.consistentItem || ''),
   };
 }

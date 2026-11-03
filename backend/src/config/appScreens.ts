@@ -1,27 +1,16 @@
-/**
- * Catálogo de pantallas del sistema SIGEC-IGSS.
- * FUENTE DE VERDAD del contrato de pantallas/permisos.
- * El frontend consume GET /api/app-screens/catalog (y /app-screens para IDs).
- * Al agregar una pantalla nueva, añádala aquí y ejecute npm run seed-roles;
- * luego alinee el FALLBACK del frontend si hace falta.
- */
+/** Catálogo pantallas/permisos (seed-roles y GET /api/app-screens/catalog). */
 export type AppPanel = 'admin' | 'colaborador';
 
 export interface AppScreenDefinition {
-  /** Identificador único de la pantalla */
   key: string;
-  /** Nombre del permiso en BD (slug) */
   permission: string;
-  /** Etiqueta visible en UI */
   label: string;
   panel: AppPanel;
-  /** Grupo en el menú lateral */
   group?: string;
   description: string;
 }
 
 export const APP_SCREENS: AppScreenDefinition[] = [
-  // —— Panel administración ——
   {
     key: 'gestionar-usuarios',
     permission: 'gestionar-usuarios',
@@ -70,7 +59,6 @@ export const APP_SCREENS: AppScreenDefinition[] = [
     group: 'Gestiones',
     description: 'Configurar secuencia de correlativos SIAF y ver reservas en uso',
   },
-  // —— Panel colaborador ——
   {
     key: 'listado-siaf',
     permission: 'listado-siaf',

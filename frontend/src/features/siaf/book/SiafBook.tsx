@@ -1,4 +1,3 @@
-// frontend/src/features/siaf/book/SiafBook.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -1076,10 +1075,6 @@ const SiafBook: React.FC = () => {
           setAdjuntos((updated.data.documentosAdjuntos || []).map((a: any) => ({ id: a.id, nombreOriginal: a.nombreOriginal, tamanioBytes: a.tamanioBytes || 0, mimeType: a.mimeType })));
         }
       }
-
-      // NO navegar aquí para permitir que la vista previa se muestre
-      // await loadSiafs();
-      // navigate('/siaf-book');
 
     } catch (error: any) {
       console.error('Error al guardar SIAF:', error);

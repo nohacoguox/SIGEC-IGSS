@@ -28,7 +28,7 @@ export function estimateItemRowHeight(descripcion: string): number {
 }
 
 export function estimateConsistenteRowHeight(consistente: string): number {
-  return estimateTextHeight(`Consiste en: ${consistente || ''}`) + SIAF_PDF_ROW_GAP;
+  return estimateTextHeight(`Consistente en:\n${consistente || ''}`) + SIAF_PDF_ROW_GAP;
 }
 
 export function getPdfItemsCapacity(params: {
@@ -62,7 +62,7 @@ export function canAddItemRow(params: {
   return remaining >= estimateItemRowHeight('');
 }
 
-/** ¿Cabe la fila "Consiste en: …"? */
+/** ¿Cabe la fila "Consistente en:" + detalle debajo? */
 export function canAddConsistente(params: {
   items: { descripcion?: string }[];
   consistentItem?: string;

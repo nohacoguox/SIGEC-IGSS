@@ -136,7 +136,6 @@ const AdminDashboard: React.FC = () => {
   const gestionesItemsFiltered = gestionesItems.filter((item) => hasPermission(item.permission));
   const hasAnyGestionPermission = gestionesItemsFiltered.length > 0;
 
-  // Obtener estadísticas del dashboard
   useEffect(() => {
     const fetchDashboardStats = async () => {
       try {

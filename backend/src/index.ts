@@ -44,7 +44,6 @@ async function actividadReciente(): Promise<Array<{ fecha: string; usuario: stri
 }
 const synchronizeEnabled = process.env.DB_SYNCHRONIZE === 'true';
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -52,22 +51,21 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, service: 'sigec-backend' });
 });
 
-// Migración user_roles (automática al iniciar) y luego conexión TypeORM
 runUserRolesMigration()
   .then(() => AppDataSource.initialize())
   .then(async () => {
-  console.log('✅ Base de datos conectada exitosamente');
+  console.log('Base de datos conectada.');
   console.log(
     synchronizeEnabled
-      ? '⚠️  TypeORM synchronize=ON (DB_SYNCHRONIZE=true). Solo para BD vacía / desarrollo.'
-      : '🔒 TypeORM synchronize=OFF. Esquema vía migraciones (src/db/migrations) + ensureSchema.'
+      ? 'TypeORM synchronize=ON (solo desarrollo / BD vacía).'
+      : 'TypeORM synchronize=OFF (migraciones + ensureSchema).'
   );
 
   const executed = await AppDataSource.runMigrations();
   if (executed.length > 0) {
-    console.log(`📦 Migraciones aplicadas: ${executed.map((m) => m.name).join(', ')}`);
+    console.log(`Migraciones aplicadas: ${executed.map((m) => m.name).join(', ')}`);
   } else {
-    console.log('📦 Migraciones: sin pendientes');
+    console.log('Migraciones: sin pendientes.');
   }
 
   await ensureSchema();
@@ -78,27 +76,18 @@ runUserRolesMigration()
     console.error('Aviso al sincronizar permisos de pantallas:', e?.message);
   }
 
-  // Test database connection
   try {
     const userCount = await AppDataSource.getRepository(User).count();
-    console.log(`📊 Usuarios en base de datos: ${userCount}`);
+    console.log(`Usuarios en BD: ${userCount}`);
   } catch (error) {
-    console.error('❌ Error al verificar base de datos:', error);
+    console.error('Error al verificar base de datos:', error);
   }
 
-  // Revisión ortográfica vía LanguageTool → src/modules/ortografia
   app.use('/api/ortografia', ortografiaRouter);
-
-  // Auth endpoints (login, recuperación y cambio de contraseña) → src/modules/auth
   app.use('/api/auth', authRouter);
-
-  // Roles, permisos y catálogo de pantallas → src/modules/rbac
   app.use('/api', rbacRouter);
-
-  // Correlativos SIAF y de expedientes (secuencia, reservas y configuración) → src/modules/correlativos
   app.use('/api/correlativos', correlativosRouter);
 
-  // Estadísticas del dashboard (admin)
   app.get('/api/dashboard/stats', verifyToken, async (req: Request, res: Response) => {
     try {
       const [totalUsers, totalRoles, totalSiaf, actividad] = await Promise.all([
@@ -114,25 +103,13 @@ runUserRolesMigration()
     }
   });
 
-  // Expedientes: CRUD, revisión DAF, documentos y versiones → src/modules/expedientes
   app.use('/api/expedientes', expedientesRouter);
-
-  // Usuarios: alta, edición, roles asignados, director y personal médico → src/modules/usuarios
   app.use('/api/users', usuariosRouter);
-
-  // Puestos, departamentos, municipios, unidades médicas y áreas → src/modules/catalogos
   app.use('/api', catalogosRouter);
-
-  // Catálogo de productos MINFIN/SIBOFA: consulta, importación Excel y configuración → src/modules/catalogoProductos
   app.use('/api/catalogo-productos', catalogoProductosRouter);
-
-  // SIAF: solicitudes, revisión de Dirección Departamental, adjuntos y bitácora → src/modules/siaf
   app.use('/api/siaf', siafRouter);
-
-  // Estadísticas y analítica (SIAF, expedientes y DAF) → src/modules/estadisticas
   app.use('/api/estadisticas', estadisticasRouter);
 
-  // Manejo de errores (p. ej. multer o errores no capturados en rutas)
   app.use((err: any, req: Request, res: Response, _next: Function) => {
     console.error('Error en petición:', err);
     if (res.headersSent) return;
@@ -147,16 +124,15 @@ runUserRolesMigration()
     res.status(isFileTooLarge ? 413 : 500).json({ message: msg });
   });
 
-  // Start server
-  // 0.0.0.0: accesible desde otras PCs en la red (no solo localhost)
+  // 0.0.0.0 para alcanzar la API desde otras PCs de la red
   app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    console.log(`📡 API local:    http://localhost:${PORT}/api`);
-    console.log(`📡 API en red:   http://<IP-de-esta-PC>:${PORT}/api`);
+    console.log(`Servidor en puerto ${PORT}`);
+    console.log(`API local: http://localhost:${PORT}/api`);
+    console.log(`API en red: http://<IP-de-esta-PC>:${PORT}/api`);
   });
 
 }).catch(error => {
-  console.error('❌ Error al iniciar el backend (conexión o migraciones):', error);
+  console.error('Error al iniciar el backend (conexión o migraciones):', error);
   process.exit(1);
 });
 

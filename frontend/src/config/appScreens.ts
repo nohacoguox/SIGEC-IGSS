@@ -1,12 +1,4 @@
-/**
- * Tipos y helpers de pantallas SIGEC-IGSS.
- *
- * FUENTE DE VERDAD: backend/src/config/appScreens.ts
- * El frontend carga el catálogo desde GET /api/app-screens/catalog.
- * FALLBACK_* solo se usa si no hay sesión o falla la API (arranque / offline).
- * No agregue pantallas nuevas aquí primero: hágalo en el backend y vuelva a
- * sincronizar el fallback si hace falta.
- */
+/** Tipos de pantallas; el catálogo vivo viene de GET /api/app-screens/catalog. */
 export type AppPanel = 'admin' | 'colaborador';
 
 export interface AppScreenDefinition {
@@ -18,7 +10,7 @@ export interface AppScreenDefinition {
   description: string;
 }
 
-/** Espejo de emergencia del backend; preferir siempre el catálogo de la API. */
+/** Fallback si la API de pantallas no responde. */
 export const FALLBACK_APP_SCREENS: AppScreenDefinition[] = [
   { key: 'gestionar-usuarios', permission: 'gestionar-usuarios', label: 'Usuarios', panel: 'admin', group: 'Gestiones', description: 'Gestión de usuarios del sistema' },
   { key: 'gestionar-roles', permission: 'gestionar-roles', label: 'Roles', panel: 'admin', group: 'Gestiones', description: 'Gestión de roles y permisos' },

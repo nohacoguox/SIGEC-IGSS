@@ -1,23 +1,6 @@
 /**
- * Crea el primer usuario administrador cuando la BD solo tiene tablas (sin usuarios).
- *
- * Prerrequisitos:
- *   1. Esquema y tablas creados (backend arrancado al menos una vez con DB_SYNCHRONIZE o migraciones).
- *   2. Permisos y roles base:  npm run seed-roles
- *
- * Variables opcionales en backend/.env (si no se definen, usa valores por defecto solo para entorno de prueba):
- *   BOOTSTRAP_ADMIN_CODE=admin
- *   BOOTSTRAP_ADMIN_PASSWORD=CambiarEstaClave123!
- *   BOOTSTRAP_NOMBRES=Administrador
- *   BOOTSTRAP_APELLIDOS=SIGEC
- *   BOOTSTRAP_DPI=0000000000001
- *   BOOTSTRAP_NIT=000000-0
- *   BOOTSTRAP_TELEFONO=00000000
- *   BOOTSTRAP_CORREO=sigec.bootstrap@local
- *
- * Uso:  npm run seed-bootstrap-admin
- *
- * Idempotente: si ya existe al menos un usuario en "user", no hace nada (salvo FORCE_BOOTSTRAP_ADMIN=1).
+ * Primer admin si la BD no tiene usuarios (npm run seed-bootstrap-admin).
+ * Variables BOOTSTRAP_* en .env; no hace nada si ya hay usuarios (salvo FORCE_BOOTSTRAP_ADMIN=1).
  */
 import 'reflect-metadata';
 import 'dotenv/config';

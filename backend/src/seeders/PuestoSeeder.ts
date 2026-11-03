@@ -311,11 +311,9 @@ export const seedPuestos = async () => {
     console.log(`Seed de puestos completado. Total de puestos en BD: ${totalPuestos}`);
   } catch (error) {
     console.error('Error durante el seed de puestos:', error);
-    // No lanzamos el error para que la aplicación continúe
   }
 };
 
-// Si se ejecuta directamente este archivo
 if (require.main === module) {
   AppDataSource.initialize()
     .then(async () => {

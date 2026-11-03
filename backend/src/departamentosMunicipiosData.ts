@@ -1,9 +1,4 @@
-/**
- * Listado de departamentos de Guatemala y sus municipios.
- * Puedes completar o corregir la lista aquí; luego ejecuta: npx ts-node src/seeders/SeedDepartamentosMunicipios.ts
- *
- * Estructura: cada elemento es { departamento: string, municipios: string[] }
- */
+/** Departamentos y municipios de Guatemala (cargar con SeedDepartamentosMunicipios). */
 export const departamentosMunicipiosData: { departamento: string; municipios: string[] }[] = [
   {
     departamento: 'Alta Verapaz',

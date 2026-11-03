@@ -1,4 +1,3 @@
-// frontend/src/pages/CollaboratorDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -62,7 +61,6 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   'estadisticas-analista-daf': { title: 'Mis tiempos DAF', subtitle: '' },
 };
 
-// --- Main Component ---
 const CollaboratorDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,7 +76,6 @@ const CollaboratorDashboard: React.FC = () => {
   const puedeBandejaDaf =
     hasPermission('revisar-siaf-direccion-departamental') ||
     hasPermission('revisar-expediente-direccion-departamental');
-  // Mis estadísticas (personal) o Estadísticas de mi unidad (jefe/Admin C)
   const puedeEstadisticas =
     hasPermission('estadisticas-tiempos') || hasPermission('ver-estadisticas-unidad');
   const puedeTiemposDaf = hasPermission('estadisticas-analista-daf');
@@ -96,7 +93,6 @@ const CollaboratorDashboard: React.FC = () => {
   const isExpedientesListRoute = location.pathname === '/expedientes';
   const isExpedientesUnidadRoute = location.pathname === '/expedientes/unidad';
 
-  // Si tenía estadísticas seleccionado pero no tiene permiso, volver al dashboard
   useEffect(() => {
     if ((selectedView === 'estadisticas-daf' || selectedView === 'estadisticas-piloto-pg2') && !puedeEstadisticas) {
       setSelectedView('dashboard');

@@ -84,7 +84,7 @@ export const KpiCard = ({
   </motion.div>
 );
 
-/** Encabezado de bloque: agrupa KPIs / gráficos / tablas para leer por secciones. */
+/** Título de sección en analítica. */
 export function SectionBlock({
   title,
   description,

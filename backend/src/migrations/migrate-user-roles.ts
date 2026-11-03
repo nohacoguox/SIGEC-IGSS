@@ -1,8 +1,4 @@
-/**
- * Migración única: pasa de User.roleId (un rol) a User.roles (varios roles).
- * Se ejecuta automáticamente al iniciar el backend (index.ts).
- * También se puede ejecutar a mano: npm run migrate-user-roles
- */
+/** Pasa de User.roleId (un rol) a User.roles (varios). Corre al arrancar el backend. */
 import 'dotenv/config';
 import { Client } from 'pg';
 
@@ -35,7 +31,7 @@ export async function runUserRolesMigration(): Promise<void> {
     );
     if (Number(tablesOk.rows[0]?.c ?? 0) < 2) {
       console.log(
-        '📦 Migración user_roles: omitida (tablas user/role aún no existen; TypeORM las creará en el arranque).'
+        'Migración user_roles omitida (tablas user/role aún no existen; TypeORM las crea al arrancar).'
       );
       return;
     }
@@ -65,10 +61,10 @@ export async function runUserRolesMigration(): Promise<void> {
           INSERT INTO "user_roles" ("userId", "roleId")
           SELECT id, "roleId" FROM "user" WHERE "roleId" IS NOT NULL
         `);
-        console.log('📦 Migración user_roles: datos copiados de user.roleId a user_roles.');
+        console.log('Migración user_roles: datos copiados de user.roleId a user_roles.');
       }
       await client.query(`ALTER TABLE "user" DROP COLUMN IF EXISTS "roleId"`);
-      console.log('📦 Migración user_roles: columna roleId eliminada de user.');
+      console.log('Migración user_roles: columna roleId eliminada de user.');
     }
   } finally {
     await client.end();

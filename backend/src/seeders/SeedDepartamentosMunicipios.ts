@@ -1,9 +1,4 @@
-/**
- * Carga la tabla departamentos y municipios desde departamentosMunicipiosData.
- * Ejecutar: npx ts-node src/seeders/SeedDepartamentosMunicipios.ts
- *
- * Puedes editar src/departamentosMunicipiosData.ts para agregar o corregir departamentos y municipios.
- */
+/** Seed de departamentos/municipios desde departamentosMunicipiosData.ts */
 import 'reflect-metadata';
 import { AppDataSource } from '../data-source';
 import { Departamento } from '../entity/Departamento';

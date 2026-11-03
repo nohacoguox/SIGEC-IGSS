@@ -1,7 +1,4 @@
-/**
- * Visor PDF con PDF.js (Mozilla): detecta página y posición exacta del clic
- * para marcar correcciones/rechazos y mostrar pins en el mismo punto.
- */
+/** Visor PDF.js: clic → página + posición (%) para marcas. */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Box, Typography } from '@mui/material';
 import * as pdfjsLib from 'pdfjs-dist';

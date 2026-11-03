@@ -115,9 +115,9 @@ export async function ensureSchema(): Promise<void> {
     const afterCount = await AppDataSource.query(`SELECT COUNT(*) AS c FROM siaf_bitacora WHERE tipo = 'correccion' AND siaf_id IS NULL`);
     const remaining = afterCount?.[0]?.c ?? 0;
     if (remaining === 0) {
-      console.log('✅ Bitácora: correcciones con siaf_id NULL asignadas (rechazos y correcciones se muestran por SIAF).');
+      console.log('Bitácora: backfill siaf_id en correcciones completado.');
     } else if ((beforeCount?.[0]?.c ?? 0) > 0) {
-      console.log(`⚠️ Bitácora: ${remaining} corrección(es) siguen con siaf_id NULL (se intentará mostrarlas por fecha al cargar bitácora).`);
+      console.log(`Bitácora: quedan ${remaining} correcciones sin siaf_id.`);
     }
   } catch (e: any) {
     if (!/does not exist/i.test(e?.message || '')) console.error('Aviso al asignar siaf_id a correcciones:', e?.message);

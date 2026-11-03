@@ -265,8 +265,7 @@ estadisticasRouter.get('/motivos-rechazo', verifyToken, authorizeRolesOrPermissi
   }
 });
 
-// Indicadores del piloto PG2. Se calculan exclusivamente con el expediente
-// digital y su bitácora; no sustituyen la línea base documental n=25.
+// Métricas piloto PG2 (expediente digital + bitácora).
 estadisticasRouter.get('/tesis-piloto', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos']), async (req: Request, res: Response) => {
   try {
     const dias = Math.min(3650, Math.max(1, parseInt(String(req.query.dias || 365), 10) || 365));
@@ -513,8 +512,6 @@ estadisticasRouter.get('/filtros-analitica', verifyToken, authorizeRolesOrPermis
   }
 });
 
-// Tablero operativo de expedientes: identifica demoras, rechazos, ciclos y
-// motivos para que el área pueda detectar cuellos de botella y tabular V1–V4.
 estadisticasRouter.get('/expedientes-analitica', verifyToken, authorizeRolesOrPermissions(['super administrador'], ['ver-estadisticas', 'estadisticas-tiempos', 'ver-estadisticas-unidad']), async (req: Request, res: Response) => {
   try {
     const scopeResult = await resolveAnalyticsScope(req, AppDataSource.getRepository(User));

@@ -77,7 +77,7 @@ export function buildSiafPdfData(siaf: SiafSolicitud) {
     nombreAutoridad: siaf.nombreAutoridad || '',
     puestoAutoridad: siaf.puestoAutoridad || '',
     unidadAutoridad: siaf.unidadAutoridad || '',
-    areaUnidad: siaf.areaUnidad || siaf.nombreUnidad,
+    areaUnidad: siaf.areaUnidad && siaf.areaUnidad !== 'N/A' ? siaf.areaUnidad : '',
     consistentItem: siaf.consistentItem,
   };
 }

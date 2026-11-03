@@ -1,7 +1,4 @@
-/**
- * Elimina el rol "colaborador" de la base de datos.
- * Ejecutar una vez: npm run remove-colaborador-role
- */
+/** Elimina el rol "colaborador" (migración puntual). */
 import 'reflect-metadata';
 import { AppDataSource } from '../data-source';
 import { Role } from '../entity/Role';

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
 import { formatFechaDMA } from '../utils/dateUtils';
+import { formatNombreUnidadConArea } from '../features/siaf/book/utils';
 
 // Alturas calibradas para que la hoja se llene igual que el formato Excel institucional.
 const MARGIN = 34;
@@ -350,7 +351,7 @@ export const SiafPdfDocument: React.FC<SiafPdfDocumentProps> = ({ data }) => (
         <Text style={styles.datosUnidadTitle}>DATOS DE LA UNIDAD EJECUTORA, CENTRO DE COSTO, DEPENDENCIA O SERVICIO</Text>
         <View style={styles.fullWidthRow}>
           <Text style={{ ...styles.datosUnidadLabel, width: 52 }}>Nombre:</Text>
-          <Text style={styles.inputLine}>{data.nombreUnidad}{data.areaUnidad ? ` / ${data.areaUnidad}` : ''}</Text>
+          <Text style={styles.inputLine}>{formatNombreUnidadConArea(data.nombreUnidad, data.areaUnidad)}</Text>
         </View>
         <View style={styles.fullWidthRow}>
           <Text style={{ ...styles.datosUnidadLabel, width: 52 }}>Dirección:</Text>
@@ -386,7 +387,7 @@ export const SiafPdfDocument: React.FC<SiafPdfDocumentProps> = ({ data }) => (
             <View style={styles.tableItemRow} wrap={false}>
               <Text style={styles.tableItemCodigo}> </Text>
               <Text style={[styles.tableItemDesc, styles.consistentItemText]}>
-                Consiste en: {data.consistentItem}
+                Consistente en:{'\n'}{data.consistentItem}
               </Text>
               <Text style={styles.tableItemCant}> </Text>
             </View>

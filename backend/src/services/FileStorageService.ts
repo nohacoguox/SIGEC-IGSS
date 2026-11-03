@@ -6,23 +6,16 @@ export class FileStorageService {
   private uploadDir: string;
 
   constructor() {
-    // Directorio base para almacenar archivos
     this.uploadDir = path.join(__dirname, '../../uploads');
     this.ensureDirectoryExists(this.uploadDir);
   }
 
-  /**
-   * Asegura que un directorio exista, si no lo crea
-   */
   private ensureDirectoryExists(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
     }
   }
 
-  /**
-   * Genera un hash SHA-256 de un buffer
-   */
   private generateHash(buffer: Buffer): string {
     return crypto.createHash('sha256').update(buffer).digest('hex');
   }
@@ -54,12 +47,7 @@ export class FileStorageService {
     return path.join(this.uploadDir, this.normalizeRelativePath(filePath));
   }
 
-  /**
-   * Guarda un archivo PDF de SIAF
-   * @param pdfBuffer Buffer del PDF generado
-   * @param correlativo Correlativo de la solicitud SIAF
-   * @returns Objeto con la ruta del archivo, hash y tamaño
-   */
+  /** Guarda PDF SIAF en uploads/siaf/AAAA/MM/ */
   async saveSiafPdf(pdfBuffer: Buffer, correlativo: string): Promise<{
     filePath: string;
     hash: string;
@@ -67,22 +55,15 @@ export class FileStorageService {
   }> {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
-    
-    // Crear estructura de directorios: uploads/siaf/2024/01/
+
     const siafDir = path.join(this.uploadDir, 'siaf', String(year), month);
     this.ensureDirectoryExists(siafDir);
 
-    // Nombre del archivo: SIAF-1-2026.pdf (el correlativo viene como "1/2026")
     const fileName = `SIAF-${this.sanitizeFileName(correlativo)}.pdf`;
     const fullPath = path.join(siafDir, fileName);
 
-    // Guardar el archivo
     fs.writeFileSync(fullPath, pdfBuffer);
-
-    // Generar hash para verificación de integridad
     const hash = this.generateHash(pdfBuffer);
-
-    // Ruta relativa para almacenar en BD
     const relativePath = path.join('siaf', String(year), month, fileName);
 
     return {
@@ -92,11 +73,6 @@ export class FileStorageService {
     };
   }
 
-  /**
-   * Lee un archivo PDF de SIAF
-   * @param filePath Ruta relativa del archivo
-   * @returns Buffer del archivo
-   */
   async readSiafPdf(filePath: string): Promise<Buffer> {
     const fullPath = this.resolveUploadPath(filePath);
     
@@ -107,12 +83,6 @@ export class FileStorageService {
     return fs.readFileSync(fullPath);
   }
 
-  /**
-   * Verifica la integridad de un archivo usando su hash
-   * @param filePath Ruta relativa del archivo
-   * @param expectedHash Hash esperado
-   * @returns true si el archivo es íntegro, false si está corrupto
-   */
   async verifyFileIntegrity(filePath: string, expectedHash: string): Promise<boolean> {
     try {
       const fileBuffer = await this.readSiafPdf(filePath);
@@ -123,10 +93,6 @@ export class FileStorageService {
     }
   }
 
-  /**
-   * Elimina un archivo PDF de SIAF
-   * @param filePath Ruta relativa del archivo
-   */
   async deleteSiafPdf(filePath: string): Promise<void> {
     const fullPath = this.resolveUploadPath(filePath);
     
@@ -135,13 +101,6 @@ export class FileStorageService {
     }
   }
 
-  /**
-   * Guarda un documento de expediente
-   * @param fileBuffer Buffer del archivo
-   * @param numeroExpediente Número del expediente
-   * @param fileName Nombre original del archivo
-   * @returns Objeto con la ruta del archivo, hash y tamaño
-   */
   async saveExpedienteDocument(
     fileBuffer: Buffer, 
     numeroExpediente: string, 
@@ -151,26 +110,18 @@ export class FileStorageService {
     hash: string;
     size: number;
   }> {
-    // Crear estructura de directorios: uploads/expedientes/EXP-001/
     const carpetaExpediente = this.sanitizeFileName(numeroExpediente);
     const expedienteDir = path.join(this.uploadDir, 'expedientes', carpetaExpediente);
     this.ensureDirectoryExists(expedienteDir);
 
-    // Generar nombre único para evitar colisiones
     const timestamp = Date.now();
     const ext = path.extname(fileName);
     const baseName = path.basename(fileName, ext);
     const uniqueFileName = `${baseName}-${timestamp}${ext}`;
-    
+
     const fullPath = path.join(expedienteDir, uniqueFileName);
-
-    // Guardar el archivo
     fs.writeFileSync(fullPath, fileBuffer);
-
-    // Generar hash
     const hash = this.generateHash(fileBuffer);
-
-    // Ruta relativa
     const relativePath = path.join('expedientes', carpetaExpediente, uniqueFileName);
 
     return {
@@ -180,11 +131,6 @@ export class FileStorageService {
     };
   }
 
-  /**
-   * Lee un documento de expediente
-   * @param filePath Ruta relativa del archivo
-   * @returns Buffer del archivo
-   */
   async readExpedienteDocument(filePath: string): Promise<Buffer> {
     const fullPath = this.resolveUploadPath(filePath);
 
@@ -195,11 +141,6 @@ export class FileStorageService {
     return fs.readFileSync(fullPath);
   }
 
-  /**
-   * Obtiene información de un archivo
-   * @param filePath Ruta relativa del archivo
-   * @returns Información del archivo (tamaño, fecha de creación, etc.)
-   */
   async getFileInfo(filePath: string): Promise<{
     size: number;
     createdAt: Date;
@@ -220,11 +161,6 @@ export class FileStorageService {
     };
   }
 
-  /**
-   * Lista todos los archivos de un expediente
-   * @param numeroExpediente Número del expediente
-   * @returns Array de nombres de archivos
-   */
   async listExpedienteFiles(numeroExpediente: string): Promise<string[]> {
     const expedienteDir = path.join(this.uploadDir, 'expedientes', this.sanitizeFileName(numeroExpediente));
     
@@ -235,13 +171,6 @@ export class FileStorageService {
     return fs.readdirSync(expedienteDir);
   }
 
-  /**
-   * Guarda un documento adjunto de SIAF (especificación técnica, cotización, etc.)
-   * @param fileBuffer Buffer del archivo
-   * @param siafId ID de la solicitud SIAF
-   * @param nombreOriginal Nombre original del archivo
-   * @returns Objeto con la ruta del archivo, hash y tamaño
-   */
   async saveSiafAdjunto(
     fileBuffer: Buffer,
     siafId: number,
@@ -272,9 +201,6 @@ export class FileStorageService {
     };
   }
 
-  /**
-   * Lee un archivo por ruta relativa (adjuntos SIAF, etc.)
-   */
   async readFileByRelativePath(filePath: string): Promise<Buffer> {
     const fullPath = this.resolveUploadPath(filePath);
     if (!fs.existsSync(fullPath)) {
@@ -283,9 +209,6 @@ export class FileStorageService {
     return fs.readFileSync(fullPath);
   }
 
-  /**
-   * Elimina un archivo adjunto de SIAF por ruta relativa
-   */
   async deleteSiafAdjunto(filePath: string): Promise<void> {
     const fullPath = this.resolveUploadPath(filePath);
     if (fs.existsSync(fullPath)) {
@@ -293,9 +216,6 @@ export class FileStorageService {
     }
   }
 
-  /**
-   * Elimina un documento de expediente por ruta relativa
-   */
   async deleteExpedienteDocument(filePath: string): Promise<void> {
     const fullPath = this.resolveUploadPath(filePath);
     if (fs.existsSync(fullPath)) {
@@ -304,5 +224,4 @@ export class FileStorageService {
   }
 }
 
-// Exportar instancia singleton
 export const fileStorageService = new FileStorageService();

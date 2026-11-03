@@ -27,15 +27,7 @@ export const verifyToken = (req: Request, res: Response, next: Function) => {
   }
 };
 
-/**
- * Autoriza si:
- * - es super administrador, o
- * - tiene alguno de los nombres en `allowed` como rol, o
- * - tiene alguno de los nombres en `allowed` como permiso (slug).
- *
- * Nota: muchas rutas pasan slugs de permiso (gestionar-usuarios, crear-siaf, etc.)
- * en este mismo arreglo; por eso se contrastan también contra JWT.permissions.
- */
+/** Autoriza por rol o por slug de permiso en el mismo arreglo `allowed`. */
 export const authorizeRoles = (allowed: string[]) => (req: Request, res: Response, next: Function) => {
   if (isSuperAdmin(req)) return next();
   const userRoles: string[] = (req as any).user?.roles ?? [];
@@ -49,7 +41,6 @@ export const authorizeRoles = (allowed: string[]) => (req: Request, res: Respons
   next();
 };
 
-// Middleware: permite si tiene uno de los roles O uno de los permisos
 export const authorizeRolesOrPermissions = (allowedRoles: string[], allowedPermissions: string[]) => (
   req: Request,
   res: Response,
