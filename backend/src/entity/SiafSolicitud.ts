@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn, AfterLoad } from 'typeorm';
 import { User } from './User';
 import { Area } from './Area';
 
@@ -96,6 +96,15 @@ export class SiafSolicitud {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  /** Postgres no garantiza el orden de las filas unidas: se respeta el orden en que se ingresaron. */
+  @AfterLoad()
+  ordenarDetalle() {
+    const porOrden = (a: { orden: number; id: number }, b: { orden: number; id: number }) =>
+      (a.orden ?? 0) - (b.orden ?? 0) || (a.id ?? 0) - (b.id ?? 0);
+    if (Array.isArray(this.items)) this.items.sort(porOrden);
+    if (Array.isArray(this.subproductos)) this.subproductos.sort(porOrden);
+  }
 }
 
 @Entity('siaf_items')
